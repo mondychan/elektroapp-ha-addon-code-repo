@@ -16,6 +16,27 @@ Ingress (panel v postrannim menu).
 - `ha-addon/elektroapp` - Home Assistant add-on manifest a metadata
 - `dockerfile` - multi-stage build (frontend build -> backend image)
 
+## Dva repozitare a jejich role
+Tento repo (`elektroapp-ha-addon-code-repo`) obsahuje zdrojaky a build add-onu.
+Druhy repo (`elektroapp-ha-addon`) slouzi jen jako Home Assistant add-on store
+repo, ze ktereho Supervisor nacita metadata a soubory add-onu.
+
+Zmeny v `ha-addon/elektroapp` je potreba prenaset i do `elektroapp-ha-addon`,
+jinak je HA neuvidi (napr. `CHANGELOG.md`, `README.md`, `config.yaml`).
+
+### Synchronizace do HA repo (manualni)
+```powershell
+Copy-Item `
+  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon-code\elektroapp-ha-addon-code-repo\ha-addon\elektroapp\CHANGELOG.md" `
+  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon\elektroapp\CHANGELOG.md" `
+  -Force
+
+Set-Location "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon"
+git add elektroapp\CHANGELOG.md
+git commit -m "Sync changelog"
+git push
+```
+
 ## Instalace do Home Assistant
 1. V HA: Settings > Add-ons > Add-on Store > ... > Repositories.
 2. Pridat URL GitHub repozitare s add-onem.
