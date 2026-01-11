@@ -85,7 +85,8 @@ nebo docasne odinstalovani a znovu nainstalovani add-onu.
 
 
 ## Plny postup pri zmene kodu (release flow)
-Tento postup slouzi jako checklist pro budoucnost.
+Tento postup plati pouze pro Home Assistant add-on v tomto repozitari (ne pro
+standalone verzi Elektroapp v jinem repu).
 
 1. Uprav kod (backend/frontend/add-on).
 2. Zvedni verzi v `ha-addon/elektroapp/config.yaml`.
