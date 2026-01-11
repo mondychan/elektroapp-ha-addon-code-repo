@@ -1,0 +1,9 @@
+services:
+  elektroapp:
+    build: .
+    container_name: elektroapp
+    ports:
+      - "8000:8000"
+#    volumes:
+#      - ./backend/config.yaml:/app/config.yaml  # možnost měnit config lokálně
+    restart: unless-stopped

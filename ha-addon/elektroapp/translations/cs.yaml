@@ -1,0 +1,12 @@
+configuration:
+  dph:
+    name: "DPH nasobic"
+    description: "Napr. 1.21"
+  poplatky:
+    name: "Poplatky"
+  tarif:
+    name: "Tarif"
+    description: "VT intervaly jako \"6-7,9-10,13-14,16-17\""
+  influxdb:
+    name: "InfluxDB"
+    description: "Nastaveni pripojeni pro spotrebu"

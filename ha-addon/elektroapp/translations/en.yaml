@@ -1,0 +1,12 @@
+configuration:
+  dph:
+    name: "VAT multiplier"
+    description: "Example: 1.21"
+  poplatky:
+    name: "Fees"
+  tarif:
+    name: "Tariff"
+    description: "VT periods as \"6-7,9-10,13-14,16-17\""
+  influxdb:
+    name: "InfluxDB"
+    description: "Connection settings for consumption data"

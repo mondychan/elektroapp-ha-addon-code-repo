@@ -1,0 +1,64 @@
+name: "Elektroapp"
+slug: "elektroapp"
+description: "Spot prices and energy costs UI with Ingress for Home Assistant"
+version: "0.1.3"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+ingress: true
+ingress_port: 8000
+panel_icon: "mdi:flash"
+image: "mondychan/elektroapp-ha"
+ports:
+  8000/tcp: null
+ports_description:
+  8000/tcp: "Elektroapp Web UI"
+webui: "http://[HOST]:[PORT:8000]/"
+options:
+  dph: 1.21
+  poplatky:
+    komodita_sluzba: 0.35
+    poze: 0.0
+    dan: 0.03424
+    distribuce:
+      NT: 0.14097
+      VT: 0.91327
+  tarif:
+    vt_periods: "6-7,9-10,13-14,16-17"
+  influxdb:
+    host: "192.168.82.120"
+    port: 8086
+    database: "homeassistant"
+    retention_policy: "autogen"
+    measurement: "kWh"
+    field: "value"
+    entity_id: "solax_drinov_today_s_import_energy"
+    username: "electroapp"
+    password: "CHANGE_ME"
+    timezone: "Europe/Prague"
+    interval: "15m"
+schema:
+  dph: float
+  poplatky:
+    komodita_sluzba: float
+    poze: float
+    dan: float
+    distribuce:
+      NT: float
+      VT: float
+  tarif:
+    vt_periods: str
+  influxdb:
+    host: str
+    port: int
+    database: str
+    retention_policy: str?
+    measurement: str
+    field: str
+    entity_id: str
+    username: str?
+    password: password?
+    timezone: str
+    interval: str
