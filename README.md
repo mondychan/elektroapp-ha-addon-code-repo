@@ -1,15 +1,116 @@
-# electroapp-ha-addon
+# Elektroapp Home Assistant Add-on
 
-doplnek elektroapp do ha
+Elektroapp je Home Assistant add-on, ktery zobrazuje spotove ceny elektriny a
+pocita naklady podle spotreby z InfluxDB. UI je dostupne pres Home Assistant
+Ingress (panel v postrannim menu).
 
-build by 
+## Co to dela
+- nacte spotove ceny (dnes/zitra a historie) ze spotovaelektrina.cz
+- prepocita cenu na "konecna cena" podle DPH, POZE, dane a distribuce (VT/NT)
+- nacte spotrebu z InfluxDB a spocte naklady za vybrany den
+- zobrazi denni graf nakladu/spotreby a mesicni souhrn
 
-nezapomen upravit verzi!
+## Struktura projektu
+- `app/backend` - FastAPI backend (API + vypocty + InfluxDB dotazy)
+- `app/frontend` - React frontend (grafy a UI)
+- `ha-addon/elektroapp` - Home Assistant add-on manifest a metadata
+- `dockerfile` - multi-stage build (frontend build -> backend image)
 
-docker buildx build --platform linux/amd64,linux/arm64/v8 -t mondychan/elektroapp-ha:0.1.3 -t mondychan/elektroapp-ha:latest -f dockerfile --push .
+## Instalace do Home Assistant
+1. V HA: Settings > Add-ons > Add-on Store > ... > Repositories.
+2. Pridat URL GitHub repozitare s add-onem.
+3. V seznamu add-onu vybrat "Elektroapp" a kliknout Install.
+4. Otevrit konfiguraci add-onu, vyplnit InfluxDB a tarifni parametry.
+5. Start add-onu a otevrit panel (Ingress).
 
-buildni, pak pridej do HA
-nastavit
+Detailni navod i seznam konfiguracnich poli je v `ha-addon/elektroapp/README.md`.
 
-musis si vytvorit influxdb usera a vlozit jeho credintials do nastaveni
+## Konfigurace (zaklad)
+Konfigurace se nacita z HA options (`/data/options.json`), pro lokalni beh z
+`app/backend/config.yaml`.
 
+Nejdulezitejsi polozky:
+- `dph` - nasobic DPH (napr. `1.21`)
+- `poplatky.*` - komodita, POZE, dan, distribuce (VT/NT)
+- `tarif.vt_periods` - VT intervaly ve formatu `HH-HH`, oddelene carkou
+- `influxdb.*` - host/port, database, measurement, field, entity_id, timezone
+
+Priklad:
+```yaml
+dph: 1.21
+poplatky:
+  komodita_sluzba: 0.35
+  poze: 0.0
+  dan: 0.03424
+  distribuce:
+    NT: 0.14097
+    VT: 0.91327
+tarif:
+  vt_periods: "6-7,9-10,13-14,16-17"
+influxdb:
+  host: "192.168.1.10"
+  port: 8086
+  database: "homeassistant"
+  retention_policy: "autogen"
+  measurement: "kWh"
+  field: "value"
+  entity_id: "your_entity_id"
+  username: "elektroapp"
+  password: "CHANGE_ME"
+  timezone: "Europe/Prague"
+  interval: "15m"
+```
+
+Poznamka: v InfluxDB je potreba mit uzivatele a spravne credentials.
+
+
+## Build/publish add-on image
+Nezapomen upravit verzi v `ha-addon/elektroapp/config.yaml`.
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64/v8 `
+  -t mondychan/elektroapp-ha:0.1.3 `
+  -t mondychan/elektroapp-ha:latest `
+  -f dockerfile --push .
+```
+
+## Aktualizace add-onu v Home Assistant
+1. Uprav verzi v `ha-addon/elektroapp/config.yaml`.
+2. Build a push noveho image (viz vyse).
+3. V Home Assistant otevri Add-on Store a dej "Check for updates".
+4. U add-onu "Elektroapp" klikni Update a pak Restart.
+
+Poznamka: pokud se update nezobrazi, pomuze restart Home Assistant Supervisoru
+nebo docasne odinstalovani a znovu nainstalovani add-onu.
+
+
+## Plny postup pri zmene kodu (release flow)
+Tento postup slouzi jako checklist pro budoucnost.
+
+1. Uprav kod (backend/frontend/add-on).
+2. Zvedni verzi v `ha-addon/elektroapp/config.yaml`.
+3. Build + push Docker image do DockerHubu:
+```bash
+docker buildx build --platform linux/amd64,linux/arm64/v8 `
+  -t mondychan/elektroapp-ha:0.1.3 `
+  -t mondychan/elektroapp-ha:latest `
+  -f dockerfile --push .
+```
+4. Zmeny commitni a pushni na GitHub:
+```bash
+git status
+git add .
+git commit -m "Release 0.1.3"
+git push
+```
+5. V Home Assistant: Add-on Store -> "Check for updates" -> Update -> Restart.
+
+Poznamky:
+- Tagy a verze musi odpovidat (Docker tag + `config.yaml`).
+- Pokud HA update nevidi, pomuze restart Supervisoru nebo reinstall add-onu.
+
+## API
+Backend poskytuje napr.:
+- `GET /api/prices` (spotove ceny + vypoctena cena)
+- `GET /api/costs?date=YYYY-MM-DD` (naklady podle spotreby)
+- `GET /api/daily-summary?month=YYYY-MM` (mesicni souhrn)
