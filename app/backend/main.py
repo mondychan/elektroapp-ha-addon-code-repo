@@ -6,18 +6,24 @@ import requests
 import yaml
 import os
 import json
+import threading
+import time as time_module
 import re
 from html.parser import HTMLParser
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as datetime_time
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import logging
 
 app = FastAPI(title="Elektroapp API")
 
 CONFIG_FILE = "config.yaml"
 HA_OPTIONS_FILE = Path("/data/options.json")
 PRICES_CACHE = {}
-CACHE_DIR = Path(__file__).parent / "cache"
+DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
+CACHE_DIR = (DATA_DIR / "prices-cache") if DATA_DIR.exists() else (Path(__file__).parent / "cache")
+APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
+logger = logging.getLogger("uvicorn.error")
 
 # --- Povolit CORS ---
 app.add_middleware(
@@ -204,6 +210,41 @@ def save_prices_cache(date_str, entries):
     path = CACHE_DIR / f"prices-{date_str}.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(entries, f)
+    logger.info("Saved prices cache for %s to %s", date_str, path)
+
+
+def has_price_cache(date_str):
+    cached = load_prices_cache(date_str)
+    return bool(cached)
+
+def cache_status():
+    if not CACHE_DIR.exists():
+        return {"dir": str(CACHE_DIR), "count": 0, "latest": None, "size_bytes": 0}
+    files = sorted(CACHE_DIR.glob("prices-*.json"))
+    latest = None
+    total_size = 0
+    if files:
+        latest = files[-1].stem.replace("prices-", "")
+        total_size = sum(path.stat().st_size for path in files)
+    return {"dir": str(CACHE_DIR), "count": len(files), "latest": latest, "size_bytes": total_size}
+
+def build_entries_from_api(cfg, date_str, hours):
+    entries = []
+    for entry in hours:
+        hour = entry["hour"]
+        minute = entry.get("minute", 0)
+        spot_kwh = entry["priceCZK"] / 1000
+        final_price = calculate_final_price(spot_kwh, hour, cfg)
+        entries.append(
+            {
+                "time": f"{date_str} {hour:02d}:{minute:02d}",
+                "hour": hour,
+                "minute": minute,
+                "spot": round(spot_kwh, 5),
+                "final": final_price,
+            }
+        )
+    return entries
 
 def get_prices_for_date(cfg, date_str, tzinfo):
     if date_str in PRICES_CACHE:
@@ -211,7 +252,9 @@ def get_prices_for_date(cfg, date_str, tzinfo):
     cached = load_prices_cache(date_str)
     if cached is not None:
         PRICES_CACHE[date_str] = cached
+        logger.info("Prices cache hit for %s", date_str)
         return cached
+    logger.info("Prices cache miss for %s", date_str)
 
     date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
     today = datetime.now(tzinfo).date()
@@ -220,22 +263,20 @@ def get_prices_for_date(cfg, date_str, tzinfo):
     entries = []
     if date_obj in (today, tomorrow):
         data = get_spot_prices()
-        key = "hoursToday" if date_obj == today else "hoursTomorrow"
-        for entry in data.get(key, []):
-            hour = entry["hour"]
-            minute = entry.get("minute", 0)
-            spot_kwh = entry["priceCZK"] / 1000
-            final_price = calculate_final_price(spot_kwh, hour, cfg)
-            entries.append(
-                {
-                    "time": f"{date_str} {hour:02d}:{minute:02d}",
-                    "hour": hour,
-                    "minute": minute,
-                    "spot": round(spot_kwh, 5),
-                    "final": final_price,
-                }
-            )
+        today_str = today.strftime("%Y-%m-%d")
+        tomorrow_str = tomorrow.strftime("%Y-%m-%d")
+        today_entries = build_entries_from_api(cfg, today_str, data.get("hoursToday", []))
+        tomorrow_entries = build_entries_from_api(cfg, tomorrow_str, data.get("hoursTomorrow", []))
+        if today_entries:
+            PRICES_CACHE[today_str] = today_entries
+            save_prices_cache(today_str, today_entries)
+        if tomorrow_entries:
+            PRICES_CACHE[tomorrow_str] = tomorrow_entries
+            save_prices_cache(tomorrow_str, tomorrow_entries)
+        entries = today_entries if date_obj == today else tomorrow_entries
+        return entries
     else:
+        logger.info("Fetching historical prices from HTML for %s", date_str)
         url = f"https://spotovaelektrina.cz/denni-ceny/{date_str}"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
@@ -367,10 +408,20 @@ def save_config(new_config: dict = Body(...)):
         yaml.safe_dump(new_config, f, allow_unicode=True)
     return {"status": "ok", "message": "Konfigurace uložena"}
 
+@app.get("/api/cache-status")
+def get_cache_status():
+    return cache_status()
+
+@app.get("/api/version")
+def get_version():
+    return {"version": APP_VERSION}
+
+
 # --- Spotové ceny ---
 def get_spot_prices():
     # Nový endpoint s čtvrthodinovými daty
     url = "https://spotovaelektrina.cz/api/v1/price/get-prices-json-qh"
+    logger.info("Fetching prices from API: %s", url)
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     return r.json()
@@ -394,34 +445,11 @@ def get_prices(date: str = Query(default=None)):
     tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
     if date:
         return {"prices": get_prices_for_date(cfg, date, tzinfo)}
-    data = get_spot_prices()
     final_list = []
     today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
-    for entry in data.get("hoursToday", []):
-        hour = entry["hour"]
-        minute = entry.get("minute", 0)
-        spot_kwh = entry["priceCZK"] / 1000
-        final_price = calculate_final_price(spot_kwh, hour, cfg)
-        final_list.append({
-            "time": f"{today_str} {hour:02d}:{minute:02d}",
-            "hour": hour,
-            "minute": minute,
-            "spot": round(spot_kwh, 5),
-            "final": final_price
-        })
+    final_list.extend(get_prices_for_date(cfg, today_str, tzinfo))
     tomorrow_str = (datetime.now(tzinfo) + timedelta(days=1)).strftime("%Y-%m-%d")
-    for entry in data.get("hoursTomorrow", []):
-        hour = entry["hour"]
-        minute = entry.get("minute", 0)
-        spot_kwh = entry["priceCZK"] / 1000
-        final_price = calculate_final_price(spot_kwh, hour, cfg)
-        final_list.append({
-            "time": f"{tomorrow_str} {hour:02d}:{minute:02d}",
-            "hour": hour,
-            "minute": minute,
-            "spot": round(spot_kwh, 5),
-            "final": final_price
-        })
+    final_list.extend(get_prices_for_date(cfg, tomorrow_str, tzinfo))
     return {"prices": final_list}
 
 @app.get("/api/consumption")
@@ -495,23 +523,92 @@ def get_costs(
         "points": points,
     }
 
+
+@app.get("/api/schedule")
+def get_schedule(
+    duration: int = Query(default=120, ge=15, le=1440),
+    count: int = Query(default=3, ge=1, le=3),
+):
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    now = datetime.now(tzinfo)
+    today = now.date()
+    tomorrow = today + timedelta(days=1)
+
+    if duration % 15 != 0:
+        duration = int(((duration + 14) // 15) * 15)
+
+    def next_slot(dt):
+        minute = (dt.minute // 15 + (1 if dt.minute % 15 else 0)) * 15
+        if minute == 60:
+            return dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        return dt.replace(minute=minute, second=0, microsecond=0)
+
+    min_start = next_slot(now)
+    slots = duration // 15
+    candidates = []
+
+    for date_obj in (today, tomorrow):
+        date_str = date_obj.strftime("%Y-%m-%d")
+        entries = get_prices_for_date(cfg, date_str, tzinfo)
+        if not entries:
+            continue
+        entries_sorted = sorted(entries, key=lambda x: x["time"])
+        if len(entries_sorted) < slots:
+            continue
+        for i in range(0, len(entries_sorted) - slots + 1):
+            window = entries_sorted[i:i + slots]
+            window_start = datetime.strptime(window[0]["time"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)
+            if date_obj == today and window_start < min_start:
+                continue
+            avg_price = sum(p["final"] for p in window) / slots
+            energy_kwh = slots * 0.25
+            total_cost = avg_price * energy_kwh
+            candidates.append({
+                "start": window[0]["time"],
+                "end": window[-1]["time"],
+                "avg_price": round(avg_price, 5),
+                "energy_kwh": round(energy_kwh, 3),
+                "total_cost": round(total_cost, 5),
+            })
+
+    if not candidates:
+        return {"duration": duration, "recommendations": [], "note": "Data nejsou k dispozici."}
+
+    candidates.sort(key=lambda x: (x["avg_price"], x["start"]))
+    results = []
+    for item in candidates:
+        start_dt = datetime.strptime(item["start"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)
+        if all(abs((start_dt - datetime.strptime(r["start"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)).total_seconds()) >= duration * 60 for r in results):
+            results.append(item)
+        if len(results) >= count:
+            break
+
+    return {
+        "duration": duration,
+        "recommendations": results,
+        "note": None,
+    }
+
 @app.get("/api/daily-summary")
 def get_daily_summary(month: str = Query(...)):
     if not re.match(r"^\d{4}-\d{2}$", month):
         raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
     cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
     year, month_num = map(int, month.split("-"))
     start = datetime(year, month_num, 1)
     if month_num == 12:
         next_month = datetime(year + 1, 1, 1)
     else:
         next_month = datetime(year, month_num + 1, 1)
+    today = datetime.now(tzinfo).date()
 
     days = []
     current = start
     total_kwh = 0.0
     total_cost = 0.0
-    while current < next_month:
+    while current < next_month and current.date() <= today:
         date_str = current.strftime("%Y-%m-%d")
         totals = calculate_daily_totals(cfg, date_str)
         days.append(
@@ -535,6 +632,53 @@ def get_daily_summary(month: str = Query(...)):
             "cost_total": round(total_cost, 5),
         },
     }
+
+
+
+def schedule_prefetch_loop():
+    while True:
+        cfg = load_config()
+        tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+        now = datetime.now(tzinfo)
+        tomorrow = now.date() + timedelta(days=1)
+        tomorrow_str = tomorrow.strftime("%Y-%m-%d")
+        target_today = datetime.combine(now.date(), datetime_time(13, 5), tzinfo)
+        next_run = None
+
+        if has_price_cache(tomorrow_str):
+            logger.info("Tomorrow prices already cached (%s); next check tomorrow.", tomorrow_str)
+            next_run = datetime.combine(now.date() + timedelta(days=1), datetime_time(13, 5), tzinfo)
+        else:
+            if now < target_today:
+                next_run = target_today
+            else:
+                try:
+                    get_prices_for_date(cfg, tomorrow_str, tzinfo)
+                except Exception as exc:
+                    logger.warning("Prefetch failed for %s: %s", tomorrow_str, exc)
+                if has_price_cache(tomorrow_str):
+                    next_run = datetime.combine(now.date() + timedelta(days=1), datetime_time(13, 5), tzinfo)
+                else:
+                    next_run = (now + timedelta(hours=1)).replace(minute=5, second=0, microsecond=0)
+
+        sleep_seconds = max(30, (next_run - datetime.now(tzinfo)).total_seconds())
+        time_module.sleep(sleep_seconds)
+
+
+# --- Startup logging ---
+@app.on_event("startup")
+def log_cache_status():
+
+    thread = threading.Thread(target=schedule_prefetch_loop, daemon=True)
+    thread.start()
+    status = cache_status()
+    logger.info(
+        "Prices cache status: dir=%s count=%s latest=%s size_bytes=%s",
+        status["dir"],
+        status["count"],
+        status["latest"],
+        status["size_bytes"],
+    )
 
 # --- Frontend React Build ---
 build_path = Path(__file__).parent / "frontend_build"

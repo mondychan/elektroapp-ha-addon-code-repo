@@ -17,6 +17,8 @@ import * as d3 from "d3-scale";
 function App() {
   const [data, setData] = useState([]);
   const [config, setConfig] = useState(null);
+  const [cacheStatus, setCacheStatus] = useState(null);
+  const [version, setVersion] = useState(null);
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -24,6 +26,7 @@ function App() {
   });
   const [costs, setCosts] = useState([]);
   const [costsSummary, setCostsSummary] = useState(null);
+  const [costsError, setCostsError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const y = today.getFullYear();
@@ -40,14 +43,13 @@ function App() {
   const [monthlySummary, setMonthlySummary] = useState([]);
   const [monthlyTotals, setMonthlyTotals] = useState(null);
 
-  // --- nový state pro čas ---
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // --- efekt pro aktualizaci času ---
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const [showPlanner, setShowPlanner] = useState(false);
+  const [plannerDuration, setPlannerDuration] = useState(120);
+  const [plannerResults, setPlannerResults] = useState([]);
+  const [plannerLoading, setPlannerLoading] = useState(false);
+  const [plannerError, setPlannerError] = useState(null);
+  const [plannerNote, setPlannerNote] = useState(null);
+  const [monthlyError, setMonthlyError] = useState(null);
 
   useEffect(() => {
     document.body.dataset.theme = theme;
@@ -55,6 +57,15 @@ function App() {
   }, [theme]);
 
   const API_PREFIX = "./api";
+  const buildInfluxError = (err) => {
+    if (err?.response?.status === 401) {
+      return "Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo.";
+    }
+    if (err?.response?.status) {
+      return `Chyba pri nacitani z InfluxDB (HTTP ${err.response.status}).`;
+    }
+    return "Nepodarilo se pripojit k InfluxDB.";
+  };
 
   // --- Načtení cen (dnes + zítra) ---
   useEffect(() => {
@@ -70,33 +81,64 @@ function App() {
       .catch(err => console.error("Error fetching config:", err));
   }, []);
 
+  useEffect(() => {
+    axios.get(`${API_PREFIX}/version`)
+      .then(res => setVersion(res.data.version))
+      .catch(err => console.error("Error fetching version:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!showConfig) return;
+    axios.get(`${API_PREFIX}/cache-status`)
+      .then(res => setCacheStatus(res.data))
+      .catch(err => console.error("Error fetching cache status:", err));
+  }, [showConfig]);
+
   // --- Načtení nákladů za spotřebu ---
   useEffect(() => {
     setCosts([]);
     setCostsSummary(null);
+    setCostsError(null);
     axios.get(`${API_PREFIX}/costs`, { params: { date: selectedDate } })
       .then(res => {
         setCosts(res.data.points || []);
         setCostsSummary(res.data.summary || null);
       })
-      .catch(err => console.error("Error fetching costs:", err));
+      .catch(err => {
+        console.error("Error fetching costs:", err);
+        setCostsError(buildInfluxError(err));
+      });
   }, [selectedDate]);
 
   // --- Načtení měsíčního souhrnu ---
   useEffect(() => {
     setMonthlySummary([]);
     setMonthlyTotals(null);
+    setMonthlyError(null);
     axios.get(`${API_PREFIX}/daily-summary`, { params: { month: selectedMonth } })
       .then(res => {
         setMonthlySummary(res.data.days || []);
         setMonthlyTotals(res.data.summary || null);
       })
-      .catch(err => console.error("Error fetching monthly summary:", err));
+      .catch(err => {
+        console.error("Error fetching monthly summary:", err);
+        setMonthlyError(buildInfluxError(err));
+      });
   }, [selectedMonth]);
 
 
   // --- funkce pro převod slotu na HH:MM ---
   const formatDate = (date) => date.toLocaleDateString("cs-CZ");
+  const formatBytes = (bytes) => {
+    if (bytes == null) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)} GB`;
+  };
   const toDateInputValue = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -109,7 +151,29 @@ function App() {
     return new Date(`${y}-${m}-01T00:00:00`).toLocaleDateString("cs-CZ", { year: "numeric", month: "long" });
   };
 
-  const formatSlotToTime = (slot) => {
+  
+  const loadPlanner = () => {
+    setPlannerLoading(true);
+    setPlannerError(null);
+    setPlannerNote(null);
+    axios.get(`${API_PREFIX}/schedule`, {
+      params: {
+        duration: plannerDuration,
+        count: 3
+      }
+    })
+      .then(res => {
+        setPlannerResults(res.data.recommendations || []);
+        setPlannerNote(res.data.note || null);
+      })
+      .catch(err => {
+        console.error("Error fetching planner:", err);
+        setPlannerError("Planovac neni k dispozici.");
+      })
+      .finally(() => setPlannerLoading(false));
+  };
+
+const formatSlotToTime = (slot) => {
     const hour = Math.floor(slot / 4);
     const minute = (slot % 4) * 15;
     return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
@@ -237,6 +301,13 @@ function App() {
   }, [costs]);
 
   const renderCostChart = () => {
+    if (costsError) {
+      return (
+        <div className="alert error">
+          {costsError}
+        </div>
+      );
+    }
     if (!costChartData.length) {
       return (
         <div style={{ marginBottom: 40, fontStyle: "italic" }}>
@@ -303,8 +374,8 @@ function App() {
                 return [value, name];
               }}
             />
-            <Bar yAxisId="left" dataKey="cost" fill="var(--accent)" />
-            <Line yAxisId="right" type="monotone" dataKey="kwh" stroke="var(--accent-2)" dot={false} />
+            <Line yAxisId="left" type="monotone" dataKey="cost" stroke="var(--accent-2)" dot={false} />
+            <Bar yAxisId="right" dataKey="kwh" fill="var(--accent)" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -312,6 +383,13 @@ function App() {
   };
 
   const renderMonthlyTable = () => {
+    if (monthlyError) {
+      return (
+        <div className="alert error">
+          {monthlyError}
+        </div>
+      );
+    }
     if (!monthlySummary.length) {
       return (
         <div style={{ fontStyle: "italic" }}>
@@ -425,6 +503,57 @@ function App() {
         </section>
       )}
 
+      <button
+        onClick={() => setShowPlanner(!showPlanner)}
+        className="ghost-button"
+      >
+        {showPlanner ? "Skryt planovac" : "Zobrazit planovac"}
+      </button>
+
+      {showPlanner && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="card-header">
+            <h3>Planovac spotrebicu</h3>
+          </div>
+          <div className="planner-grid">
+            <div className="planner-field">
+              <label>Delka programu (min)</label>
+              <input
+                type="number"
+                min="15"
+                step="15"
+                value={plannerDuration}
+                onChange={(e) => setPlannerDuration(Number(e.target.value) || 15)}
+              />
+            </div>
+            <div className="planner-actions">
+              <button onClick={loadPlanner}>Najit okna</button>
+            </div>
+          </div>
+          <div className="config-muted">Okna hledame v dostupnych datech (dnes + zitra, pokud jsou).</div>
+          {plannerError && (
+            <div className="alert error">{plannerError}</div>
+          )}
+          {plannerLoading && (
+            <div className="config-muted">Pocitam nejlepsi okna...</div>
+          )}
+          {plannerNote && (
+            <div className="config-muted">{plannerNote}</div>
+          )}
+          {!plannerLoading && !plannerNote && plannerResults.length === 0 && (
+            <div className="config-muted">Zatim nemame doporucene okna.</div>
+          )}
+          {plannerResults.length > 0 && (
+            <ul className="planner-list">
+              {plannerResults.map((item, idx) => (
+                <li key={`${item.start}-${idx}`}>
+                  {formatDate(new Date(item.start.replace(" ", "T")))}: {item.start.slice(11, 16)} - {item.end.slice(11, 16)} | prumer {item.avg_price.toFixed(2)} Kc/kWh | odhad {item.total_cost.toFixed(2)} Kc
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">
         {showConfig ? "Skryt konfiguraci" : "Zobrazit konfiguraci"}
       </button>
@@ -432,21 +561,38 @@ function App() {
       {showConfig && (
         <div className="card" style={{ marginTop: 20 }}>
           <h3>Aktualni konfigurace</h3>
-          <ul>
-            <li>DPH: {((config.dph - 1) * 100).toFixed(0)}%</li>
-            <li>Sluzba obchodu: {config.poplatky?.komodita_sluzba},-Kc bez DPH/kWh</li>
-            <li>POZE: {config.poplatky?.poze},-Kc vc DPH/kWh</li>
-            <li>Dan: {config.poplatky?.dan},-Kc vc DPH/kWh</li>
-            <li>Distribuce NT: {config.poplatky?.distribuce?.NT},-Kc vc DPH/kWh</li>
-            <li>Distribuce VT: {config.poplatky?.distribuce?.VT},-Kc vc DPH/kWh</li>
-          </ul>
-
+          <div className="config-grid">
+            <div className="config-column">
+              <h4>Nastaveni cen</h4>
+              <ul className="config-list">
+                <li>DPH: {((config.dph - 1) * 100).toFixed(0)}%</li>
+                <li>Sluzba obchodu: {config.poplatky?.komodita_sluzba},-Kc bez DPH/kWh</li>
+                <li>POZE: {config.poplatky?.poze},-Kc vc DPH/kWh</li>
+                <li>Dan: {config.poplatky?.dan},-Kc vc DPH/kWh</li>
+                <li>Distribuce NT: {config.poplatky?.distribuce?.NT},-Kc vc DPH/kWh</li>
+                <li>Distribuce VT: {config.poplatky?.distribuce?.VT},-Kc vc DPH/kWh</li>
+              </ul>
+            </div>
+            <div className="config-column">
+              <h4>Cache</h4>
+              {cacheStatus ? (
+                <ul className="config-list">
+                  <li>Cache dny: {cacheStatus.count}</li>
+                  <li>Cache nejnovejsi: {cacheStatus.latest || "-"}</li>
+                  <li>Cache velikost: {formatBytes(cacheStatus.size_bytes)}</li>
+                  <li>Cache cesta: {cacheStatus.dir}</li>
+                </ul>
+              ) : (
+                <div className="config-muted">Cache data nejsou k dispozici.</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
       <footer className="footer">
         <div>(c) {new Date().getFullYear()} mondychan <a href="https://github.com/mondychan" target="_blank" rel="noopener noreferrer">github</a></div>
-        <div>Aktualni cas: {currentTime.toLocaleString("cs-CZ")}</div>
+        <div className="version-tag">Verze doplnku: {version || "-"}</div>
         <div>
           Zdroj dat: <a href="https://spotovaelektrina.cz/" target="_blank" rel="noopener noreferrer">spotovaelektrina.cz</a>
         </div>
