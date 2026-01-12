@@ -22,13 +22,10 @@ HA_OPTIONS_FILE = Path("/data/options.json")
 CONFIG_DIR = Path("/config")
 STORAGE_DIR = Path(os.getenv("ELEKTROAPP_STORAGE", ""))
 if not STORAGE_DIR:
-    if CONFIG_DIR.exists():
-        STORAGE_DIR = CONFIG_DIR / "elektroapp"
-    else:
-        STORAGE_DIR = Path("/data")
+    STORAGE_DIR = CONFIG_DIR / "elektroapp" if CONFIG_DIR.exists() else Path("/data")
 PRICES_CACHE = {}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
-CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR.exists() else (Path(__file__).parent / "cache")
+CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR else (Path(__file__).parent / "cache")
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
 logger = logging.getLogger("uvicorn.error")
@@ -212,6 +209,8 @@ def parse_price_html(html_text):
     return rows
 
 def load_prices_cache(date_str):
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / f"prices-{date_str}.json"
     if not path.exists():
         return None
@@ -222,6 +221,8 @@ def load_prices_cache(date_str):
         return None
 
 def save_prices_cache(date_str, entries):
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / f"prices-{date_str}.json"
     with open(path, "w", encoding="utf-8") as f:
@@ -234,6 +235,8 @@ def has_price_cache(date_str):
     return bool(cached)
 
 def cache_status():
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     if not CACHE_DIR.exists():
         return {"dir": str(CACHE_DIR), "count": 0, "latest": None, "size_bytes": 0}
     files = sorted(CACHE_DIR.glob("prices-*.json"))

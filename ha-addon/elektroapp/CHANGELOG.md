@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.17
+- Cache vzdy zapis do /config/elektroapp (bez fallbacku na lokalni slozku).
+
 ## 0.1.16
 - Vytvoreni /config/elektroapp pri startu + backup konfigurace pri ulozeni.
 
