@@ -20,8 +20,10 @@ app = FastAPI(title="Elektroapp API")
 CONFIG_FILE = "config.yaml"
 HA_OPTIONS_FILE = Path("/data/options.json")
 CONFIG_DIR = Path("/config")
-STORAGE_DIR = Path(os.getenv("ELEKTROAPP_STORAGE", ""))
-if not STORAGE_DIR:
+_storage_env = os.getenv("ELEKTROAPP_STORAGE")
+if _storage_env:
+    STORAGE_DIR = Path(_storage_env)
+else:
     STORAGE_DIR = CONFIG_DIR / "elektroapp" if CONFIG_DIR.exists() else Path("/data")
 PRICES_CACHE = {}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))

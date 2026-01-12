@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.18
+- Fix: storage path fallback na /config/elektroapp pri prazdnem ELEKTROAPP_STORAGE.
+
 ## 0.1.17
 - Cache vzdy zapis do /config/elektroapp (bez fallbacku na lokalni slozku).
 
