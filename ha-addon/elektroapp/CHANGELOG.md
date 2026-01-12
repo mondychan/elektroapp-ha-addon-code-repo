@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14
+- Graf nakladu/spotreby rozdelen na dva panely.
+- Upravena barva odkazu ve footeru.
+
 ## 0.1.13
 - Planovac: zobrazeni casu do startu okna.
 

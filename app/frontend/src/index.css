@@ -16,6 +16,7 @@ body[data-theme="light"] {
   --border: #d7dee7;
   --accent: #ff7a59;
   --accent-2: #2d7ff9;
+  --link: #2d7ff9;
   --shadow: 0 12px 30px rgba(16, 24, 40, 0.12);
 }
 
@@ -28,6 +29,7 @@ body[data-theme="dark"] {
   --border: #273046;
   --accent: #ff9b5e;
   --accent-2: #7cc4ff;
+  --link: #7cc4ff;
   --shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
 }
 
@@ -241,4 +243,18 @@ input {
     opacity: 1;
     transform: translateY(0);
   }
+}
+.cost-stack {
+  display: grid;
+  gap: 12px;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }

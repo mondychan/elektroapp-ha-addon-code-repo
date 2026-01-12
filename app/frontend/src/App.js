@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
   ComposedChart,
+  LineChart,
   Line
 } from "recharts";
 import * as d3 from "d3-scale";
@@ -368,26 +369,36 @@ function App() {
             Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc
           </div>
         )}
-        <ResponsiveContainer width="100%" height={400}>
-          <ComposedChart data={costChartData} margin={{ top: 20, right: 40, left: 40, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" tick={{ fill: "var(--text-muted)" }} />
-            <YAxis yAxisId="left" tick={{ fill: "var(--text-muted)" }} label={{ value: "Kc", angle: -90, position: "insideLeft" }} />
-            <YAxis yAxisId="right" tick={{ fill: "var(--text-muted)" }} orientation="right" label={{ value: "kWh", angle: 90, position: "insideRight" }} />
-            <Tooltip
-              contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-              itemStyle={{ color: "var(--text)" }}
-              labelStyle={{ color: "var(--text)" }}
-              formatter={(value, name) => {
-                if (name === "cost") return [`${value?.toFixed(2) ?? "-"},-Kc`, "Naklad"];
-                if (name === "kwh") return [`${value?.toFixed(3) ?? "-"}`, "Spotreba kWh"];
-                return [value, name];
-              }}
-            />
-            <Line yAxisId="left" type="monotone" dataKey="cost" stroke="var(--accent-2)" dot={false} />
-            <Bar yAxisId="right" dataKey="kwh" fill="var(--accent)" />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="cost-stack">
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={costChartData} margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" tick={false} />
+              <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Kc", angle: -90, position: "insideLeft" }} />
+              <Tooltip
+                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+                itemStyle={{ color: "var(--text)" }}
+                labelStyle={{ color: "var(--text)" }}
+                formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Naklad"]}
+              />
+              <Line type="monotone" dataKey="cost" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={costChartData} margin={{ top: 0, right: 20, left: 30, bottom: 10 }} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" tick={{ fill: "var(--text-muted)" }} />
+              <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
+              <Tooltip
+                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+                itemStyle={{ color: "var(--text)" }}
+                labelStyle={{ color: "var(--text)" }}
+                formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Spotreba kWh"]}
+              />
+              <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     );
   };
