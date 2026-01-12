@@ -1,5 +1,7 @@
-# Stage 1: build React frontend
-FROM node:20-alpine AS frontend-builder
+# Stage 1: build React frontend (build on host platform to avoid qemu issues)
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY app/frontend/package*.json ./
 RUN npm install

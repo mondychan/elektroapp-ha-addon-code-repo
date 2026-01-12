@@ -173,10 +173,20 @@ function App() {
       .finally(() => setPlannerLoading(false));
   };
 
-const formatSlotToTime = (slot) => {
+  const formatSlotToTime = (slot) => {
     const hour = Math.floor(slot / 4);
     const minute = (slot % 4) * 15;
     return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+  };
+  const formatOffset = (startStr) => {
+    const start = new Date(startStr.replace(" ", "T"));
+    const now = new Date();
+    const diffMs = start - now;
+    const diffMin = Math.max(0, Math.round(diffMs / 60000));
+    if (diffMin < 60) return `za ${diffMin} min`;
+    const hours = Math.floor(diffMin / 60);
+    const minutes = diffMin % 60;
+    return minutes ? `za ${hours} h ${minutes} min` : `za ${hours} h`;
   };
 
   const todayData = useMemo(() => {
@@ -547,7 +557,7 @@ const formatSlotToTime = (slot) => {
             <ul className="planner-list">
               {plannerResults.map((item, idx) => (
                 <li key={`${item.start}-${idx}`}>
-                  {formatDate(new Date(item.start.replace(" ", "T")))}: {item.start.slice(11, 16)} - {item.end.slice(11, 16)} | prumer {item.avg_price.toFixed(2)} Kc/kWh | odhad {item.total_cost.toFixed(2)} Kc
+                  {formatDate(new Date(item.start.replace(" ", "T")))}: {item.start.slice(11, 16)} - {item.end.slice(11, 16)} ({formatOffset(item.start)}) | prumer {item.avg_price.toFixed(2)} Kc/kWh | odhad {item.total_cost.toFixed(2)} Kc
                 </li>
               ))}
             </ul>

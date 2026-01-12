@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.13
+- Planovac: zobrazeni casu do startu okna.
+
 ## 0.1.12
 - Planovac: jen budoucnost, top 3 neprekryvaji se, den odstranen.
 - Planovac a souhrn zarovnany podle poradi tlacitek.
