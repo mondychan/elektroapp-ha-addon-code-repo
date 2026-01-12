@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.16
+- Vytvoreni /config/elektroapp pri startu + backup konfigurace pri ulozeni.
+
 ## 0.1.15
 - Persistentni uloziste v /config/elektroapp pro cache i backup nastaveni.
 

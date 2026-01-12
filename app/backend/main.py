@@ -422,6 +422,10 @@ def get_config():
 def save_config(new_config: dict = Body(...)):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.safe_dump(new_config, f, allow_unicode=True)
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(OPTIONS_BACKUP_FILE, "w", encoding="utf-8") as f:
+            json.dump(new_config, f)
     return {"status": "ok", "message": "Konfigurace uložena"}
 
 @app.get("/api/cache-status")
@@ -687,6 +691,8 @@ def log_cache_status():
 
     thread = threading.Thread(target=schedule_prefetch_loop, daemon=True)
     thread.start()
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     status = cache_status()
     logger.info(
         "Prices cache status: dir=%s count=%s latest=%s size_bytes=%s",
