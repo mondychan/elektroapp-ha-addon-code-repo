@@ -19,9 +19,17 @@ app = FastAPI(title="Elektroapp API")
 
 CONFIG_FILE = "config.yaml"
 HA_OPTIONS_FILE = Path("/data/options.json")
+CONFIG_DIR = Path("/config")
+STORAGE_DIR = Path(os.getenv("ELEKTROAPP_STORAGE", ""))
+if not STORAGE_DIR:
+    if CONFIG_DIR.exists():
+        STORAGE_DIR = CONFIG_DIR / "elektroapp"
+    else:
+        STORAGE_DIR = Path("/data")
 PRICES_CACHE = {}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
-CACHE_DIR = (DATA_DIR / "prices-cache") if DATA_DIR.exists() else (Path(__file__).parent / "cache")
+CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR.exists() else (Path(__file__).parent / "cache")
+OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
 logger = logging.getLogger("uvicorn.error")
 
@@ -74,13 +82,21 @@ def load_config():
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
 
-    if HA_OPTIONS_FILE.exists():
+    options_files = [HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE]
+    for options_path in options_files:
+        if not options_path.exists():
+            continue
         try:
-            with open(HA_OPTIONS_FILE, "r", encoding="utf-8") as f:
+            with open(options_path, "r", encoding="utf-8") as f:
                 options = json.load(f)
             cfg = merge_config(cfg, options)
+            if options_path == HA_OPTIONS_FILE and STORAGE_DIR:
+                STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+                with open(OPTIONS_BACKUP_FILE, "w", encoding="utf-8") as f:
+                    json.dump(options, f)
+            break
         except Exception:
-            pass
+            continue
 
     if isinstance(cfg, dict):
         tarif = cfg.get("tarif")

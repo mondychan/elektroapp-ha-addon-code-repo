@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.15
+- Persistentni uloziste v /config/elektroapp pro cache i backup nastaveni.
+
 ## 0.1.14
 - Graf nakladu/spotreby rozdelen na dva panely.
 - Upravena barva odkazu ve footeru.
