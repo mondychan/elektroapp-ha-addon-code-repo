@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.19
+- Planovac: oprava inputu pro delku programu.
+
 ## 0.1.18
 - Fix: storage path fallback na /config/elektroapp pri prazdnem ELEKTROAPP_STORAGE.
 

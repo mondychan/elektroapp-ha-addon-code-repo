@@ -45,7 +45,7 @@ function App() {
   const [monthlyTotals, setMonthlyTotals] = useState(null);
 
   const [showPlanner, setShowPlanner] = useState(false);
-  const [plannerDuration, setPlannerDuration] = useState(120);
+  const [plannerDuration, setPlannerDuration] = useState("120");
   const [plannerResults, setPlannerResults] = useState([]);
   const [plannerLoading, setPlannerLoading] = useState(false);
   const [plannerError, setPlannerError] = useState(null);
@@ -159,7 +159,7 @@ function App() {
     setPlannerNote(null);
     axios.get(`${API_PREFIX}/schedule`, {
       params: {
-        duration: plannerDuration,
+        duration: Number(plannerDuration) || 15,
         count: 3
       }
     })
@@ -544,7 +544,7 @@ function App() {
                 min="15"
                 step="15"
                 value={plannerDuration}
-                onChange={(e) => setPlannerDuration(Number(e.target.value) || 15)}
+                onChange={(e) => setPlannerDuration(e.target.value)}
               />
             </div>
             <div className="planner-actions">
