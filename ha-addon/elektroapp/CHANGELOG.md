@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.22
+- Planovac: delka 1-360 minut, bez auto-doplnovani 15.
+
 ## 0.1.21
 - Planovac: input delky programu jako text (bez auto-doplnovani).
 

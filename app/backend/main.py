@@ -551,7 +551,7 @@ def get_costs(
 
 @app.get("/api/schedule")
 def get_schedule(
-    duration: int = Query(default=120, ge=15, le=1440),
+    duration: int = Query(default=120, ge=1, le=360),
     count: int = Query(default=3, ge=1, le=3),
 ):
     cfg = load_config()
@@ -560,8 +560,7 @@ def get_schedule(
     today = now.date()
     tomorrow = today + timedelta(days=1)
 
-    if duration % 15 != 0:
-        duration = int(((duration + 14) // 15) * 15)
+    duration = max(1, min(360, duration))
 
     def next_slot(dt):
         minute = (dt.minute // 15 + (1 if dt.minute % 15 else 0)) * 15
@@ -570,7 +569,7 @@ def get_schedule(
         return dt.replace(minute=minute, second=0, microsecond=0)
 
     min_start = next_slot(now)
-    slots = duration // 15
+    slots = int((duration + 14) // 15)
     candidates = []
 
     for date_obj in (today, tomorrow):
@@ -587,11 +586,12 @@ def get_schedule(
             if date_obj == today and window_start < min_start:
                 continue
             avg_price = sum(p["final"] for p in window) / slots
-            energy_kwh = slots * 0.25
+            energy_kwh = duration / 60.0
             total_cost = avg_price * energy_kwh
+            end_dt = window_start + timedelta(minutes=duration)
             candidates.append({
                 "start": window[0]["time"],
-                "end": window[-1]["time"],
+                "end": end_dt.strftime("%Y-%m-%d %H:%M"),
                 "avg_price": round(avg_price, 5),
                 "energy_kwh": round(energy_kwh, 3),
                 "total_cost": round(total_cost, 5),

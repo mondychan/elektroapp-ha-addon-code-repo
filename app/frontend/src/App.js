@@ -154,18 +154,22 @@ function App() {
   
   const normalizeDuration = (value) => {
     const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return 15;
-    const rounded = Math.ceil(parsed / 15) * 15;
-    return Math.max(15, Math.min(1440, rounded));
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.max(1, Math.min(360, Math.round(parsed)));
   };
 
   const loadPlanner = () => {
+    const durationValue = normalizeDuration(plannerDuration);
+    if (!durationValue) {
+      setPlannerError("Zadej delku programu 1-360 minut.");
+      return;
+    }
     setPlannerLoading(true);
     setPlannerError(null);
     setPlannerNote(null);
     axios.get(`${API_PREFIX}/schedule`, {
       params: {
-        duration: normalizeDuration(plannerDuration),
+        duration: durationValue,
         count: 3
       }
     })
