@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.20
+- Oprava ESLint warning (nepouzity ComposedChart).
+
 ## 0.1.19
 - Planovac: oprava inputu pro delku programu.
 

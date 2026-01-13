@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   Cell,
-  ComposedChart,
   LineChart,
   Line
 } from "recharts";
