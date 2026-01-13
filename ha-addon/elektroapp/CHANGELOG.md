@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.23
+- Aktualizace release postupu v README.
+
 ## 0.1.22
 - Planovac: delka 1-360 minut, bez auto-doplnovani 15.
 

@@ -26,14 +26,14 @@ jinak je HA neuvidi (napr. `CHANGELOG.md`, `README.md`, `config.yaml`).
 
 ### Synchronizace do HA repo (manualni)
 ```powershell
-Copy-Item `
-  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon-code\elektroapp-ha-addon-code-repo\ha-addon\elektroapp\CHANGELOG.md" `
-  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon\elektroapp\CHANGELOG.md" `
-  -Force
+robocopy `
+  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon-code\ha-addon\elektroapp" `
+  "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon\elektroapp" `
+  /E /NFL /NDL /NJH /NJS /NC /NS
 
 Set-Location "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon"
-git add elektroapp\CHANGELOG.md
-git commit -m "Sync changelog"
+git add elektroapp\CHANGELOG.md elektroapp\config.yaml elektroapp\README.md
+git commit -m "Release X.Y.Z"
 git push
 ```
 
@@ -86,11 +86,11 @@ Poznamka: v InfluxDB je potreba mit uzivatele a spravne credentials.
 
 
 ## Build/publish add-on image
-Nezapomen upravit verzi v `ha-addon/elektroapp/config.yaml`.
+Nezapomen upravit verzi v `ha-addon/elektroapp/config.yaml` a `ADDON_VERSION`.
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64/v8 `
-  -t mondychan/elektroapp-ha:0.1.3 `
+  -t mondychan/elektroapp-ha:X.Y.Z `
   -t mondychan/elektroapp-ha:latest `
   -f dockerfile --push .
 ```
@@ -110,22 +110,31 @@ Tento postup plati pouze pro Home Assistant add-on v tomto repozitari (ne pro
 standalone verzi Elektroapp v jinem repu).
 
 1. Uprav kod (backend/frontend/add-on).
-2. Zvedni verzi v `ha-addon/elektroapp/config.yaml`.
-3. Build + push Docker image do DockerHubu:
+2. Zvedni verzi v `ha-addon/elektroapp/config.yaml` a `ADDON_VERSION`.
+3. Doplň `ha-addon/elektroapp/CHANGELOG.md`.
+4. Synchronizuj `ha-addon/elektroapp` do HA repo (viz vyse).
+5. Build + push Docker image do DockerHubu:
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64/v8 `
-  -t mondychan/elektroapp-ha:0.1.3 `
+  -t mondychan/elektroapp-ha:X.Y.Z `
   -t mondychan/elektroapp-ha:latest `
   -f dockerfile --push .
 ```
-4. Zmeny commitni a pushni na GitHub:
+6. Commit + push v code repo:
 ```bash
 git status
 git add .
-git commit -m "Release 0.1.3"
+git commit -m "Release X.Y.Z"
 git push
 ```
-5. V Home Assistant: Add-on Store -> "Check for updates" -> Update -> Restart.
+7. Commit + push v HA repo:
+```bash
+Set-Location "C:\Users\monde\Documents\MEGA\Git\elektroapp-ha-addon"
+git add elektroapp\CHANGELOG.md elektroapp\config.yaml elektroapp\README.md
+git commit -m "Release X.Y.Z"
+git push
+```
+8. V Home Assistant: Add-on Store -> "Check for updates" -> Update -> Restart.
 
 Poznamky:
 - Tagy a verze musi odpovidat (Docker tag + `config.yaml`).
