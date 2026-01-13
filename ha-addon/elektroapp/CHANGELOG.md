@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.21
+- Planovac: input delky programu jako text (bez auto-doplnovani).
+
 ## 0.1.20
 - Oprava ESLint warning (nepouzity ComposedChart).
 

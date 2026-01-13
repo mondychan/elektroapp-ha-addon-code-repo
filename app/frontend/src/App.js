@@ -152,13 +152,20 @@ function App() {
   };
 
   
+  const normalizeDuration = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 15;
+    const rounded = Math.ceil(parsed / 15) * 15;
+    return Math.max(15, Math.min(1440, rounded));
+  };
+
   const loadPlanner = () => {
     setPlannerLoading(true);
     setPlannerError(null);
     setPlannerNote(null);
     axios.get(`${API_PREFIX}/schedule`, {
       params: {
-        duration: Number(plannerDuration) || 15,
+        duration: normalizeDuration(plannerDuration),
         count: 3
       }
     })
@@ -539,11 +546,12 @@ function App() {
             <div className="planner-field">
               <label>Delka programu (min)</label>
               <input
-                type="number"
-                min="15"
-                step="15"
+                type="text"
+                inputMode="numeric"
+                pattern="\\d*"
                 value={plannerDuration}
-                onChange={(e) => setPlannerDuration(e.target.value)}
+                onChange={(e) => setPlannerDuration(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="120"
               />
             </div>
             <div className="planner-actions">
