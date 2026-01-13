@@ -49,7 +49,9 @@ function App() {
   const [plannerError, setPlannerError] = useState(null);
   const [plannerNote, setPlannerNote] = useState(null);
   const [monthlyError, setMonthlyError] = useState(null);
-  const [plannerDuration, setPlannerDuration] = useState("120");
+  const [plannerDuration, setPlannerDuration] = useState(() => {
+    return localStorage.getItem("plannerDuration") || "120";
+  });
 
   useEffect(() => {
     document.body.dataset.theme = theme;
@@ -171,6 +173,7 @@ function App() {
       setPlannerError("Zadej delku programu 1-360 minut.");
       return;
     }
+    localStorage.setItem("plannerDuration", String(durationValue));
     setPlannerLoading(true);
     setPlannerError(null);
     setPlannerNote(null);
@@ -570,6 +573,11 @@ function App() {
                 onChange={(e) => {
                   const cleaned = e.target.value.replace(/[^0-9]/g, "");
                   setPlannerDuration(cleaned);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    loadPlanner();
+                  }
                 }}
                 placeholder="120"
               />
