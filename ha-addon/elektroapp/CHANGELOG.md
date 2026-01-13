@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.24
+- Planovac: oprava zadavani delky (backspace) + validace 1-360 minut.
+
 ## 0.1.23
 - Aktualizace release postupu v README.
 

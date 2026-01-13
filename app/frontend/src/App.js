@@ -44,12 +44,12 @@ function App() {
   const [monthlyTotals, setMonthlyTotals] = useState(null);
 
   const [showPlanner, setShowPlanner] = useState(false);
-  const [plannerDuration, setPlannerDuration] = useState("120");
   const [plannerResults, setPlannerResults] = useState([]);
   const [plannerLoading, setPlannerLoading] = useState(false);
   const [plannerError, setPlannerError] = useState(null);
   const [plannerNote, setPlannerNote] = useState(null);
   const [monthlyError, setMonthlyError] = useState(null);
+  const [plannerDuration, setPlannerDuration] = useState("120");
 
   useEffect(() => {
     document.body.dataset.theme = theme;
@@ -153,13 +153,20 @@ function App() {
 
   
   const normalizeDuration = (value) => {
-    const parsed = Number(value);
+    if (value == null || value === "") return null;
+    const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    return Math.max(1, Math.min(360, Math.round(parsed)));
+    if (parsed > 360) return "too-long";
+    return Math.round(parsed);
   };
 
   const loadPlanner = () => {
-    const durationValue = normalizeDuration(plannerDuration);
+    const rawValue = plannerDuration;
+    const durationValue = normalizeDuration(rawValue);
+    if (durationValue === "too-long") {
+      setPlannerError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
+      return;
+    }
     if (!durationValue) {
       setPlannerError("Zadej delku programu 1-360 minut.");
       return;
@@ -179,6 +186,10 @@ function App() {
       })
       .catch(err => {
         console.error("Error fetching planner:", err);
+        if (err?.response?.status === 422) {
+          setPlannerError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
+          return;
+        }
         setPlannerError("Planovac neni k dispozici.");
       })
       .finally(() => setPlannerLoading(false));
@@ -553,8 +564,13 @@ function App() {
                 type="text"
                 inputMode="numeric"
                 pattern="\\d*"
+                autoComplete="off"
+                maxLength={3}
                 value={plannerDuration}
-                onChange={(e) => setPlannerDuration(e.target.value.replace(/[^0-9]/g, ""))}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                  setPlannerDuration(cleaned);
+                }}
                 placeholder="120"
               />
             </div>
