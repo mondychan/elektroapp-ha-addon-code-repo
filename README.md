@@ -6,7 +6,7 @@ Ingress (panel v postrannim menu).
 
 ## Co to dela
 - nacte spotove ceny (dnes/zitra a historie) ze spotovaelektrina.cz
-- prepocita cenu na "konecna cena" podle DPH, POZE, dane a distribuce (VT/NT)
+- prepocita cenu na "konecna cena" podle DPH, OZE, dane, systemovych sluzeb a distribuce (VT/NT)
 - nacte spotrebu z InfluxDB a spocte naklady za vybrany den
 - zobrazi denni graf nakladu/spotreby a mesicni souhrn
 
@@ -51,21 +51,29 @@ Konfigurace se nacita z HA options (`/data/options.json`), pro lokalni beh z
 `app/backend/config.yaml`.
 
 Nejdulezitejsi polozky:
-- `dph` - nasobic DPH (napr. `1.21`)
-- `poplatky.*` - komodita, POZE, dan, distribuce (VT/NT)
+- `dph` - DPH v procentech (napr. `21`)
+- `poplatky.*` - komodita, OZE, dan, systemove sluzby, distribuce (VT/NT)
+- `fixni.*` - fixni poplatky (denni/mesicni)
 - `tarif.vt_periods` - VT intervaly ve formatu `HH-HH`, oddelene carkou
 - `influxdb.*` - host/port, database, measurement, field, entity_id, timezone
 
 Priklad:
 ```yaml
-dph: 1.21
+dph: 21
 poplatky:
   komodita_sluzba: 0.35
-  poze: 0.0
-  dan: 0.03424
+  oze: 0.0
+  dan: 0.0283
+  systemove_sluzby: 0.16424
   distribuce:
-    NT: 0.14097
-    VT: 0.91327
+    NT: 0.1165
+    VT: 0.75477
+fixni:
+  denni:
+    staly_plat: 4.18
+  mesicni:
+    provoz_nesitove_infrastruktury: 12.87
+    jistic: 710
 tarif:
   vt_periods: "6-7,9-10,13-14,16-17"
 influxdb:

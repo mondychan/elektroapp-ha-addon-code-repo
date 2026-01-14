@@ -1,11 +1,18 @@
-dph: 1.21
+dph: 21
 poplatky:
-  dan: 0.03424
+  dan: 0.0283
+  systemove_sluzby: 0.16424
   distribuce:
-    NT: 0.14097
-    VT: 0.91327
+    NT: 0.1165
+    VT: 0.75477
   komodita_sluzba: 0.35
-  poze: 0.0
+  oze: 0.0
+fixni:
+  denni:
+    staly_plat: 4.18
+  mesicni:
+    provoz_nesitove_infrastruktury: 12.87
+    jistic: 710
 tarif:
   vt_periods:
   - - 6

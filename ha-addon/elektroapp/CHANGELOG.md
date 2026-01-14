@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.26
+- Ceny: DPH v % + poplatky bez DPH (vc. fixnich).
+- Vyuctovani: odhad mesic/rok + projekce a historie poplatku.
+
 ## 0.1.25
 - Planovac: ulozeni posledni delky + spusteni pres Enter.
 

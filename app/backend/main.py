@@ -10,6 +10,7 @@ import threading
 import time as time_module
 import re
 from html.parser import HTMLParser
+import calendar
 from datetime import datetime, timedelta, timezone, time as datetime_time
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -29,6 +30,7 @@ PRICES_CACHE = {}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR else (Path(__file__).parent / "cache")
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
+FEES_HISTORY_FILE = STORAGE_DIR / "fees-history.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
 logger = logging.getLogger("uvicorn.error")
 
@@ -75,6 +77,110 @@ def merge_config(base, override):
             base[key] = value
     return base
 
+def _safe_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+def normalize_dph_percent(value):
+    dph_value = _safe_float(value)
+    if dph_value <= 0:
+        return 0.0
+    if dph_value <= 2:
+        return max(0.0, (dph_value - 1) * 100)
+    return dph_value
+
+def build_fee_snapshot(cfg):
+    poplatky = cfg.get("poplatky", {}) if isinstance(cfg.get("poplatky"), dict) else {}
+    distribuce = poplatky.get("distribuce", {}) if isinstance(poplatky.get("distribuce"), dict) else {}
+    fixni = cfg.get("fixni", {}) if isinstance(cfg.get("fixni"), dict) else {}
+    fixni_denni = fixni.get("denni", {}) if isinstance(fixni.get("denni"), dict) else {}
+    fixni_mesicni = fixni.get("mesicni", {}) if isinstance(fixni.get("mesicni"), dict) else {}
+    oze_value = poplatky.get("oze")
+    if oze_value is None:
+        oze_value = poplatky.get("poze", 0)
+    return {
+        "dph_percent": normalize_dph_percent(cfg.get("dph", 0)),
+        "kwh_fees": {
+            "komodita_sluzba": _safe_float(poplatky.get("komodita_sluzba", 0)),
+            "oze": _safe_float(oze_value),
+            "dan": _safe_float(poplatky.get("dan", 0)),
+            "systemove_sluzby": _safe_float(poplatky.get("systemove_sluzby", 0)),
+            "distribuce": {
+                "NT": _safe_float(distribuce.get("NT", 0)),
+                "VT": _safe_float(distribuce.get("VT", 0)),
+            },
+        },
+        "fixed": {
+            "daily": {
+                "staly_plat": _safe_float(fixni_denni.get("staly_plat", 0)),
+            },
+            "monthly": {
+                "provoz_nesitove_infrastruktury": _safe_float(
+                    fixni_mesicni.get("provoz_nesitove_infrastruktury", 0)
+                ),
+                "jistic": _safe_float(fixni_mesicni.get("jistic", 0)),
+            },
+        },
+    }
+
+def load_fee_history():
+    if not FEES_HISTORY_FILE.exists():
+        return []
+    try:
+        with open(FEES_HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def save_fee_history(history):
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(FEES_HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f)
+
+def ensure_fee_history(cfg, tzinfo):
+    history = load_fee_history()
+    history.sort(key=lambda x: x.get("effective_from", ""))
+    today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
+    snapshot = build_fee_snapshot(cfg)
+    if not history:
+        history = [{"effective_from": today_str, "snapshot": snapshot}]
+        save_fee_history(history)
+        return history
+    last = history[-1]
+    if last.get("snapshot") != snapshot:
+        if last.get("effective_from") == today_str:
+            last["snapshot"] = snapshot
+        else:
+            history.append({"effective_from": today_str, "snapshot": snapshot})
+        save_fee_history(history)
+    return history
+
+def get_fee_snapshot_for_date(cfg, date_str, tzinfo):
+    history = ensure_fee_history(cfg, tzinfo)
+    if not history:
+        return build_fee_snapshot(cfg)
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return history[-1].get("snapshot", build_fee_snapshot(cfg))
+    candidate = None
+    for record in history:
+        try:
+            record_date = datetime.strptime(record.get("effective_from", ""), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if record_date <= target_date:
+            candidate = record
+        else:
+            break
+    if candidate:
+        return candidate.get("snapshot", build_fee_snapshot(cfg))
+    return history[0].get("snapshot", build_fee_snapshot(cfg))
+
 def load_config():
     cfg = {}
     if os.path.exists(CONFIG_FILE):
@@ -98,11 +204,15 @@ def load_config():
             continue
 
     if isinstance(cfg, dict):
+        cfg["dph"] = normalize_dph_percent(cfg.get("dph", 0))
         tarif = cfg.get("tarif")
         if isinstance(tarif, dict):
             vt_periods = tarif.get("vt_periods")
             if isinstance(vt_periods, str):
                 tarif["vt_periods"] = parse_vt_periods(vt_periods)
+        poplatky = cfg.get("poplatky")
+        if isinstance(poplatky, dict) and "oze" not in poplatky and "poze" in poplatky:
+            poplatky["oze"] = poplatky.get("poze")
     return cfg
 
 def get_local_tz(tz_name):
@@ -249,13 +359,13 @@ def cache_status():
         total_size = sum(path.stat().st_size for path in files)
     return {"dir": str(CACHE_DIR), "count": len(files), "latest": latest, "size_bytes": total_size}
 
-def build_entries_from_api(cfg, date_str, hours):
+def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
     entries = []
     for entry in hours:
         hour = entry["hour"]
         minute = entry.get("minute", 0)
         spot_kwh = entry["priceCZK"] / 1000
-        final_price = calculate_final_price(spot_kwh, hour, cfg)
+        final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -267,14 +377,26 @@ def build_entries_from_api(cfg, date_str, hours):
         )
     return entries
 
+def apply_fee_snapshot(entries, cfg, fee_snapshot):
+    if not entries:
+        return []
+    adjusted = []
+    for entry in entries:
+        hour = entry.get("hour", 0)
+        spot = entry.get("spot", 0)
+        final = calculate_final_price(spot, hour, cfg, fee_snapshot)
+        adjusted.append({**entry, "final": final})
+    return adjusted
+
 def get_prices_for_date(cfg, date_str, tzinfo):
+    fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
     if date_str in PRICES_CACHE:
-        return PRICES_CACHE[date_str]
+        return apply_fee_snapshot(PRICES_CACHE[date_str], cfg, fee_snapshot)
     cached = load_prices_cache(date_str)
     if cached is not None:
         PRICES_CACHE[date_str] = cached
         logger.info("Prices cache hit for %s", date_str)
-        return cached
+        return apply_fee_snapshot(cached, cfg, fee_snapshot)
     logger.info("Prices cache miss for %s", date_str)
 
     date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -286,8 +408,10 @@ def get_prices_for_date(cfg, date_str, tzinfo):
         data = get_spot_prices()
         today_str = today.strftime("%Y-%m-%d")
         tomorrow_str = tomorrow.strftime("%Y-%m-%d")
-        today_entries = build_entries_from_api(cfg, today_str, data.get("hoursToday", []))
-        tomorrow_entries = build_entries_from_api(cfg, tomorrow_str, data.get("hoursTomorrow", []))
+        today_snapshot = get_fee_snapshot_for_date(cfg, today_str, tzinfo)
+        tomorrow_snapshot = get_fee_snapshot_for_date(cfg, tomorrow_str, tzinfo)
+        today_entries = build_entries_from_api(cfg, today_str, data.get("hoursToday", []), today_snapshot)
+        tomorrow_entries = build_entries_from_api(cfg, tomorrow_str, data.get("hoursTomorrow", []), tomorrow_snapshot)
         if today_entries:
             PRICES_CACHE[today_str] = today_entries
             save_prices_cache(today_str, today_entries)
@@ -295,7 +419,6 @@ def get_prices_for_date(cfg, date_str, tzinfo):
             PRICES_CACHE[tomorrow_str] = tomorrow_entries
             save_prices_cache(tomorrow_str, tomorrow_entries)
         entries = today_entries if date_obj == today else tomorrow_entries
-        return entries
     else:
         logger.info("Fetching historical prices from HTML for %s", date_str)
         url = f"https://spotovaelektrina.cz/denni-ceny/{date_str}"
@@ -305,7 +428,7 @@ def get_prices_for_date(cfg, date_str, tzinfo):
         for time_str, price_czk in rows:
             hour, minute = map(int, time_str.split(":"))
             spot_kwh = price_czk / 1000
-            final_price = calculate_final_price(spot_kwh, hour, cfg)
+            final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
             entries.append(
                 {
                     "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -318,7 +441,7 @@ def get_prices_for_date(cfg, date_str, tzinfo):
 
     PRICES_CACHE[date_str] = entries
     save_prices_cache(date_str, entries)
-    return entries
+    return apply_fee_snapshot(entries, cfg, fee_snapshot)
 
 def build_price_map_for_date(cfg, date_str, tzinfo):
     entries = get_prices_for_date(cfg, date_str, tzinfo)
@@ -360,6 +483,77 @@ def calculate_daily_totals(cfg, date_str):
     if count == 0:
         return {"kwh_total": None, "cost_total": None}
     return {"kwh_total": round(total_kwh, 5), "cost_total": round(total_cost, 5)}
+
+def compute_fixed_breakdown_for_day(fee_snapshot, days_in_month):
+    fixed = fee_snapshot.get("fixed", {})
+    daily_fees = fixed.get("daily", {}) if isinstance(fixed.get("daily"), dict) else {}
+    monthly_fees = fixed.get("monthly", {}) if isinstance(fixed.get("monthly"), dict) else {}
+    dph_multiplier = 1 + (fee_snapshot.get("dph_percent", 0) / 100.0)
+    daily_with_dph = {key: value * dph_multiplier for key, value in daily_fees.items()}
+    monthly_with_dph = {
+        key: (value / days_in_month) * dph_multiplier for key, value in monthly_fees.items()
+    }
+    return daily_with_dph, monthly_with_dph
+
+def compute_monthly_billing(cfg, month_str, tzinfo):
+    if not re.match(r"^\d{4}-\d{2}$", month_str):
+        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
+    year, month_num = map(int, month_str.split("-"))
+    days_in_month = calendar.monthrange(year, month_num)[1]
+    start_date = datetime(year, month_num, 1).date()
+    today = datetime.now(tzinfo).date()
+
+    actual_variable = 0.0
+    actual_kwh = 0.0
+    days_with_data = 0
+    fixed_total = 0.0
+    fixed_breakdown = {"daily": {}, "monthly": {}}
+
+    for day_offset in range(days_in_month):
+        date_obj = start_date + timedelta(days=day_offset)
+        date_str = date_obj.strftime("%Y-%m-%d")
+
+        fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
+        daily_fixed, monthly_fixed = compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
+        for key, value in daily_fixed.items():
+            fixed_breakdown["daily"][key] = fixed_breakdown["daily"].get(key, 0.0) + value
+        for key, value in monthly_fixed.items():
+            fixed_breakdown["monthly"][key] = fixed_breakdown["monthly"].get(key, 0.0) + value
+        fixed_total += sum(daily_fixed.values()) + sum(monthly_fixed.values())
+
+        if date_obj <= today:
+            totals = calculate_daily_totals(cfg, date_str)
+            if totals["kwh_total"] is not None:
+                actual_kwh += totals["kwh_total"]
+                actual_variable += totals["cost_total"]
+                days_with_data += 1
+
+    projected_variable = 0.0
+    if days_with_data > 0:
+        projected_variable = (actual_variable / days_with_data) * days_in_month
+
+    actual = {
+        "kwh_total": round(actual_kwh, 5) if days_with_data else None,
+        "variable_cost": round(actual_variable, 5),
+        "fixed_cost": round(fixed_total, 5),
+        "total_cost": round(actual_variable + fixed_total, 5),
+    }
+    projected = {
+        "variable_cost": round(projected_variable, 5),
+        "fixed_cost": round(fixed_total, 5),
+        "total_cost": round(projected_variable + fixed_total, 5),
+    }
+    fixed_breakdown["daily"] = {k: round(v, 5) for k, v in fixed_breakdown["daily"].items()}
+    fixed_breakdown["monthly"] = {k: round(v, 5) for k, v in fixed_breakdown["monthly"].items()}
+
+    return {
+        "month": month_str,
+        "days_in_month": days_in_month,
+        "days_with_data": days_with_data,
+        "actual": actual,
+        "projected": projected,
+        "fixed_breakdown": fixed_breakdown,
+    }
 
 def get_consumption_points(cfg, date=None, start=None, end=None):
     influx = get_influx_cfg(cfg)
@@ -451,17 +645,22 @@ def get_spot_prices():
     r.raise_for_status()
     return r.json()
 
-def calculate_final_price(price_spot_czk, hour, cfg):
+def calculate_final_price(price_spot_czk, hour, cfg, fee_snapshot):
     vt_periods = cfg.get("tarif", {}).get("vt_periods", [])
     is_vt = any(start <= hour < end for start, end in vt_periods)
     tarif_type = "VT" if is_vt else "NT"
-
-    komodita = (price_spot_czk + cfg.get("poplatky", {}).get("komodita_sluzba", 0)) * cfg.get("dph", 1)
-    poze = cfg.get("poplatky", {}).get("poze", 0)
-    dan = cfg.get("poplatky", {}).get("dan", 0)
-    distribuce = cfg.get("poplatky", {}).get("distribuce", {}).get(tarif_type, 0)
-
-    total = komodita + poze + dan + distribuce
+    fees = fee_snapshot.get("kwh_fees", {})
+    distribuce = fees.get("distribuce", {})
+    subtotal = (
+        price_spot_czk
+        + fees.get("komodita_sluzba", 0)
+        + fees.get("oze", 0)
+        + fees.get("dan", 0)
+        + fees.get("systemove_sluzby", 0)
+        + distribuce.get(tarif_type, 0)
+    )
+    dph_multiplier = 1 + (fee_snapshot.get("dph_percent", 0) / 100.0)
+    total = subtotal * dph_multiplier
     return round(total, 5)
 
 @app.get("/api/prices")
@@ -657,6 +856,65 @@ def get_daily_summary(month: str = Query(...)):
             "cost_total": round(total_cost, 5),
         },
     }
+
+@app.get("/api/billing-month")
+def get_billing_month(month: str = Query(...)):
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    return compute_monthly_billing(cfg, month, tzinfo)
+
+@app.get("/api/billing-year")
+def get_billing_year(year: int = Query(..., ge=2000, le=2100)):
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    now = datetime.now(tzinfo)
+    current_year = now.year
+    current_month = now.month
+    if year > current_year:
+        return {"year": year, "months": [], "totals": {"actual": {}, "projected": {}}}
+
+    end_month = 12 if year < current_year else current_month
+    months = []
+    totals_actual_var = 0.0
+    totals_actual_fixed = 0.0
+    totals_actual_total = 0.0
+    totals_projected_var = 0.0
+    totals_projected_fixed = 0.0
+    totals_projected_total = 0.0
+
+    for month_num in range(1, end_month + 1):
+        month_str = f"{year}-{month_num:02d}"
+        data = compute_monthly_billing(cfg, month_str, tzinfo)
+        months.append(
+            {
+                "month": data["month"],
+                "days_in_month": data["days_in_month"],
+                "days_with_data": data["days_with_data"],
+                "actual": data["actual"],
+                "projected": data["projected"],
+            }
+        )
+        totals_actual_var += data["actual"]["variable_cost"]
+        totals_actual_fixed += data["actual"]["fixed_cost"]
+        totals_actual_total += data["actual"]["total_cost"]
+        totals_projected_var += data["projected"]["variable_cost"]
+        totals_projected_fixed += data["projected"]["fixed_cost"]
+        totals_projected_total += data["projected"]["total_cost"]
+
+    totals = {
+        "actual": {
+            "variable_cost": round(totals_actual_var, 5),
+            "fixed_cost": round(totals_actual_fixed, 5),
+            "total_cost": round(totals_actual_total, 5),
+        },
+        "projected": {
+            "variable_cost": round(totals_projected_var, 5),
+            "fixed_cost": round(totals_projected_fixed, 5),
+            "total_cost": round(totals_projected_total, 5),
+        },
+    }
+
+    return {"year": year, "months": months, "totals": totals}
 
 
 

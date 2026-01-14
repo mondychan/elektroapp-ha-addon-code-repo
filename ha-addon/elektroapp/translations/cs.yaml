@@ -1,9 +1,11 @@
 configuration:
   dph:
-    name: "DPH nasobic"
-    description: "Napr. 1.21"
+    name: "DPH %"
+    description: "Napr. 21"
   poplatky:
     name: "Poplatky"
+  fixni:
+    name: "Fixni poplatky"
   tarif:
     name: "Tarif"
     description: "VT intervaly jako \"6-7,9-10,13-14,16-17\""

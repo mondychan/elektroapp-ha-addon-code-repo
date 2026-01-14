@@ -49,6 +49,18 @@ function App() {
   const [plannerError, setPlannerError] = useState(null);
   const [plannerNote, setPlannerNote] = useState(null);
   const [monthlyError, setMonthlyError] = useState(null);
+  const [showBilling, setShowBilling] = useState(false);
+  const [billingMode, setBillingMode] = useState("month");
+  const [billingMonth, setBillingMonth] = useState(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  });
+  const [billingYear, setBillingYear] = useState(() => String(new Date().getFullYear()));
+  const [billingData, setBillingData] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState(null);
   const [plannerDuration, setPlannerDuration] = useState(() => {
     return localStorage.getItem("plannerDuration") || "120";
   });
@@ -128,6 +140,28 @@ function App() {
       });
   }, [selectedMonth]);
 
+  useEffect(() => {
+    if (!showBilling) return;
+    setBillingLoading(true);
+    setBillingError(null);
+    setBillingData(null);
+    const endpoint = billingMode === "year" ? "/billing-year" : "/billing-month";
+    const params = billingMode === "year"
+      ? { year: Number(billingYear) }
+      : { month: billingMonth };
+    if (billingMode === "year" && !params.year) {
+      setBillingLoading(false);
+      return;
+    }
+    axios.get(`${API_PREFIX}${endpoint}`, { params })
+      .then(res => setBillingData(res.data))
+      .catch(err => {
+        console.error("Error fetching billing summary:", err);
+        setBillingError("Prehled vyuctovani neni k dispozici.");
+      })
+      .finally(() => setBillingLoading(false));
+  }, [showBilling, billingMode, billingMonth, billingYear]);
+
 
   // --- funkce pro převod slotu na HH:MM ---
   const formatDate = (date) => date.toLocaleDateString("cs-CZ");
@@ -141,6 +175,11 @@ function App() {
     const gb = mb / 1024;
     return `${gb.toFixed(1)} GB`;
   };
+  const formatCurrency = (value) => {
+    if (value == null || Number.isNaN(value)) return "-";
+    return `${value.toFixed(2)},-Kc`;
+  };
+  const formatFeeValue = (value) => (value == null ? "-" : value);
   const toDateInputValue = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -508,6 +547,117 @@ function App() {
     );
   };
 
+  const renderBillingMonth = () => {
+    if (!billingData) return null;
+    const actual = billingData.actual || {};
+    const projected = billingData.projected || {};
+    const breakdown = billingData.fixed_breakdown || {};
+    const dailyBreakdown = breakdown.daily || {};
+    const monthlyBreakdown = breakdown.monthly || {};
+    const dailyTotal = Object.values(dailyBreakdown).reduce((sum, value) => sum + value, 0);
+    const monthlyTotal = Object.values(monthlyBreakdown).reduce((sum, value) => sum + value, 0);
+
+    return (
+      <div>
+        <div className="summary">
+          Realny odhad: {formatCurrency(actual.total_cost)} | Projekce: {formatCurrency(projected.total_cost)}
+        </div>
+        <div className="config-muted">
+          Data za {billingData.days_with_data} dni z {billingData.days_in_month}.
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Spotreba zatim</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {actual.kwh_total == null ? "-" : `${actual.kwh_total.toFixed(2)} kWh`}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Variabilni naklady zatim</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(actual.variable_cost)}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Fixni poplatky (denni)</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(dailyTotal)}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Fixni poplatky (mesicni)</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(monthlyTotal)}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Fixni poplatky celkem</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(actual.fixed_cost)}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Realny odhad mesice</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(actual.total_cost)}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 4px" }}>Projekce mesice</td>
+              <td style={{ textAlign: "right", padding: "6px 4px" }}>
+                {formatCurrency(projected.total_cost)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderBillingYear = () => {
+    if (!billingData || !billingData.months) return null;
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Mesic</th>
+            <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Realny odhad</th>
+            <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Projekce</th>
+          </tr>
+        </thead>
+        <tbody>
+          {billingData.months.map((item) => (
+            <tr key={item.month}>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatMonthLabel(item.month)}
+              </td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(item.actual?.total_cost)}
+              </td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                {formatCurrency(item.projected?.total_cost)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        {billingData.totals && (
+          <tfoot>
+            <tr>
+              <td style={{ padding: "6px 4px", borderTop: "1px solid #ddd" }}>Soucet</td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderTop: "1px solid #ddd" }}>
+                {formatCurrency(billingData.totals.actual?.total_cost)}
+              </td>
+              <td style={{ textAlign: "right", padding: "6px 4px", borderTop: "1px solid #ddd" }}>
+                {formatCurrency(billingData.totals.projected?.total_cost)}
+              </td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    );
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -546,6 +696,68 @@ function App() {
         <section className="section">
           {renderMonthlyTable()}
         </section>
+      )}
+
+      <button
+        onClick={() => setShowBilling(!showBilling)}
+        className="ghost-button"
+      >
+        {showBilling ? "Skryt vyuctovani" : "Odhad vyuctovani"}
+      </button>
+
+      {showBilling && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-header">
+            <h3>Odhad vyuctovani</h3>
+          </div>
+          <div className="toolbar">
+            <select
+              value={billingMode}
+              onChange={(e) => setBillingMode(e.target.value)}
+            >
+              <option value="month">Mesic</option>
+              <option value="year">Rok</option>
+            </select>
+            {billingMode === "month" ? (
+              <>
+                <input
+                  type="month"
+                  value={billingMonth}
+                  onChange={(e) => setBillingMonth(e.target.value)}
+                />
+                <button onClick={() => {
+                  const today = new Date();
+                  const y = today.getFullYear();
+                  const m = String(today.getMonth() + 1).padStart(2, "0");
+                  setBillingMonth(`${y}-${m}`);
+                }}>
+                  Tento mesic
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={billingYear}
+                  onChange={(e) => setBillingYear(e.target.value)}
+                />
+                <button onClick={() => setBillingYear(String(new Date().getFullYear()))}>
+                  Tento rok
+                </button>
+              </>
+            )}
+          </div>
+          {billingError && (
+            <div className="alert error">{billingError}</div>
+          )}
+          {billingLoading && (
+            <div className="config-muted">Pocitam odhad vyuctovani...</div>
+          )}
+          {!billingLoading && billingMode === "month" && renderBillingMonth()}
+          {!billingLoading && billingMode === "year" && renderBillingYear()}
+        </div>
       )}
 
       <button
@@ -621,12 +833,16 @@ function App() {
             <div className="config-column">
               <h4>Nastaveni cen</h4>
               <ul className="config-list">
-                <li>DPH: {((config.dph - 1) * 100).toFixed(0)}%</li>
-                <li>Sluzba obchodu: {config.poplatky?.komodita_sluzba},-Kc bez DPH/kWh</li>
-                <li>POZE: {config.poplatky?.poze},-Kc vc DPH/kWh</li>
-                <li>Dan: {config.poplatky?.dan},-Kc vc DPH/kWh</li>
-                <li>Distribuce NT: {config.poplatky?.distribuce?.NT},-Kc vc DPH/kWh</li>
-                <li>Distribuce VT: {config.poplatky?.distribuce?.VT},-Kc vc DPH/kWh</li>
+                <li>DPH: {Number(config.dph ?? 0).toFixed(0)}%</li>
+                <li>Sluzba obchodu: {formatFeeValue(config.poplatky?.komodita_sluzba)},-Kc bez DPH/kWh</li>
+                <li>OZE: {formatFeeValue(config.poplatky?.oze)},-Kc bez DPH/kWh</li>
+                <li>Dan: {formatFeeValue(config.poplatky?.dan)},-Kc bez DPH/kWh</li>
+                <li>Systemove sluzby: {formatFeeValue(config.poplatky?.systemove_sluzby)},-Kc bez DPH/kWh</li>
+                <li>Distribuce NT: {formatFeeValue(config.poplatky?.distribuce?.NT)},-Kc bez DPH/kWh</li>
+                <li>Distribuce VT: {formatFeeValue(config.poplatky?.distribuce?.VT)},-Kc bez DPH/kWh</li>
+                <li>Staly plat: {formatFeeValue(config.fixni?.denni?.staly_plat)},-Kc bez DPH/den</li>
+                <li>Nesitova infrastruktura: {formatFeeValue(config.fixni?.mesicni?.provoz_nesitove_infrastruktury)},-Kc bez DPH/mesic</li>
+                <li>Jistic: {formatFeeValue(config.fixni?.mesicni?.jistic)},-Kc bez DPH/mesic</li>
               </ul>
             </div>
             <div className="config-column">

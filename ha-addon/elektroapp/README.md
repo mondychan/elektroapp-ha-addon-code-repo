@@ -25,14 +25,22 @@ Veskera data se stahuji z spotovaelektrina.cz.
 Add-on nacita nastaveni z Home Assistant options (Supervisor). 
 
 ### `dph`
-- Nasobic DPH, napr. `1.21`.
+- Vyse DPH v procentech, napr. `21`.
 
 ### `poplatky`
-- `komodita_sluzba`: Poplatek za sluzbu obchodu (Kc bez DPH / kWh).
-- `poze`: Poplatek POZE (Kc vc DPH / kWh).
-- `dan`: Dan z elektriny (Kc vc DPH / kWh).
-- `distribuce.NT`: Distribuce pro nizky tarif (Kc vc DPH / kWh).
-- `distribuce.VT`: Distribuce pro vysoky tarif (Kc vc DPH / kWh).
+- Vsechny hodnoty jsou bez DPH (Kc / kWh). DPH se aplikuje az ve vypoctu.
+- `komodita_sluzba`: Poplatek za sluzbu obchodu.
+- `oze`: Cena na podporu vykupu elektiny (OZE/POZE).
+- `dan`: Dan z elektriny.
+- `systemove_sluzby`: Systemove sluzby (CEPS).
+- `distribuce.NT`: Distribuce pro nizky tarif.
+- `distribuce.VT`: Distribuce pro vysoky tarif.
+
+### `fixni`
+- Fixni poplatky bez DPH (Kc / den, Kc / mesic).
+- `denni.staly_plat`: Staly plat (Kc/den).
+- `mesicni.provoz_nesitove_infrastruktury`: Nesitova infrastruktura (Kc/mesic).
+- `mesicni.jistic`: Jistic (Kc/mesic).
 
 ### `tarif.vt_periods`
 - Casove intervaly VT (vysoky tarif), format `HH-HH` oddeleny carkou.
