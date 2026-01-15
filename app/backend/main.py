@@ -712,12 +712,23 @@ def get_costs(
     consumption = get_consumption_points(cfg, date, start, end)
     tzinfo = consumption["tzinfo"]
     if not consumption.get("has_series", False):
-        range_end = datetime.fromisoformat(consumption["range"]["end"].replace("Z", "+00:00"))
-        if range_end <= datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=500,
-                detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
-            )
+        if date:
+            try:
+                date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+                if date_obj <= datetime.now(tzinfo).date():
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
+                    )
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+        else:
+            range_end = datetime.fromisoformat(consumption["range"]["end"].replace("Z", "+00:00"))
+            if range_end <= datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
+                )
     if date:
         price_map, price_map_utc = build_price_map_for_date(cfg, date, tzinfo)
     else:

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.32
+- InfluxDB: chyba i v "Naklady a spotreba" pri spatnem entity_id.
+
 ## 0.1.31
 - InfluxDB: jasna chyba pri spatnem entity_id (souhrn/odhad/naklady).
 - Konfigurace: cache bez sloupce jednotka.
