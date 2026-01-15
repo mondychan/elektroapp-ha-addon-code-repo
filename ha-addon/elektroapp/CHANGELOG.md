@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.29
+- Konfigurace: pevne sirky sloupcu v tabulce.
+
 ## 0.1.28
 - Konfigurace: cache prehled sjednocen do tabulky.
 

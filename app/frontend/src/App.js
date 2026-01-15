@@ -704,7 +704,12 @@ function App() {
     );
   };
   const renderInfoTable = (rows) => (
-    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" }}>
+      <colgroup>
+        <col style={{ width: "50%" }} />
+        <col style={{ width: "30%" }} />
+        <col style={{ width: "20%" }} />
+      </colgroup>
       <thead>
         <tr>
           <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
@@ -721,12 +726,21 @@ function App() {
                 textAlign: row.valueAlign || "right",
                 padding: "6px 4px",
                 borderBottom: "1px solid #f0f0f0",
+                whiteSpace: row.valueWrap ? "normal" : "nowrap",
                 wordBreak: row.valueWrap ? "break-word" : "normal",
               }}
             >
               {row.value}
             </td>
-            <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.unit || ""}</td>
+            <td
+              style={{
+                padding: "6px 4px",
+                borderBottom: "1px solid #f0f0f0",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {row.unit || ""}
+            </td>
           </tr>
         ))}
       </tbody>
