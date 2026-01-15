@@ -219,9 +219,9 @@ function App() {
     if (!cacheStatus) return [];
     return [
       { label: "Cache dny", value: cacheStatus.count, unit: "dni" },
-      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-", unit: "", valueAlign: "left" },
+      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-", unit: "" },
       { label: "Cache velikost", value: formatBytes(cacheStatus.size_bytes), unit: "" },
-      { label: "Cache cesta", value: cacheStatus.dir, unit: "", valueAlign: "left", valueWrap: true },
+      { label: "Cache cesta", value: cacheStatus.dir, unit: "", valueWrap: true },
     ];
   }, [cacheStatus]);
 
@@ -703,8 +703,12 @@ function App() {
       </table>
     );
   };
-  const renderInfoTable = (rows) => (
-    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" }}>
+  const renderInfoTable = (rows, options = {}) => {
+    const valueAlign = options.valueAlign || "right";
+    const headerValueAlign = options.headerValueAlign || valueAlign;
+    const unitAlign = options.unitAlign || "left";
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" }}>
       <colgroup>
         <col style={{ width: "50%" }} />
         <col style={{ width: "30%" }} />
@@ -713,7 +717,7 @@ function App() {
       <thead>
         <tr>
           <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
-          <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
+          <th style={{ textAlign: headerValueAlign, padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
           <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
         </tr>
       </thead>
@@ -723,7 +727,7 @@ function App() {
             <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.label}</td>
             <td
               style={{
-                textAlign: row.valueAlign || "right",
+                textAlign: row.valueAlign || valueAlign,
                 padding: "6px 4px",
                 borderBottom: "1px solid #f0f0f0",
                 whiteSpace: row.valueWrap ? "normal" : "nowrap",
@@ -737,6 +741,7 @@ function App() {
                 padding: "6px 4px",
                 borderBottom: "1px solid #f0f0f0",
                 whiteSpace: "nowrap",
+                textAlign: unitAlign,
               }}
             >
               {row.unit || ""}
@@ -745,7 +750,8 @@ function App() {
         ))}
       </tbody>
     </table>
-  );
+    );
+  };
 
   return (
     <div className="app">
@@ -922,12 +928,12 @@ function App() {
             <div className="config-column">
               <h4>Nastaveni cen</h4>
               <div className="config-muted">Hodnoty jsou bez DPH.</div>
-              {renderInfoTable(configRows)}
+              {renderInfoTable(configRows, { valueAlign: "right", headerValueAlign: "right" })}
             </div>
             <div className="config-column">
               <h4>Cache</h4>
               {cacheStatus ? (
-                renderInfoTable(cacheRows)
+                renderInfoTable(cacheRows, { valueAlign: "left", headerValueAlign: "left" })
               ) : (
                 <div className="config-muted">Cache data nejsou k dispozici.</div>
               )}

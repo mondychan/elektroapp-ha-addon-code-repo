@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.30
+- Konfigurace: zarovnani sloupcu v cache tabulce.
+
 ## 0.1.29
 - Konfigurace: pevne sirky sloupcu v tabulce.
 
