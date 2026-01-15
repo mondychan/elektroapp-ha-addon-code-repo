@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.33
+- UI: grafy cen v blokovem ramecku.
+
 ## 0.1.32
 - InfluxDB: chyba i v "Naklady a spotreba" pri spatnem entity_id.
 

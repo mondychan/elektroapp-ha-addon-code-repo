@@ -323,16 +323,12 @@ function App() {
   };
 
   const renderChart = (chartData, title, fallbackMessage = null) => {
-    if (!chartData.length) {
-      return fallbackMessage ? (
-        <div style={{ margin: "20px 0", fontStyle: "italic" }}>
-          {fallbackMessage}
-        </div>
-      ) : null;
+    if (!chartData.length && !fallbackMessage) {
+      return null;
     }
 
-    const minPrice = Math.min(...chartData.map((d) => d.final));
-    const maxPrice = Math.max(...chartData.map((d) => d.final));
+    const minPrice = chartData.length ? Math.min(...chartData.map((d) => d.final)) : 0;
+    const maxPrice = chartData.length ? Math.max(...chartData.map((d) => d.final)) : 0;
     const colorScale = d3.scaleLinear().domain([minPrice, maxPrice]).range(["#00FF00", "#FF0000"]);
 
     const getVTStatus = (slot) => {
@@ -342,62 +338,68 @@ function App() {
     };
 
     return (
-      <div style={{ marginBottom: 40 }}>
-        <h3>{title}</h3>
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={chartData} margin={{ top: 20, right: 20, left: 40, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis
-              dataKey="time"
-              tick={({ x, y, payload }) => {
-                const time = payload.value;
-                const [h, m] = time.split(":").map(Number);
-                const slot = h * 4 + m / 15;
-                const isVT = getVTStatus(slot) === "VT";
-                return (
-                  <text
-                    x={x}
-                    y={y + 10}
-                    textAnchor="middle"
-                    fill={isVT ? "#FF0000" : "#00AA00"}
-                    fontSize={10}
-                  >
-                    {time} ({isVT ? "VT" : "NT"})
-                  </text>
-                );
-              }}
-            />
-            <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Cena", angle: -90, position: "insideLeft" }} tickFormatter={(v) => `${v.toFixed(2)},-Kc`} />
-            <Tooltip
-              contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-              itemStyle={{ color: "var(--text)" }}
-              labelStyle={{ color: "var(--text)" }}
-              formatter={(value, name, props) => {
-                if (props.dataKey === "spot") return [`${value.toFixed(2)},-Kc`, "Spot"];
-                if (props.dataKey === "extra") return [`${props.payload.final.toFixed(2)},-Kc`, "Konecna cena"];
-                return [`${value.toFixed(2)},-Kc`, name];
-              }}
-              labelFormatter={(label, payload) => {
-                if (!payload || !payload.length) return `Cas: ${label}`;
-                const [h, m] = label.split(":").map(Number);
-                const slot = h * 4 + m / 15;
-                const vtStatus = getVTStatus(slot);
-                return `Cas: ${label} (${vtStatus})`;
-              }}
-            />
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <h3>{title}</h3>
+        </div>
+        {!chartData.length ? (
+          <div className="config-muted">{fallbackMessage}</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={chartData} margin={{ top: 20, right: 20, left: 40, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis
+                dataKey="time"
+                tick={({ x, y, payload }) => {
+                  const time = payload.value;
+                  const [h, m] = time.split(":").map(Number);
+                  const slot = h * 4 + m / 15;
+                  const isVT = getVTStatus(slot) === "VT";
+                  return (
+                    <text
+                      x={x}
+                      y={y + 10}
+                      textAnchor="middle"
+                      fill={isVT ? "#FF0000" : "#00AA00"}
+                      fontSize={10}
+                    >
+                      {time} ({isVT ? "VT" : "NT"})
+                    </text>
+                  );
+                }}
+              />
+              <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Cena", angle: -90, position: "insideLeft" }} tickFormatter={(v) => `${v.toFixed(2)},-Kc`} />
+              <Tooltip
+                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+                itemStyle={{ color: "var(--text)" }}
+                labelStyle={{ color: "var(--text)" }}
+                formatter={(value, name, props) => {
+                  if (props.dataKey === "spot") return [`${value.toFixed(2)},-Kc`, "Spot"];
+                  if (props.dataKey === "extra") return [`${props.payload.final.toFixed(2)},-Kc`, "Konecna cena"];
+                  return [`${value.toFixed(2)},-Kc`, name];
+                }}
+                labelFormatter={(label, payload) => {
+                  if (!payload || !payload.length) return `Cas: ${label}`;
+                  const [h, m] = label.split(":").map(Number);
+                  const slot = h * 4 + m / 15;
+                  const vtStatus = getVTStatus(slot);
+                  return `Cas: ${label} (${vtStatus})`;
+                }}
+              />
 
-            <Bar dataKey="spot" stackId="a">
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-spot-${index}`} fill="#4D79FF" />
-              ))}
-            </Bar>
-            <Bar dataKey="extra" stackId="a">
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-extra-${index}`} fill={colorScale(entry.final)} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+              <Bar dataKey="spot" stackId="a">
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-spot-${index}`} fill="#4D79FF" />
+                ))}
+              </Bar>
+              <Bar dataKey="extra" stackId="a">
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-extra-${index}`} fill={colorScale(entry.final)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     );
   };
@@ -501,41 +503,21 @@ function App() {
   };
 
   const renderMonthlyTable = () => {
+    let content = null;
     if (monthlyError) {
-      return (
+      content = (
         <div className="alert error">
           {monthlyError}
         </div>
       );
-    }
-    if (!monthlySummary.length) {
-      return (
+    } else if (!monthlySummary.length) {
+      content = (
         <div style={{ fontStyle: "italic" }}>
           Mesicni souhrn neni k dispozici.
         </div>
       );
-    }
-
-    return (
-      <div className="card" style={{ marginTop: 20 }}>
-        <div className="card-header">
-          <h3>Souhrn za mesic - {formatMonthLabel(selectedMonth)}</h3>
-        </div>
-        <div className="toolbar">
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-          />
-          <button onClick={() => {
-            const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, "0");
-            setSelectedMonth(`${y}-${m}`);
-          }}>
-            Tento mesic
-          </button>
-        </div>
+    } else {
+      content = (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -577,6 +559,30 @@ function App() {
             </tfoot>
           )}
         </table>
+      );
+    }
+
+    return (
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-header">
+          <h3>Souhrn za mesic - {formatMonthLabel(selectedMonth)}</h3>
+        </div>
+        <div className="toolbar">
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+          />
+          <button onClick={() => {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, "0");
+            setSelectedMonth(`${y}-${m}`);
+          }}>
+            Tento mesic
+          </button>
+        </div>
+        {content}
       </div>
     );
   };
