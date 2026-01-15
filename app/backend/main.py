@@ -462,6 +462,7 @@ def build_price_map_for_date(cfg, date_str, tzinfo):
 def calculate_daily_totals(cfg, date_str):
     consumption = get_consumption_points(cfg, date=date_str)
     tzinfo = consumption["tzinfo"]
+    has_series = consumption.get("has_series", False)
     price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
 
     total_kwh = 0.0
@@ -483,8 +484,8 @@ def calculate_daily_totals(cfg, date_str):
             count += 1
 
     if count == 0:
-        return {"kwh_total": None, "cost_total": None}
-    return {"kwh_total": round(total_kwh, 5), "cost_total": round(total_cost, 5)}
+        return {"kwh_total": None, "cost_total": None, "has_series": has_series}
+    return {"kwh_total": round(total_kwh, 5), "cost_total": round(total_cost, 5), "has_series": has_series}
 
 def compute_fixed_breakdown_for_day(fee_snapshot, days_in_month):
     fixed = fee_snapshot.get("fixed", {})
@@ -529,6 +530,12 @@ def compute_monthly_billing(cfg, month_str, tzinfo):
                 actual_kwh += totals["kwh_total"]
                 actual_variable += totals["cost_total"]
                 days_with_data += 1
+
+    if days_with_data == 0 and start_date <= today:
+        raise HTTPException(
+            status_code=500,
+            detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
+        )
 
     projected_variable = 0.0
     if days_with_data > 0:
@@ -579,6 +586,7 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
 
     data = influx_query(influx, q)
     series = data.get("results", [{}])[0].get("series", [])
+    has_series = bool(series)
     values = series[0]["values"] if series else []
 
     points = []
@@ -613,6 +621,7 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
         "entity_id": entity_id,
         "points": points,
         "tzinfo": tzinfo,
+        "has_series": has_series,
     }
 
 @app.get("/api/config")
@@ -702,6 +711,13 @@ def get_costs(
     cfg = load_config()
     consumption = get_consumption_points(cfg, date, start, end)
     tzinfo = consumption["tzinfo"]
+    if not consumption.get("has_series", False):
+        range_end = datetime.fromisoformat(consumption["range"]["end"].replace("Z", "+00:00"))
+        if range_end <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=500,
+                detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
+            )
     if date:
         price_map, price_map_utc = build_price_map_for_date(cfg, date, tzinfo)
     else:
@@ -834,9 +850,12 @@ def get_daily_summary(month: str = Query(...)):
     current = start
     total_kwh = 0.0
     total_cost = 0.0
+    any_series = False
     while current < next_month and current.date() <= today:
         date_str = current.strftime("%Y-%m-%d")
         totals = calculate_daily_totals(cfg, date_str)
+        if totals.get("has_series"):
+            any_series = True
         days.append(
             {
                 "date": date_str,
@@ -849,6 +868,12 @@ def get_daily_summary(month: str = Query(...)):
         if totals["cost_total"] is not None:
             total_cost += totals["cost_total"]
         current += timedelta(days=1)
+
+    if not any_series and start.date() <= today:
+        raise HTTPException(
+            status_code=500,
+            detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
+        )
 
     return {
         "month": month,

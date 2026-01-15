@@ -72,6 +72,10 @@ function App() {
 
   const API_PREFIX = "./api";
   const buildInfluxError = (err) => {
+    const detail = err?.response?.data?.detail;
+    if (detail) {
+      return String(detail);
+    }
     if (err?.response?.status === 401) {
       return "Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo.";
     }
@@ -157,7 +161,7 @@ function App() {
       .then(res => setBillingData(res.data))
       .catch(err => {
         console.error("Error fetching billing summary:", err);
-        setBillingError("Prehled vyuctovani neni k dispozici.");
+        setBillingError(buildInfluxError(err));
       })
       .finally(() => setBillingLoading(false));
   }, [showBilling, billingMode, billingMonth, billingYear]);
@@ -218,10 +222,10 @@ function App() {
   const cacheRows = useMemo(() => {
     if (!cacheStatus) return [];
     return [
-      { label: "Cache dny", value: cacheStatus.count, unit: "dni" },
-      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-", unit: "" },
-      { label: "Cache velikost", value: formatBytes(cacheStatus.size_bytes), unit: "" },
-      { label: "Cache cesta", value: cacheStatus.dir, unit: "", valueWrap: true },
+      { label: "Cache dny", value: `${cacheStatus.count} dni` },
+      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-" },
+      { label: "Cache velikost", value: formatBytes(cacheStatus.size_bytes) },
+      { label: "Cache cesta", value: cacheStatus.dir, valueWrap: true },
     ];
   }, [cacheStatus]);
 
@@ -408,21 +412,6 @@ function App() {
   }, [costs]);
 
   const renderCostChart = () => {
-    if (costsError) {
-      return (
-        <div className="alert error">
-          {costsError}
-        </div>
-      );
-    }
-    if (!costChartData.length) {
-      return (
-        <div style={{ marginBottom: 40, fontStyle: "italic" }}>
-          Data pro vybrany den nejsou k dispozici.
-        </div>
-      );
-    }
-
     return (
       <div className="card" style={{ marginBottom: 40 }}>
         <div className="card-header">
@@ -460,41 +449,53 @@ function App() {
             Dnes
           </button>
         </div>
-        {costsSummary && (
-          <div className="summary">
-            Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc
+        {costsError ? (
+          <div className="alert error">
+            {costsError}
           </div>
+        ) : !costChartData.length ? (
+          <div style={{ marginBottom: 20, fontStyle: "italic" }}>
+            Data pro vybrany den nejsou k dispozici.
+          </div>
+        ) : (
+          <>
+            {costsSummary && (
+              <div className="summary">
+                Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc
+              </div>
+            )}
+            <div className="cost-stack">
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={costChartData} margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" tick={false} />
+                  <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Kc", angle: -90, position: "insideLeft" }} />
+                  <Tooltip
+                    contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+                    itemStyle={{ color: "var(--text)" }}
+                    labelStyle={{ color: "var(--text)" }}
+                    formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Naklad"]}
+                  />
+                  <Line type="monotone" dataKey="cost" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={costChartData} margin={{ top: 0, right: 20, left: 30, bottom: 10 }} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" tick={{ fill: "var(--text-muted)" }} />
+                  <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
+                  <Tooltip
+                    contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+                    itemStyle={{ color: "var(--text)" }}
+                    labelStyle={{ color: "var(--text)" }}
+                    formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Spotreba kWh"]}
+                  />
+                  <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </>
         )}
-        <div className="cost-stack">
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={costChartData} margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={false} />
-              <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Kc", angle: -90, position: "insideLeft" }} />
-              <Tooltip
-                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                itemStyle={{ color: "var(--text)" }}
-                labelStyle={{ color: "var(--text)" }}
-                formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Naklad"]}
-              />
-              <Line type="monotone" dataKey="cost" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={costChartData} margin={{ top: 0, right: 20, left: 30, bottom: 10 }} barCategoryGap="20%">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fill: "var(--text-muted)" }} />
-              <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
-              <Tooltip
-                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                itemStyle={{ color: "var(--text)" }}
-                labelStyle={{ color: "var(--text)" }}
-                formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Spotreba kWh"]}
-              />
-              <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
     );
   };
@@ -707,20 +708,36 @@ function App() {
     const valueAlign = options.valueAlign || "right";
     const headerValueAlign = options.headerValueAlign || valueAlign;
     const unitAlign = options.unitAlign || "left";
-    return (
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" }}>
+    const showHeader = options.showHeader !== false;
+    const showUnit = options.showUnit !== false;
+    const colGroup = showUnit ? (
       <colgroup>
         <col style={{ width: "50%" }} />
         <col style={{ width: "30%" }} />
         <col style={{ width: "20%" }} />
       </colgroup>
-      <thead>
-        <tr>
-          <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
-          <th style={{ textAlign: headerValueAlign, padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
-          <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
-        </tr>
-      </thead>
+    ) : (
+      <colgroup>
+        <col style={{ width: "35%" }} />
+        <col style={{ width: "65%" }} />
+      </colgroup>
+    );
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, tableLayout: "fixed" }}>
+      {colGroup}
+      {showHeader && (
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
+            <th style={{ textAlign: headerValueAlign, padding: "6px 4px", borderBottom: "1px solid #ddd" }}>
+              {showUnit ? "Hodnota" : ""}
+            </th>
+            {showUnit && (
+              <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
+            )}
+          </tr>
+        </thead>
+      )}
       <tbody>
         {rows.map((row) => (
           <tr key={row.label}>
@@ -736,16 +753,18 @@ function App() {
             >
               {row.value}
             </td>
-            <td
-              style={{
-                padding: "6px 4px",
-                borderBottom: "1px solid #f0f0f0",
-                whiteSpace: "nowrap",
-                textAlign: unitAlign,
-              }}
-            >
-              {row.unit || ""}
-            </td>
+            {showUnit && (
+              <td
+                style={{
+                  padding: "6px 4px",
+                  borderBottom: "1px solid #f0f0f0",
+                  whiteSpace: "nowrap",
+                  textAlign: unitAlign,
+                }}
+              >
+                {row.unit || ""}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -933,7 +952,7 @@ function App() {
             <div className="config-column">
               <h4>Cache</h4>
               {cacheStatus ? (
-                renderInfoTable(cacheRows, { valueAlign: "left", headerValueAlign: "left" })
+                renderInfoTable(cacheRows, { valueAlign: "left", headerValueAlign: "left", showUnit: false, showHeader: false })
               ) : (
                 <div className="config-muted">Cache data nejsou k dispozici.</div>
               )}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.31
+- InfluxDB: jasna chyba pri spatnem entity_id (souhrn/odhad/naklady).
+- Konfigurace: cache bez sloupce jednotka.
+
 ## 0.1.30
 - Konfigurace: zarovnani sloupcu v cache tabulce.
 
