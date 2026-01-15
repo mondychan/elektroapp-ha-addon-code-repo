@@ -215,6 +215,15 @@ function App() {
       { label: "Jistic", value: formatFeeValue(config.fixni?.mesicni?.jistic), unit: "Kc/mesic" },
     ];
   }, [config]);
+  const cacheRows = useMemo(() => {
+    if (!cacheStatus) return [];
+    return [
+      { label: "Cache dny", value: cacheStatus.count, unit: "dni" },
+      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-", unit: "", valueAlign: "left" },
+      { label: "Cache velikost", value: formatBytes(cacheStatus.size_bytes), unit: "" },
+      { label: "Cache cesta", value: cacheStatus.dir, unit: "", valueAlign: "left", valueWrap: true },
+    ];
+  }, [cacheStatus]);
 
   
   const normalizeDuration = (value) => {
@@ -694,6 +703,35 @@ function App() {
       </table>
     );
   };
+  const renderInfoTable = (rows) => (
+    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
+          <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
+          <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.label}>
+            <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.label}</td>
+            <td
+              style={{
+                textAlign: row.valueAlign || "right",
+                padding: "6px 4px",
+                borderBottom: "1px solid #f0f0f0",
+                wordBreak: row.valueWrap ? "break-word" : "normal",
+              }}
+            >
+              {row.value}
+            </td>
+            <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.unit || ""}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="app">
@@ -870,36 +908,12 @@ function App() {
             <div className="config-column">
               <h4>Nastaveni cen</h4>
               <div className="config-muted">Hodnoty jsou bez DPH.</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
-                    <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
-                    <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {configRows.map((row) => (
-                    <tr key={row.label}>
-                      <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.label}</td>
-                      <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
-                        {row.value}
-                      </td>
-                      <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {renderInfoTable(configRows)}
             </div>
             <div className="config-column">
               <h4>Cache</h4>
               {cacheStatus ? (
-                <ul className="config-list">
-                  <li>Cache dny: {cacheStatus.count}</li>
-                  <li>Cache nejnovejsi: {cacheStatus.latest || "-"}</li>
-                  <li>Cache velikost: {formatBytes(cacheStatus.size_bytes)}</li>
-                  <li>Cache cesta: {cacheStatus.dir}</li>
-                </ul>
+                renderInfoTable(cacheRows)
               ) : (
                 <div className="config-muted">Cache data nejsou k dispozici.</div>
               )}
