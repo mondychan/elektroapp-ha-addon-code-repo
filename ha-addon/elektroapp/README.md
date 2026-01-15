@@ -19,6 +19,8 @@ Veskera data se stahuji z spotovaelektrina.cz.
 - Otevri Elektroapp z postranniho panelu Home Assistantu.
 - Vyber datum pro denni graf "Naklady a spotreba".
 - Volitelne zobraz mesicni souhrn a tabulku po dnech.
+- Odhad vyuctovani ukazuje realny stav a projekci pro mesic/rok.
+- Planovac spotrebicu najde nejlevnejsi okna pro zadanou delku.
 
 ## Konfigurace
 
@@ -64,3 +66,6 @@ Add-on nacita nastaveni z Home Assistant options (Supervisor).
 
 - Add-on bezi na portu 8000, ale primarne se pouziva Ingress panel v HA.
 - `tarif.vt_periods` se uklada jako retezec a na backendu se prevadi na seznam.
+- Odhad vyuctovani pocita fixni poplatky za cely mesic a variabilni naklady z namerene spotreby.
+- Projekce vyuctovani vychazi z prumeru dosavadnich dni v mesici.
+- Poplatky se ukladaji do historie podle data zmeny konfigurace, aby zpetne vypocty drzely puvodni hodnoty.
