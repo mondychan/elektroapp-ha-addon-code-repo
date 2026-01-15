@@ -390,10 +390,11 @@ def apply_fee_snapshot(entries, cfg, fee_snapshot):
 
 def get_prices_for_date(cfg, date_str, tzinfo):
     fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
-    if date_str in PRICES_CACHE:
-        return apply_fee_snapshot(PRICES_CACHE[date_str], cfg, fee_snapshot)
+    cached = PRICES_CACHE.get(date_str)
+    if cached:
+        return apply_fee_snapshot(cached, cfg, fee_snapshot)
     cached = load_prices_cache(date_str)
-    if cached is not None:
+    if cached:
         PRICES_CACHE[date_str] = cached
         logger.info("Prices cache hit for %s", date_str)
         return apply_fee_snapshot(cached, cfg, fee_snapshot)
@@ -439,8 +440,9 @@ def get_prices_for_date(cfg, date_str, tzinfo):
                 }
             )
 
-    PRICES_CACHE[date_str] = entries
-    save_prices_cache(date_str, entries)
+    if entries:
+        PRICES_CACHE[date_str] = entries
+        save_prices_cache(date_str, entries)
     return apply_fee_snapshot(entries, cfg, fee_snapshot)
 
 def build_price_map_for_date(cfg, date_str, tzinfo):

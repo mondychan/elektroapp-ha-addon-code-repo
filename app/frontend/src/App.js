@@ -180,6 +180,15 @@ function App() {
     return `${value.toFixed(2)},-Kc`;
   };
   const formatFeeValue = (value) => (value == null ? "-" : value);
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const isPastMonth = (monthStr) => {
+    if (!monthStr) return false;
+    const [y, m] = monthStr.split("-").map(Number);
+    if (!y || !m) return false;
+    return y < currentYear || (y === currentYear && m < currentMonth);
+  };
   const toDateInputValue = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -191,6 +200,21 @@ function App() {
     const [y, m] = monthStr.split("-");
     return new Date(`${y}-${m}-01T00:00:00`).toLocaleDateString("cs-CZ", { year: "numeric", month: "long" });
   };
+  const configRows = useMemo(() => {
+    if (!config) return [];
+    return [
+      { label: "DPH", value: Number(config.dph ?? 0).toFixed(0), unit: "%" },
+      { label: "Sluzba obchodu", value: formatFeeValue(config.poplatky?.komodita_sluzba), unit: "Kc/kWh" },
+      { label: "OZE", value: formatFeeValue(config.poplatky?.oze), unit: "Kc/kWh" },
+      { label: "Dan", value: formatFeeValue(config.poplatky?.dan), unit: "Kc/kWh" },
+      { label: "Systemove sluzby", value: formatFeeValue(config.poplatky?.systemove_sluzby), unit: "Kc/kWh" },
+      { label: "Distribuce NT", value: formatFeeValue(config.poplatky?.distribuce?.NT), unit: "Kc/kWh" },
+      { label: "Distribuce VT", value: formatFeeValue(config.poplatky?.distribuce?.VT), unit: "Kc/kWh" },
+      { label: "Staly plat", value: formatFeeValue(config.fixni?.denni?.staly_plat), unit: "Kc/den" },
+      { label: "Nesitova infrastruktura", value: formatFeeValue(config.fixni?.mesicni?.provoz_nesitove_infrastruktury), unit: "Kc/mesic" },
+      { label: "Jistic", value: formatFeeValue(config.fixni?.mesicni?.jistic), unit: "Kc/mesic" },
+    ];
+  }, [config]);
 
   
   const normalizeDuration = (value) => {
@@ -556,11 +580,15 @@ function App() {
     const monthlyBreakdown = breakdown.monthly || {};
     const dailyTotal = Object.values(dailyBreakdown).reduce((sum, value) => sum + value, 0);
     const monthlyTotal = Object.values(monthlyBreakdown).reduce((sum, value) => sum + value, 0);
+    const targetMonth = billingData.month || billingMonth;
+    const pastMonth = isPastMonth(targetMonth);
+    const actualLabel = pastMonth ? "Naklady mesice" : "Naklady aktualni mesic";
 
     return (
       <div>
         <div className="summary">
-          Realny odhad: {formatCurrency(actual.total_cost)} | Projekce: {formatCurrency(projected.total_cost)}
+          {actualLabel}: {formatCurrency(actual.total_cost)}
+          {!pastMonth && ` | Odhad pro tento mesic: ${formatCurrency(projected.total_cost)}`}
         </div>
         <div className="config-muted">
           Data za {billingData.days_with_data} dni z {billingData.days_in_month}.
@@ -598,17 +626,19 @@ function App() {
               </td>
             </tr>
             <tr>
-              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>Realny odhad mesice</td>
+              <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{actualLabel}</td>
               <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
                 {formatCurrency(actual.total_cost)}
               </td>
             </tr>
-            <tr>
-              <td style={{ padding: "6px 4px" }}>Projekce mesice</td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>
-                {formatCurrency(projected.total_cost)}
-              </td>
-            </tr>
+            {!pastMonth && (
+              <tr>
+                <td style={{ padding: "6px 4px" }}>Odhad pro tento mesic</td>
+                <td style={{ textAlign: "right", padding: "6px 4px" }}>
+                  {formatCurrency(projected.total_cost)}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -617,13 +647,16 @@ function App() {
 
   const renderBillingYear = () => {
     if (!billingData || !billingData.months) return null;
+    const showProjectionColumn = billingData.year === currentYear;
     return (
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
         <thead>
           <tr>
             <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Mesic</th>
-            <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Realny odhad</th>
-            <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Projekce</th>
+            <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Naklady mesice</th>
+            {showProjectionColumn && (
+              <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Projekce mesice</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -635,9 +668,11 @@ function App() {
               <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
                 {formatCurrency(item.actual?.total_cost)}
               </td>
-              <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
-                {formatCurrency(item.projected?.total_cost)}
-              </td>
+              {showProjectionColumn && (
+                <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                  {isPastMonth(item.month) ? "-" : formatCurrency(item.projected?.total_cost)}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -648,9 +683,11 @@ function App() {
               <td style={{ textAlign: "right", padding: "6px 4px", borderTop: "1px solid #ddd" }}>
                 {formatCurrency(billingData.totals.actual?.total_cost)}
               </td>
-              <td style={{ textAlign: "right", padding: "6px 4px", borderTop: "1px solid #ddd" }}>
-                {formatCurrency(billingData.totals.projected?.total_cost)}
-              </td>
+              {showProjectionColumn && (
+                <td style={{ textAlign: "right", padding: "6px 4px", borderTop: "1px solid #ddd" }}>
+                  {formatCurrency(billingData.totals.projected?.total_cost)}
+                </td>
+              )}
             </tr>
           </tfoot>
         )}
@@ -832,18 +869,27 @@ function App() {
           <div className="config-grid">
             <div className="config-column">
               <h4>Nastaveni cen</h4>
-              <ul className="config-list">
-                <li>DPH: {Number(config.dph ?? 0).toFixed(0)}%</li>
-                <li>Sluzba obchodu: {formatFeeValue(config.poplatky?.komodita_sluzba)},-Kc bez DPH/kWh</li>
-                <li>OZE: {formatFeeValue(config.poplatky?.oze)},-Kc bez DPH/kWh</li>
-                <li>Dan: {formatFeeValue(config.poplatky?.dan)},-Kc bez DPH/kWh</li>
-                <li>Systemove sluzby: {formatFeeValue(config.poplatky?.systemove_sluzby)},-Kc bez DPH/kWh</li>
-                <li>Distribuce NT: {formatFeeValue(config.poplatky?.distribuce?.NT)},-Kc bez DPH/kWh</li>
-                <li>Distribuce VT: {formatFeeValue(config.poplatky?.distribuce?.VT)},-Kc bez DPH/kWh</li>
-                <li>Staly plat: {formatFeeValue(config.fixni?.denni?.staly_plat)},-Kc bez DPH/den</li>
-                <li>Nesitova infrastruktura: {formatFeeValue(config.fixni?.mesicni?.provoz_nesitove_infrastruktury)},-Kc bez DPH/mesic</li>
-                <li>Jistic: {formatFeeValue(config.fixni?.mesicni?.jistic)},-Kc bez DPH/mesic</li>
-              </ul>
+              <div className="config-muted">Hodnoty jsou bez DPH.</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Polozka</th>
+                    <th style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Hodnota</th>
+                    <th style={{ textAlign: "left", padding: "6px 4px", borderBottom: "1px solid #ddd" }}>Jednotka</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {configRows.map((row) => (
+                    <tr key={row.label}>
+                      <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.label}</td>
+                      <td style={{ textAlign: "right", padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>
+                        {row.value}
+                      </td>
+                      <td style={{ padding: "6px 4px", borderBottom: "1px solid #f0f0f0" }}>{row.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             <div className="config-column">
               <h4>Cache</h4>

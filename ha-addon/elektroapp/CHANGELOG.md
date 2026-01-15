@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.27
+- Odhad vyuctovani: upravene popisky + projekce skryta pro minulost.
+- Konfigurace: prehled jako tabulka.
+- Ceny zitra: oprava cache prazdnych dat.
+
 ## 0.1.26
 - Ceny: DPH v % + poplatky bez DPH (vc. fixnich).
 - Vyuctovani: odhad mesic/rok + projekce a historie poplatku.
