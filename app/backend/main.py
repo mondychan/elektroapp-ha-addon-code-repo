@@ -223,11 +223,20 @@ def get_local_tz(tz_name):
 
 def parse_time_range(date_str, start_str, end_str, tzinfo):
     if date_str:
-        start_local = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tzinfo)
+        try:
+            start_local = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tzinfo)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.") from exc
         end_local = start_local + timedelta(days=1)
     elif start_str and end_str:
-        start_local = datetime.fromisoformat(start_str)
-        end_local = datetime.fromisoformat(end_str)
+        try:
+            start_local = datetime.fromisoformat(start_str)
+            end_local = datetime.fromisoformat(end_str)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid start/end format. Use ISO 8601, e.g. 2026-01-15T00:00:00+01:00.",
+            ) from exc
         if start_local.tzinfo is None:
             start_local = start_local.replace(tzinfo=tzinfo)
         if end_local.tzinfo is None:
