@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.34
+- API: spatne formaty date/start/end vraci 400 misto 500.
+- UI: refaktor do komponent + presun inline stylu do CSS.
+
 ## 0.1.33
 - UI: grafy cen v blokovem ramecku.
 
