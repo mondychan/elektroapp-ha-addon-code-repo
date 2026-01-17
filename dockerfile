@@ -9,7 +9,7 @@ COPY app/frontend/ ./
 RUN npm run build
 
 # Stage 2: Python backend
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /app
 COPY app/backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

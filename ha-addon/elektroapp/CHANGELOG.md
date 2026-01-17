@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.46
+- Docker: update runtime base image to python:3.14-slim.
+
 ## 0.1.45
 - Docker: update base images to node:22-alpine and python:3.13-slim.
 - Backend: FastAPI/Uvicorn loosened to latest compatible versions at build time.
