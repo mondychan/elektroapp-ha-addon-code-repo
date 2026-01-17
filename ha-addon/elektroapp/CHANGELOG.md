@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.37
+- UI: auto-refresh grafu (ceny + naklady dnes) s prepinacem.
+- Konfigurace: historie poplatku s moznosti uprav (bez mazani).
+- API: /api/fees-history pro cteni a ukladani historie poplatku.
+
 ## 0.1.36
 - UI: zvyrazneni aktualniho 15m slotu v grafu cen (carkovana cara).
 - UI: Odhad vyuctovani prehled (sjednocene fixni poplatky, upravene popisky).

@@ -1,7 +1,19 @@
 import React from "react";
 import InfoTable from "./InfoTable";
+import FeesHistorySection from "./FeesHistorySection";
 
-const ConfigCard = ({ configRows, cacheRows, cacheStatus }) => (
+const ConfigCard = ({
+  configRows,
+  cacheRows,
+  cacheStatus,
+  showFeesHistory,
+  onToggleFeesHistory,
+  feesHistory,
+  feesHistoryLoading,
+  feesHistoryError,
+  onSaveFeesHistory,
+  defaultFeesValues,
+}) => (
   <div className="card card-top">
     <h3>Aktualni konfigurace</h3>
     <div className="config-grid">
@@ -19,6 +31,15 @@ const ConfigCard = ({ configRows, cacheRows, cacheStatus }) => (
         )}
       </div>
     </div>
+    <FeesHistorySection
+      visible={showFeesHistory}
+      onToggle={onToggleFeesHistory}
+      history={feesHistory}
+      loading={feesHistoryLoading}
+      error={feesHistoryError}
+      onSave={onSaveFeesHistory}
+      defaultValues={defaultFeesValues}
+    />
   </div>
 );
 

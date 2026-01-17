@@ -1,0 +1,421 @@
+import React, { useEffect, useMemo, useState } from "react";
+import InfoTable from "./InfoTable";
+
+const formatDateLocal = (dateObj) => {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const d = String(dateObj.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const parseDateLocal = (dateStr) => {
+  if (!dateStr) return null;
+  const dt = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
+const toDraft = (entry) => {
+  const snapshot = entry.snapshot || {};
+  const kwh = snapshot.kwh_fees || {};
+  const distribuce = kwh.distribuce || {};
+  const fixed = snapshot.fixed || {};
+  const daily = fixed.daily || {};
+  const monthly = fixed.monthly || {};
+
+  return {
+    id: entry.effective_from,
+    effective_from: entry.effective_from,
+    dph: snapshot.dph_percent == null ? "" : String(snapshot.dph_percent),
+    poplatky: {
+      komodita_sluzba: kwh.komodita_sluzba == null ? "" : String(kwh.komodita_sluzba),
+      oze: kwh.oze == null ? "" : String(kwh.oze),
+      dan: kwh.dan == null ? "" : String(kwh.dan),
+      systemove_sluzby: kwh.systemove_sluzby == null ? "" : String(kwh.systemove_sluzby),
+      distribuce: {
+        NT: distribuce.NT == null ? "" : String(distribuce.NT),
+        VT: distribuce.VT == null ? "" : String(distribuce.VT),
+      },
+    },
+    fixni: {
+      denni: {
+        staly_plat: daily.staly_plat == null ? "" : String(daily.staly_plat),
+      },
+      mesicni: {
+        provoz_nesitove_infrastruktury:
+          monthly.provoz_nesitove_infrastruktury == null
+            ? ""
+            : String(monthly.provoz_nesitove_infrastruktury),
+        jistic: monthly.jistic == null ? "" : String(monthly.jistic),
+      },
+    },
+    isNew: false,
+  };
+};
+
+const toNumber = (value) => {
+  if (value == null || value === "") return 0;
+  const normalized = String(value).replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toPayload = (draft) => {
+  return {
+    effective_from: draft.effective_from,
+    snapshot: {
+      dph: toNumber(draft.dph),
+      poplatky: {
+        komodita_sluzba: toNumber(draft.poplatky.komodita_sluzba),
+        oze: toNumber(draft.poplatky.oze),
+        dan: toNumber(draft.poplatky.dan),
+        systemove_sluzby: toNumber(draft.poplatky.systemove_sluzby),
+        distribuce: {
+          NT: toNumber(draft.poplatky.distribuce.NT),
+          VT: toNumber(draft.poplatky.distribuce.VT),
+        },
+      },
+      fixni: {
+        denni: {
+          staly_plat: toNumber(draft.fixni.denni.staly_plat),
+        },
+        mesicni: {
+          provoz_nesitove_infrastruktury: toNumber(draft.fixni.mesicni.provoz_nesitove_infrastruktury),
+          jistic: toNumber(draft.fixni.mesicni.jistic),
+        },
+      },
+    },
+  };
+};
+
+const FeesHistorySection = ({
+  visible,
+  onToggle,
+  history,
+  loading,
+  error,
+  onSave,
+  defaultValues,
+}) => {
+  const [drafts, setDrafts] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const todayStr = useMemo(() => formatDateLocal(new Date()), []);
+
+  useEffect(() => {
+    setDrafts(history.map(toDraft));
+    setEditingId(null);
+  }, [history]);
+
+  const sortedDrafts = useMemo(() => {
+    return [...drafts].sort((a, b) => {
+      const da = parseDateLocal(a.effective_from);
+      const db = parseDateLocal(b.effective_from);
+      if (!da && !db) return 0;
+      if (!da) return -1;
+      if (!db) return 1;
+      return da - db;
+    });
+  }, [drafts]);
+
+  const ranges = useMemo(() => {
+    const validEntries = sortedDrafts.filter((entry) => parseDateLocal(entry.effective_from));
+    const currentIndex = validEntries.reduce((idx, entry, i) => {
+      return entry.effective_from <= todayStr ? i : idx;
+    }, -1);
+
+    const rangeMap = {};
+    validEntries.forEach((entry, idx) => {
+      const next = validEntries[idx + 1];
+      let validTo = null;
+      if (next) {
+        const nextDate = parseDateLocal(next.effective_from);
+        if (nextDate) {
+          nextDate.setDate(nextDate.getDate() - 1);
+          validTo = formatDateLocal(nextDate);
+        }
+      }
+      rangeMap[entry.id] = {
+        valid_to: validTo,
+        is_current: idx === currentIndex,
+      };
+    });
+    return rangeMap;
+  }, [sortedDrafts, todayStr]);
+
+  const updateDraft = (id, updater) => {
+    setDrafts((prev) =>
+      prev.map((draft) => (draft.id === id ? { ...draft, ...updater(draft) } : draft))
+    );
+  };
+
+  const handleAdd = () => {
+    const base = defaultValues || {
+      dph: "",
+      poplatky: {
+        komodita_sluzba: "",
+        oze: "",
+        dan: "",
+        systemove_sluzby: "",
+        distribuce: { NT: "", VT: "" },
+      },
+      fixni: {
+        denni: { staly_plat: "" },
+        mesicni: { provoz_nesitove_infrastruktury: "", jistic: "" },
+      },
+    };
+    const newId = `new-${Date.now()}`;
+    const newEntry = {
+      id: newId,
+      effective_from: `${new Date().getFullYear() - 1}-01-01`,
+      dph: base.dph ?? "",
+      poplatky: {
+        komodita_sluzba: base.poplatky.komodita_sluzba ?? "",
+        oze: base.poplatky.oze ?? "",
+        dan: base.poplatky.dan ?? "",
+        systemove_sluzby: base.poplatky.systemove_sluzby ?? "",
+        distribuce: {
+          NT: base.poplatky.distribuce.NT ?? "",
+          VT: base.poplatky.distribuce.VT ?? "",
+        },
+      },
+      fixni: {
+        denni: { staly_plat: base.fixni.denni.staly_plat ?? "" },
+        mesicni: {
+          provoz_nesitove_infrastruktury: base.fixni.mesicni.provoz_nesitove_infrastruktury ?? "",
+          jistic: base.fixni.mesicni.jistic ?? "",
+        },
+      },
+      isNew: true,
+    };
+    setDrafts((prev) => [newEntry, ...prev]);
+    setEditingId(newId);
+  };
+
+  const handleCancel = () => {
+    setDrafts(history.map(toDraft));
+    setEditingId(null);
+  };
+
+  const handleSave = (id) => {
+    const payload = drafts
+      .filter((entry) => entry.effective_from)
+      .map((entry) => toPayload(entry));
+    onSave(payload).then(() => {
+      setEditingId(null);
+    });
+  };
+
+  if (!visible) {
+    return (
+      <div className="config-actions">
+        <button onClick={onToggle}>Historie poplatku</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fees-history">
+      <div className="fees-history-header">
+        <div>
+          <h4>Historie poplatku</h4>
+          <div className="config-muted">Upravuj pouze historicke zaznamy. Aktualni poplatky se meni v konfiguraci.</div>
+        </div>
+        <div className="fees-history-actions">
+          <button onClick={handleAdd}>Pridat obdobi</button>
+          <button onClick={onToggle}>Skryt historii</button>
+        </div>
+      </div>
+
+      {loading && <div className="config-muted">Nacitam historii...</div>}
+      {error && <div className="alert error">{error}</div>}
+
+      {!loading && !error && sortedDrafts.length === 0 && (
+        <div className="config-muted">Historie poplatku neni k dispozici.</div>
+      )}
+
+      <div className="fees-history-list">
+        {sortedDrafts.map((entry) => {
+          const rangeInfo = ranges[entry.id] || {};
+          const validTo = rangeInfo.valid_to || "nyni";
+          const isCurrent = rangeInfo.is_current;
+          const isEditing = editingId === entry.id;
+          const canEdit = !isCurrent;
+          const dateMax = todayStr;
+
+          const rows = [
+            { label: "DPH", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.dph}
+                onChange={(e) => updateDraft(entry.id, (draft) => ({ dph: e.target.value }))}
+              />
+            ) : entry.dph, unit: "%" },
+            { label: "Sluzba obchodu", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.komodita_sluzba}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: { ...draft.poplatky, komodita_sluzba: e.target.value },
+                  }))
+                }
+              />
+            ) : entry.poplatky.komodita_sluzba, unit: "Kc/kWh" },
+            { label: "OZE", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.oze}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: { ...draft.poplatky, oze: e.target.value },
+                  }))
+                }
+              />
+            ) : entry.poplatky.oze, unit: "Kc/kWh" },
+            { label: "Dan", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.dan}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: { ...draft.poplatky, dan: e.target.value },
+                  }))
+                }
+              />
+            ) : entry.poplatky.dan, unit: "Kc/kWh" },
+            { label: "Systemove sluzby", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.systemove_sluzby}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: { ...draft.poplatky, systemove_sluzby: e.target.value },
+                  }))
+                }
+              />
+            ) : entry.poplatky.systemove_sluzby, unit: "Kc/kWh" },
+            { label: "Distribuce NT", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.distribuce.NT}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: {
+                      ...draft.poplatky,
+                      distribuce: { ...draft.poplatky.distribuce, NT: e.target.value },
+                    },
+                  }))
+                }
+              />
+            ) : entry.poplatky.distribuce.NT, unit: "Kc/kWh" },
+            { label: "Distribuce VT", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.poplatky.distribuce.VT}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    poplatky: {
+                      ...draft.poplatky,
+                      distribuce: { ...draft.poplatky.distribuce, VT: e.target.value },
+                    },
+                  }))
+                }
+              />
+            ) : entry.poplatky.distribuce.VT, unit: "Kc/kWh" },
+            { label: "Staly plat", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.fixni.denni.staly_plat}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    fixni: { ...draft.fixni, denni: { staly_plat: e.target.value } },
+                  }))
+                }
+              />
+            ) : entry.fixni.denni.staly_plat, unit: "Kc/den" },
+            { label: "Nesitova infrastruktura", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.fixni.mesicni.provoz_nesitove_infrastruktury}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    fixni: {
+                      ...draft.fixni,
+                      mesicni: {
+                        ...draft.fixni.mesicni,
+                        provoz_nesitove_infrastruktury: e.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            ) : entry.fixni.mesicni.provoz_nesitove_infrastruktury, unit: "Kc/mesic" },
+            { label: "Jistic", value: isEditing ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={entry.fixni.mesicni.jistic}
+                onChange={(e) =>
+                  updateDraft(entry.id, (draft) => ({
+                    fixni: {
+                      ...draft.fixni,
+                      mesicni: {
+                        ...draft.fixni.mesicni,
+                        jistic: e.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            ) : entry.fixni.mesicni.jistic, unit: "Kc/mesic" },
+          ];
+
+          return (
+            <div className="fees-history-card" key={entry.id}>
+              <div className="fees-history-meta">
+                <div>
+                  Platne od:{" "}
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      value={entry.effective_from}
+                      max={dateMax}
+                      onChange={(e) => updateDraft(entry.id, () => ({ effective_from: e.target.value }))}
+                    />
+                  ) : (
+                    entry.effective_from
+                  )}
+                </div>
+                <div>Platne do: {validTo}</div>
+              </div>
+              <InfoTable rows={rows} valueAlign="right" headerValueAlign="right" />
+              <div className="fees-history-actions">
+                {!isEditing && (
+                  <button onClick={() => setEditingId(entry.id)} disabled={!canEdit}>
+                    Upravit
+                  </button>
+                )}
+                {isEditing && (
+                  <>
+                    <button onClick={() => handleSave(entry.id)}>Ulozit</button>
+                    <button onClick={handleCancel}>Zrusit</button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default FeesHistorySection;

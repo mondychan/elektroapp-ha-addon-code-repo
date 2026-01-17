@@ -54,11 +54,31 @@ function App() {
   const [billingError, setBillingError] = useState(null);
   const [plannerDuration, setPlannerDuration] = useState(() => localStorage.getItem("plannerDuration") || "120");
   const [currentSlot, setCurrentSlot] = useState(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+    return localStorage.getItem("autoRefreshEnabled") !== "false";
+  });
+  const [isPageVisible, setIsPageVisible] = useState(() => document.visibilityState === "visible");
+  const [showFeesHistory, setShowFeesHistory] = useState(false);
+  const [feesHistory, setFeesHistory] = useState([]);
+  const [feesHistoryLoading, setFeesHistoryLoading] = useState(false);
+  const [feesHistoryError, setFeesHistoryError] = useState(null);
 
   useEffect(() => {
     document.body.dataset.theme = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("autoRefreshEnabled", autoRefreshEnabled ? "true" : "false");
+  }, [autoRefreshEnabled]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      setIsPageVisible(document.visibilityState === "visible");
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   useEffect(() => {
     const updateSlot = () => {
@@ -86,11 +106,15 @@ function App() {
     return "Nepodarilo se pripojit k InfluxDB.";
   };
 
-  useEffect(() => {
+  const fetchPrices = () => {
     axios
       .get(`${API_PREFIX}/prices`)
       .then((res) => setData(res.data.prices))
       .catch((err) => console.error("Error fetching prices:", err));
+  };
+
+  useEffect(() => {
+    fetchPrices();
   }, []);
 
   useEffect(() => {
@@ -115,12 +139,15 @@ function App() {
       .catch((err) => console.error("Error fetching cache status:", err));
   }, [showConfig]);
 
-  useEffect(() => {
-    setCosts([]);
-    setCostsSummary(null);
-    setCostsError(null);
+  const fetchCosts = (dateValue, options = {}) => {
+    const { reset = true } = options;
+    if (reset) {
+      setCosts([]);
+      setCostsSummary(null);
+      setCostsError(null);
+    }
     axios
-      .get(`${API_PREFIX}/costs`, { params: { date: selectedDate } })
+      .get(`${API_PREFIX}/costs`, { params: { date: dateValue } })
       .then((res) => {
         setCosts(res.data.points || []);
         setCostsSummary(res.data.summary || null);
@@ -129,6 +156,10 @@ function App() {
         console.error("Error fetching costs:", err);
         setCostsError(buildInfluxError(err));
       });
+  };
+
+  useEffect(() => {
+    fetchCosts(selectedDate, { reset: true });
   }, [selectedDate]);
 
   useEffect(() => {
@@ -188,6 +219,31 @@ function App() {
       { label: "Jistic", value: formatFeeValue(config.fixni?.mesicni?.jistic), unit: "Kc/mesic" },
     ];
   }, [config]);
+  const defaultFeesValues = useMemo(() => {
+    if (!config) return null;
+    return {
+      dph: config.dph ?? "",
+      poplatky: {
+        komodita_sluzba: config.poplatky?.komodita_sluzba ?? "",
+        oze: config.poplatky?.oze ?? "",
+        dan: config.poplatky?.dan ?? "",
+        systemove_sluzby: config.poplatky?.systemove_sluzby ?? "",
+        distribuce: {
+          NT: config.poplatky?.distribuce?.NT ?? "",
+          VT: config.poplatky?.distribuce?.VT ?? "",
+        },
+      },
+      fixni: {
+        denni: {
+          staly_plat: config.fixni?.denni?.staly_plat ?? "",
+        },
+        mesicni: {
+          provoz_nesitove_infrastruktury: config.fixni?.mesicni?.provoz_nesitove_infrastruktury ?? "",
+          jistic: config.fixni?.mesicni?.jistic ?? "",
+        },
+      },
+    };
+  }, [config]);
   const cacheRows = useMemo(() => {
     if (!cacheStatus) return [];
     return [
@@ -197,6 +253,63 @@ function App() {
       { label: "Cache cesta", value: cacheStatus.dir, valueWrap: true },
     ];
   }, [cacheStatus]);
+
+  const fetchFeesHistory = () => {
+    setFeesHistoryLoading(true);
+    setFeesHistoryError(null);
+    axios
+      .get(`${API_PREFIX}/fees-history`)
+      .then((res) => setFeesHistory(res.data.history || []))
+      .catch((err) => {
+        console.error("Error fetching fees history:", err);
+        setFeesHistoryError("Nepodarilo se nacist historii poplatku.");
+      })
+      .finally(() => setFeesHistoryLoading(false));
+  };
+
+  const saveFeesHistory = (historyPayload) => {
+    setFeesHistoryLoading(true);
+    setFeesHistoryError(null);
+    return axios
+      .put(`${API_PREFIX}/fees-history`, { history: historyPayload })
+      .then((res) => {
+        setFeesHistory(res.data.history || []);
+        return res.data.history || [];
+      })
+      .catch((err) => {
+        console.error("Error saving fees history:", err);
+        const detail = err?.response?.data?.detail;
+        setFeesHistoryError(detail ? String(detail) : "Nepodarilo se ulozit historii poplatku.");
+        throw err;
+      })
+      .finally(() => setFeesHistoryLoading(false));
+  };
+
+  const isTodayDateStr = (dateStr) => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    return dateStr === `${y}-${m}-${d}`;
+  };
+
+  useEffect(() => {
+    if (!showConfig || !showFeesHistory) return;
+    fetchFeesHistory();
+  }, [showConfig, showFeesHistory]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled || !isPageVisible) return;
+    const refresh = () => {
+      fetchPrices();
+      if (isTodayDateStr(selectedDate)) {
+        fetchCosts(selectedDate, { reset: false });
+      }
+    };
+    refresh();
+    const intervalId = setInterval(refresh, 600000);
+    return () => clearInterval(intervalId);
+  }, [autoRefreshEnabled, isPageVisible, selectedDate]);
 
   const normalizeDuration = (value) => {
     if (value == null || value === "") return null;
@@ -276,34 +389,61 @@ function App() {
           <h1>Elektroapp</h1>
           <div className="subhead">Cena a spotreba energie v realnem case</div>
         </div>
-        <div className="theme-toggle">
-          <input
-            type="checkbox"
-            id="theme-toggle"
-            checked={theme === "dark"}
-            onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
-          />
-          <label htmlFor="theme-toggle" aria-label="Prepnout rezim" title="Prepnout rezim">
-            <span className="theme-toggle-track">
-              <span className="theme-toggle-scenery">
-                <svg viewBox="0 0 24 24" className="theme-toggle-moon" aria-hidden="true">
-                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                </svg>
-                <svg viewBox="0 0 24 24" className="theme-toggle-sun" aria-hidden="true">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
+        <div className="header-toggles">
+          <div className="theme-toggle">
+            <input
+              type="checkbox"
+              id="theme-toggle"
+              checked={theme === "dark"}
+              onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
+            />
+            <label htmlFor="theme-toggle" aria-label="Prepnout rezim" title="Prepnout rezim">
+              <span className="theme-toggle-track">
+                <span className="theme-toggle-scenery">
+                  <svg viewBox="0 0 24 24" className="theme-toggle-moon" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                  </svg>
+                  <svg viewBox="0 0 24 24" className="theme-toggle-sun" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                </span>
+                <span className="theme-toggle-ball" />
               </span>
-              <span className="theme-toggle-ball" />
-            </span>
-          </label>
+            </label>
+          </div>
+          <div className="theme-toggle refresh-toggle">
+            <input
+              type="checkbox"
+              id="refresh-toggle"
+              checked={autoRefreshEnabled}
+              onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+            />
+            <label htmlFor="refresh-toggle" aria-label="Auto refresh" title="Auto refresh">
+              <span className="theme-toggle-track">
+                <span className="theme-toggle-scenery">
+                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-off" aria-hidden="true">
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                  </svg>
+                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-on" aria-hidden="true">
+                    <path d="M21 12a9 9 0 00-15.3-6.3" />
+                    <path d="M3 4v6h6" />
+                    <path d="M3 12a9 9 0 0015.3 6.3" />
+                    <path d="M21 20v-6h-6" />
+                  </svg>
+                </span>
+                <span className="theme-toggle-ball" />
+              </span>
+            </label>
+          </div>
         </div>
       </header>
 
@@ -390,7 +530,18 @@ function App() {
       </button>
 
       {showConfig && (
-        <ConfigCard configRows={configRows} cacheRows={cacheRows} cacheStatus={cacheStatus} />
+        <ConfigCard
+          configRows={configRows}
+          cacheRows={cacheRows}
+          cacheStatus={cacheStatus}
+          showFeesHistory={showFeesHistory}
+          onToggleFeesHistory={() => setShowFeesHistory((prev) => !prev)}
+          feesHistory={feesHistory}
+          feesHistoryLoading={feesHistoryLoading}
+          feesHistoryError={feesHistoryError}
+          onSaveFeesHistory={saveFeesHistory}
+          defaultFeesValues={defaultFeesValues}
+        />
       )}
 
       <footer className="footer">

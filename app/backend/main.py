@@ -141,6 +141,74 @@ def save_fee_history(history):
     with open(FEES_HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f)
 
+def normalize_fee_snapshot(snapshot):
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+
+    if "kwh_fees" in snapshot or "fixed" in snapshot:
+        kwh_fees = snapshot.get("kwh_fees", {}) if isinstance(snapshot.get("kwh_fees"), dict) else {}
+        distribuce = kwh_fees.get("distribuce", {}) if isinstance(kwh_fees.get("distribuce"), dict) else {}
+        fixed = snapshot.get("fixed", {}) if isinstance(snapshot.get("fixed"), dict) else {}
+        daily = fixed.get("daily", {}) if isinstance(fixed.get("daily"), dict) else {}
+        monthly = fixed.get("monthly", {}) if isinstance(fixed.get("monthly"), dict) else {}
+        return {
+            "dph_percent": normalize_dph_percent(snapshot.get("dph_percent", snapshot.get("dph", 0))),
+            "kwh_fees": {
+                "komodita_sluzba": _safe_float(kwh_fees.get("komodita_sluzba", 0)),
+                "oze": _safe_float(kwh_fees.get("oze", 0)),
+                "dan": _safe_float(kwh_fees.get("dan", 0)),
+                "systemove_sluzby": _safe_float(kwh_fees.get("systemove_sluzby", 0)),
+                "distribuce": {
+                    "NT": _safe_float(distribuce.get("NT", 0)),
+                    "VT": _safe_float(distribuce.get("VT", 0)),
+                },
+            },
+            "fixed": {
+                "daily": {
+                    "staly_plat": _safe_float(daily.get("staly_plat", 0)),
+                },
+                "monthly": {
+                    "provoz_nesitove_infrastruktury": _safe_float(
+                        monthly.get("provoz_nesitove_infrastruktury", 0)
+                    ),
+                    "jistic": _safe_float(monthly.get("jistic", 0)),
+                },
+            },
+        }
+
+    poplatky = snapshot.get("poplatky", {}) if isinstance(snapshot.get("poplatky"), dict) else {}
+    distribuce = poplatky.get("distribuce", {}) if isinstance(poplatky.get("distribuce"), dict) else {}
+    fixni = snapshot.get("fixni", {}) if isinstance(snapshot.get("fixni"), dict) else {}
+    fixni_denni = fixni.get("denni", {}) if isinstance(fixni.get("denni"), dict) else {}
+    fixni_mesicni = fixni.get("mesicni", {}) if isinstance(fixni.get("mesicni"), dict) else {}
+    oze_value = poplatky.get("oze")
+    if oze_value is None:
+        oze_value = poplatky.get("poze", 0)
+    return {
+        "dph_percent": normalize_dph_percent(snapshot.get("dph", 0)),
+        "kwh_fees": {
+            "komodita_sluzba": _safe_float(poplatky.get("komodita_sluzba", 0)),
+            "oze": _safe_float(oze_value),
+            "dan": _safe_float(poplatky.get("dan", 0)),
+            "systemove_sluzby": _safe_float(poplatky.get("systemove_sluzby", 0)),
+            "distribuce": {
+                "NT": _safe_float(distribuce.get("NT", 0)),
+                "VT": _safe_float(distribuce.get("VT", 0)),
+            },
+        },
+        "fixed": {
+            "daily": {
+                "staly_plat": _safe_float(fixni_denni.get("staly_plat", 0)),
+            },
+            "monthly": {
+                "provoz_nesitove_infrastruktury": _safe_float(
+                    fixni_mesicni.get("provoz_nesitove_infrastruktury", 0)
+                ),
+                "jistic": _safe_float(fixni_mesicni.get("jistic", 0)),
+            },
+        },
+    }
+
 def ensure_fee_history(cfg, tzinfo):
     history = load_fee_history()
     history.sort(key=lambda x: x.get("effective_from", ""))
@@ -651,6 +719,49 @@ def save_config(new_config: dict = Body(...)):
         with open(OPTIONS_BACKUP_FILE, "w", encoding="utf-8") as f:
             json.dump(new_config, f)
     return {"status": "ok", "message": "Konfigurace uložena"}
+
+@app.get("/api/fees-history")
+def get_fees_history():
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    history = ensure_fee_history(cfg, tzinfo)
+    history.sort(key=lambda x: x.get("effective_from", ""))
+    return {"history": history}
+
+@app.put("/api/fees-history")
+def update_fees_history(payload: dict = Body(...)):
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload.")
+    history = payload.get("history")
+    if not isinstance(history, list):
+        raise HTTPException(status_code=400, detail="Invalid history payload.")
+
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    today = datetime.now(tzinfo).date()
+
+    normalized_map = {}
+    for entry in history:
+        if not isinstance(entry, dict):
+            continue
+        date_str = entry.get("effective_from")
+        if not date_str:
+            continue
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid effective_from: {date_str}")
+        if date_obj > today:
+            raise HTTPException(status_code=400, detail="effective_from cannot be in the future.")
+        snapshot = normalize_fee_snapshot(entry.get("snapshot", {}))
+        normalized_map[date_str] = snapshot
+
+    if not normalized_map:
+        raise HTTPException(status_code=400, detail="History cannot be empty.")
+
+    normalized = [{"effective_from": key, "snapshot": normalized_map[key]} for key in sorted(normalized_map.keys())]
+    save_fee_history(normalized)
+    return {"history": normalized}
 
 @app.get("/api/cache-status")
 def get_cache_status():

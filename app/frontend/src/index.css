@@ -71,6 +71,12 @@ code {
   font-size: 14px;
 }
 
+.header-toggles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -180,6 +186,33 @@ code {
 
 .theme-toggle input:checked + label .theme-toggle-moon {
   color: #cfd6e1;
+}
+
+.theme-toggle.refresh-toggle .toggle-icon {
+  width: var(--toggle-icon);
+  height: var(--toggle-icon);
+  display: block;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.theme-toggle.refresh-toggle .toggle-icon-off {
+  color: #d46a6a;
+}
+
+.theme-toggle.refresh-toggle .toggle-icon-on {
+  color: #2d7ff9;
+}
+
+.theme-toggle.refresh-toggle input:checked + label .toggle-icon-off {
+  opacity: 0.35;
+}
+
+.theme-toggle.refresh-toggle input:not(:checked) + label .toggle-icon-on {
+  opacity: 0.35;
 }
 
 .section h2 {
@@ -292,6 +325,10 @@ input {
   margin-top: 12px;
 }
 
+.config-actions {
+  margin-top: 12px;
+}
+
 .config-column h4 {
   margin: 6px 0 8px;
 }
@@ -400,6 +437,48 @@ input {
 
 .alert.error {
   border-color: #d46a6a;
+}
+
+.fees-history {
+  margin-top: 16px;
+}
+
+.fees-history-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.fees-history-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.fees-history-card {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.fees-history-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.fees-history-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .planner-grid {
