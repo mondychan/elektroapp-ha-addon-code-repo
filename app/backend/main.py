@@ -212,19 +212,38 @@ def normalize_fee_snapshot(snapshot):
 def ensure_fee_history(cfg, tzinfo):
     history = load_fee_history()
     history.sort(key=lambda x: x.get("effective_from", ""))
-    today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
+    today_date = datetime.now(tzinfo).date()
+    today_str = today_date.strftime("%Y-%m-%d")
     snapshot = build_fee_snapshot(cfg)
     if not history:
         history = [{"effective_from": today_str, "snapshot": snapshot}]
         save_fee_history(history)
         return history
-    last = history[-1]
-    if last.get("snapshot") != snapshot:
-        if last.get("effective_from") == today_str:
-            last["snapshot"] = snapshot
-        else:
-            history.append({"effective_from": today_str, "snapshot": snapshot})
-        save_fee_history(history)
+    current_record = None
+    for record in history:
+        try:
+            record_from = datetime.strptime(record.get("effective_from", ""), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if record_from > today_date:
+            continue
+        record_to = None
+        record_to_str = record.get("effective_to")
+        if record_to_str:
+            try:
+                record_to = datetime.strptime(record_to_str, "%Y-%m-%d").date()
+            except ValueError:
+                record_to = None
+        if record_to and today_date > record_to:
+            continue
+        current_record = record
+    if current_record:
+        if current_record.get("snapshot") != snapshot:
+            current_record["snapshot"] = snapshot
+            save_fee_history(history)
+        return history
+    history.append({"effective_from": today_str, "snapshot": snapshot})
+    save_fee_history(history)
     return history
 
 def get_fee_snapshot_for_date(cfg, date_str, tzinfo):
@@ -236,15 +255,26 @@ def get_fee_snapshot_for_date(cfg, date_str, tzinfo):
     except ValueError:
         return history[-1].get("snapshot", build_fee_snapshot(cfg))
     candidate = None
+    match = None
     for record in history:
         try:
             record_date = datetime.strptime(record.get("effective_from", ""), "%Y-%m-%d").date()
         except ValueError:
             continue
-        if record_date <= target_date:
-            candidate = record
-        else:
+        if record_date > target_date:
             break
+        candidate = record
+        record_to = None
+        record_to_str = record.get("effective_to")
+        if record_to_str:
+            try:
+                record_to = datetime.strptime(record_to_str, "%Y-%m-%d").date()
+            except ValueError:
+                record_to = None
+        if record_to is None or target_date <= record_to:
+            match = record
+    if match:
+        return match.get("snapshot", build_fee_snapshot(cfg))
     if candidate:
         return candidate.get("snapshot", build_fee_snapshot(cfg))
     return history[0].get("snapshot", build_fee_snapshot(cfg))
@@ -740,7 +770,7 @@ def update_fees_history(payload: dict = Body(...)):
     tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
     today = datetime.now(tzinfo).date()
 
-    normalized_map = {}
+    normalized_entries = []
     seen_dates = set()
     for entry in history:
         if not isinstance(entry, dict):
@@ -757,13 +787,49 @@ def update_fees_history(payload: dict = Body(...)):
         seen_dates.add(date_str)
         if date_obj > today:
             raise HTTPException(status_code=400, detail="effective_from cannot be in the future.")
+        effective_to = entry.get("effective_to")
+        effective_to_date = None
+        if effective_to:
+            try:
+                effective_to_date = datetime.strptime(effective_to, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid effective_to: {effective_to}")
+            if effective_to_date > today:
+                raise HTTPException(status_code=400, detail="effective_to cannot be in the future.")
+            if effective_to_date < date_obj:
+                raise HTTPException(status_code=400, detail="effective_to must be >= effective_from.")
         snapshot = normalize_fee_snapshot(entry.get("snapshot", {}))
-        normalized_map[date_str] = snapshot
+        normalized_entries.append(
+            {
+                "effective_from": date_str,
+                "effective_to": effective_to,
+                "from_date": date_obj,
+                "to_date": effective_to_date,
+                "snapshot": snapshot,
+            }
+        )
 
-    if not normalized_map:
+    if not normalized_entries:
         raise HTTPException(status_code=400, detail="History cannot be empty.")
 
-    normalized = [{"effective_from": key, "snapshot": normalized_map[key]} for key in sorted(normalized_map.keys())]
+    normalized_entries.sort(key=lambda x: x["from_date"])
+    for idx, entry in enumerate(normalized_entries[:-1]):
+        next_entry = normalized_entries[idx + 1]
+        if entry["to_date"] is None:
+            computed_to = next_entry["from_date"] - timedelta(days=1)
+            if computed_to < entry["from_date"]:
+                raise HTTPException(status_code=400, detail="effective_to must be >= effective_from.")
+            entry["to_date"] = computed_to
+            entry["effective_to"] = computed_to.strftime("%Y-%m-%d")
+        if entry["to_date"] >= next_entry["from_date"]:
+            raise HTTPException(status_code=400, detail="Fee history ranges overlap.")
+
+    normalized = []
+    for entry in normalized_entries:
+        record = {"effective_from": entry["effective_from"], "snapshot": entry["snapshot"]}
+        if entry["effective_to"]:
+            record["effective_to"] = entry["effective_to"]
+        normalized.append(record)
     save_fee_history(normalized)
     return {"history": normalized}
 

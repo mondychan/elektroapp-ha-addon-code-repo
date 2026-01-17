@@ -25,6 +25,7 @@ const toDraft = (entry) => {
   return {
     id: entry.effective_from,
     effective_from: entry.effective_from,
+    effective_to: entry.effective_to || "",
     dph: snapshot.dph_percent == null ? "" : String(snapshot.dph_percent),
     poplatky: {
       komodita_sluzba: kwh.komodita_sluzba == null ? "" : String(kwh.komodita_sluzba),
@@ -60,7 +61,7 @@ const toNumber = (value) => {
 };
 
 const toPayload = (draft) => {
-  return {
+  const payload = {
     effective_from: draft.effective_from,
     snapshot: {
       dph: toNumber(draft.dph),
@@ -85,6 +86,10 @@ const toPayload = (draft) => {
       },
     },
   };
+  if (draft.effective_to) {
+    payload.effective_to = draft.effective_to;
+  }
+  return payload;
 };
 
 const FeesHistorySection = ({
@@ -101,6 +106,7 @@ const FeesHistorySection = ({
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [validationError, setValidationError] = useState(null);
   const todayStr = useMemo(() => formatDateLocal(new Date()), []);
+  const todayDate = useMemo(() => parseDateLocal(todayStr), [todayStr]);
 
   useEffect(() => {
     setDrafts(history.map(toDraft));
@@ -122,28 +128,31 @@ const FeesHistorySection = ({
 
   const ranges = useMemo(() => {
     const validEntries = sortedDrafts.filter((entry) => parseDateLocal(entry.effective_from));
-    const currentIndex = validEntries.reduce((idx, entry, i) => {
-      return entry.effective_from <= todayStr ? i : idx;
-    }, -1);
-
     const rangeMap = {};
     validEntries.forEach((entry, idx) => {
       const next = validEntries[idx + 1];
-      let validTo = null;
-      if (next) {
+      let validTo = entry.effective_to || null;
+      if (!validTo && next) {
         const nextDate = parseDateLocal(next.effective_from);
         if (nextDate) {
           nextDate.setDate(nextDate.getDate() - 1);
           validTo = formatDateLocal(nextDate);
         }
       }
+      const fromDate = parseDateLocal(entry.effective_from);
+      const toDate = parseDateLocal(entry.effective_to);
+      const isCurrent =
+        !!fromDate &&
+        !!todayDate &&
+        fromDate <= todayDate &&
+        (!toDate || todayDate <= toDate);
       rangeMap[entry.id] = {
         valid_to: validTo,
-        is_current: idx === currentIndex,
+        is_current: isCurrent,
       };
     });
     return rangeMap;
-  }, [sortedDrafts, todayStr]);
+  }, [sortedDrafts, todayDate]);
 
   const updateDraft = (id, updater) => {
     setConfirmDeleteId(null);
@@ -162,15 +171,43 @@ const FeesHistorySection = ({
     if (candidates.length === 0) {
       return "Historie nesmi byt prazdna.";
     }
+    const parsedEntries = [];
     for (const entry of candidates) {
-      const parsed = parseDateLocal(entry.effective_from);
-      if (!parsed) {
+      const parsedFrom = parseDateLocal(entry.effective_from);
+      if (!parsedFrom) {
         return `Neplatne datum: ${entry.effective_from}`;
+      }
+      let parsedTo = null;
+      if (entry.effective_to) {
+        parsedTo = parseDateLocal(entry.effective_to);
+        if (!parsedTo) {
+          return `Neplatne datum: ${entry.effective_to}`;
+        }
+        if (parsedTo < parsedFrom) {
+          return "Platne do musi byt stejne nebo pozdeji nez Platne od.";
+        }
       }
       if (seen.has(entry.effective_from)) {
         return `Duplicita data Platne od: ${entry.effective_from}`;
       }
       seen.add(entry.effective_from);
+      parsedEntries.push({ id: entry.id, from: parsedFrom, to: parsedTo });
+    }
+    parsedEntries.sort((a, b) => a.from - b.from);
+    for (let i = 0; i < parsedEntries.length - 1; i += 1) {
+      const current = parsedEntries[i];
+      const next = parsedEntries[i + 1];
+      let currentTo = current.to;
+      if (!currentTo) {
+        currentTo = new Date(next.from.getTime());
+        currentTo.setDate(currentTo.getDate() - 1);
+      }
+      if (currentTo < current.from) {
+        return "Platne do musi byt stejne nebo pozdeji nez Platne od.";
+      }
+      if (currentTo >= next.from) {
+        return "Rozsahy poplatku se prekryvaji. Uprav Platne do/od.";
+      }
     }
     return null;
   };
@@ -191,9 +228,11 @@ const FeesHistorySection = ({
       },
     };
     const newId = `new-${Date.now()}`;
+    const prevYear = new Date().getFullYear() - 1;
     const newEntry = {
       id: newId,
-      effective_from: `${new Date().getFullYear() - 1}-01-01`,
+      effective_from: `${prevYear}-01-01`,
+      effective_to: `${prevYear}-12-31`,
       dph: base.dph ?? "",
       poplatky: {
         komodita_sluzba: base.poplatky.komodita_sluzba ?? "",
@@ -296,6 +335,8 @@ const FeesHistorySection = ({
           const isEditing = editingId === entry.id;
           const canManage = !isCurrent;
           const dateMax = todayStr;
+          const effectiveToValue =
+            entry.effective_to || (validTo !== "nyni" ? validTo : "");
 
           const rows = [
             { label: "DPH", value: isEditing ? (
@@ -450,12 +491,32 @@ const FeesHistorySection = ({
                     entry.effective_from
                   )}
                 </div>
-                <div>Platne do: {validTo}</div>
+                <div>
+                  Platne do:{" "}
+                  {isEditing && canManage ? (
+                    <input
+                      type="date"
+                      value={effectiveToValue}
+                      max={dateMax}
+                      onChange={(e) => updateDraft(entry.id, () => ({ effective_to: e.target.value }))}
+                    />
+                  ) : (
+                    validTo
+                  )}
+                </div>
               </div>
               <InfoTable rows={rows} valueAlign="right" headerValueAlign="right" />
               <div className="fees-history-actions">
                 {!isEditing && canManage && (
-                  <button onClick={() => { setEditingId(entry.id); setConfirmDeleteId(null); }}>
+                  <button
+                    onClick={() => {
+                      setConfirmDeleteId(null);
+                      if (!entry.effective_to && validTo !== "nyni") {
+                        updateDraft(entry.id, () => ({ effective_to: validTo }));
+                      }
+                      setEditingId(entry.id);
+                    }}
+                  >
                     Upravit
                   </button>
                 )}

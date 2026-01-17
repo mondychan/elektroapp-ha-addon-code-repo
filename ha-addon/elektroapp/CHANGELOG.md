@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.41
+- Konfigurace: editace Platne od/do u historickych poplatku + kontrola prekryvu.
+
 ## 0.1.40
 - Konfigurace: mazani historickych poplatku s dvojitym potvrzenim (mimo aktualni).
 - Konfigurace: kontrola duplicitnich datumu v historii poplatku.
