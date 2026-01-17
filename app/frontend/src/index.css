@@ -502,6 +502,22 @@ input {
   margin-top: 10px;
 }
 
+.danger-button {
+  border-color: #d46a6a;
+  color: #d46a6a;
+}
+
+.danger-button.is-ready {
+  background: #d46a6a;
+  border-color: #d46a6a;
+  color: #ffffff;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .planner-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

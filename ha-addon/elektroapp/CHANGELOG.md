@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.44
+- Konfigurace: potvrzeni smazani ma 5s odpoctem + cervene zvyrazneni.
+
 ## 0.1.43
 - Konfigurace: oprava tlacitek Upravit/Smazat u historickych poplatku.
 

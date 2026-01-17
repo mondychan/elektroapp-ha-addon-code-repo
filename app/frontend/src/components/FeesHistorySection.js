@@ -104,6 +104,7 @@ const FeesHistorySection = ({
   const [drafts, setDrafts] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmCountdown, setConfirmCountdown] = useState(0);
   const [validationError, setValidationError] = useState(null);
   const todayStr = useMemo(() => formatDateLocal(new Date()), []);
   const todayDate = useMemo(() => parseDateLocal(todayStr), [todayStr]);
@@ -112,6 +113,7 @@ const FeesHistorySection = ({
     setDrafts(history.map(toDraft));
     setEditingId(null);
     setConfirmDeleteId(null);
+    setConfirmCountdown(0);
     setValidationError(null);
   }, [history]);
 
@@ -156,6 +158,7 @@ const FeesHistorySection = ({
 
   const updateDraft = (id, updater) => {
     setConfirmDeleteId(null);
+    setConfirmCountdown(0);
     setDrafts((prev) =>
       prev.map((draft) => (draft.id === id ? { ...draft, ...updater(draft) } : draft))
     );
@@ -256,6 +259,7 @@ const FeesHistorySection = ({
     setDrafts((prev) => [newEntry, ...prev]);
     setEditingId(newId);
     setConfirmDeleteId(null);
+    setConfirmCountdown(0);
     setValidationError(null);
   };
 
@@ -263,6 +267,7 @@ const FeesHistorySection = ({
     setDrafts(history.map(toDraft));
     setEditingId(null);
     setConfirmDeleteId(null);
+    setConfirmCountdown(0);
     setValidationError(null);
   };
 
@@ -282,6 +287,10 @@ const FeesHistorySection = ({
   const handleDelete = (id) => {
     if (confirmDeleteId !== id) {
       setConfirmDeleteId(id);
+      setConfirmCountdown(5);
+      return;
+    }
+    if (confirmCountdown > 0) {
       return;
     }
     const nextDrafts = drafts.filter((entry) => entry.id !== id);
@@ -289,14 +298,26 @@ const FeesHistorySection = ({
     if (validation) {
       setValidationError(validation);
       setConfirmDeleteId(null);
+      setConfirmCountdown(0);
       return;
     }
     setValidationError(null);
     const payload = buildPayload(nextDrafts);
     onSave(payload).then(() => {
       setConfirmDeleteId(null);
+      setConfirmCountdown(0);
     });
   };
+
+  useEffect(() => {
+    if (!confirmDeleteId || confirmCountdown <= 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setConfirmCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [confirmDeleteId, confirmCountdown]);
 
   if (!visible) {
     return (
@@ -528,10 +549,16 @@ const FeesHistorySection = ({
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => handleDelete(entry.id)}>
-                          Potvrdit smazani
+                        <button
+                          onClick={() => handleDelete(entry.id)}
+                          className={`danger-button${confirmCountdown === 0 ? " is-ready" : ""}`}
+                          disabled={confirmCountdown > 0}
+                        >
+                          {confirmCountdown > 0 ? `Potvrdit smazani (${confirmCountdown}s)` : "Potvrdit smazani"}
                         </button>
-                        <button onClick={() => setConfirmDeleteId(null)}>Zrusit</button>
+                        <button onClick={() => { setConfirmDeleteId(null); setConfirmCountdown(0); }}>
+                          Zrusit
+                        </button>
                       </>
                     )}
                   </>
