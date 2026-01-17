@@ -26,14 +26,13 @@ const BillingCard = ({
     if (!billingData) return null;
     const actual = billingData.actual || {};
     const projected = billingData.projected || {};
-    const breakdown = billingData.fixed_breakdown || {};
-    const dailyBreakdown = breakdown.daily || {};
-    const monthlyBreakdown = breakdown.monthly || {};
-    const dailyTotal = Object.values(dailyBreakdown).reduce((sum, value) => sum + value, 0);
-    const monthlyTotal = Object.values(monthlyBreakdown).reduce((sum, value) => sum + value, 0);
     const targetMonth = billingData.month || billingMonth;
     const pastMonth = isPastMonth(targetMonth);
-    const actualLabel = pastMonth ? "Naklady mesice" : "Naklady aktualni mesic";
+    const daysWithData = billingData.days_with_data ?? 0;
+    const daysInMonth = billingData.days_in_month ?? 0;
+    const actualLabel = pastMonth
+      ? "Naklady mesice"
+      : `Naklady za ${daysWithData} dni z ${daysInMonth}`;
 
     return (
       <div>
@@ -41,31 +40,25 @@ const BillingCard = ({
           {actualLabel}: {formatCurrency(actual.total_cost)}
           {!pastMonth && ` | Odhad pro tento mesic: ${formatCurrency(projected.total_cost)}`}
         </div>
-        <div className="config-muted">
-          Data za {billingData.days_with_data} dni z {billingData.days_in_month}.
-        </div>
+        {!pastMonth && (
+          <div className="config-muted">
+            Data za {daysWithData} dni z {daysInMonth}.
+          </div>
+        )}
         <table className="data-table table-spaced">
           <tbody>
             <tr>
-              <td>Spotreba zatim</td>
+              <td>Spotreba</td>
               <td className="cell-right">
                 {actual.kwh_total == null ? "-" : `${actual.kwh_total.toFixed(2)} kWh`}
               </td>
             </tr>
             <tr>
-              <td>Variabilni naklady zatim</td>
+              <td>Variabilni naklady</td>
               <td className="cell-right">{formatCurrency(actual.variable_cost)}</td>
             </tr>
             <tr>
-              <td>Fixni poplatky (denni)</td>
-              <td className="cell-right">{formatCurrency(dailyTotal)}</td>
-            </tr>
-            <tr>
-              <td>Fixni poplatky (mesicni)</td>
-              <td className="cell-right">{formatCurrency(monthlyTotal)}</td>
-            </tr>
-            <tr>
-              <td>Fixni poplatky celkem</td>
+              <td>Fixni poplatky</td>
               <td className="cell-right">{formatCurrency(actual.fixed_cost)}</td>
             </tr>
             <tr>

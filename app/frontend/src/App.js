@@ -53,11 +53,23 @@ function App() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState(null);
   const [plannerDuration, setPlannerDuration] = useState(() => localStorage.getItem("plannerDuration") || "120");
+  const [currentSlot, setCurrentSlot] = useState(null);
 
   useEffect(() => {
     document.body.dataset.theme = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const updateSlot = () => {
+      const now = new Date();
+      const slot = now.getHours() * 4 + Math.floor(now.getMinutes() / 15);
+      setCurrentSlot(slot);
+    };
+    updateSlot();
+    const intervalId = setInterval(updateSlot, 60000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const API_PREFIX = "./api";
   const buildInfluxError = (err) => {
@@ -302,6 +314,7 @@ function App() {
           chartData={todayData}
           title={`Dnes (${formatDate(today)})`}
           vtPeriods={config?.tarif?.vt_periods}
+          highlightSlot={currentSlot}
         />
         <PriceChartCard
           className="card-spaced"

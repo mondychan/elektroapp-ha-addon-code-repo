@@ -472,6 +472,8 @@ def calculate_daily_totals(cfg, date_str):
     consumption = get_consumption_points(cfg, date=date_str)
     tzinfo = consumption["tzinfo"]
     has_series = consumption.get("has_series", False)
+    if not has_series:
+        return {"kwh_total": None, "cost_total": None, "has_series": has_series}
     price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
 
     total_kwh = 0.0
@@ -507,13 +509,15 @@ def compute_fixed_breakdown_for_day(fee_snapshot, days_in_month):
     }
     return daily_with_dph, monthly_with_dph
 
-def compute_monthly_billing(cfg, month_str, tzinfo):
+def compute_monthly_billing(cfg, month_str, tzinfo, require_data=None):
     if not re.match(r"^\d{4}-\d{2}$", month_str):
         raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
     year, month_num = map(int, month_str.split("-"))
     days_in_month = calendar.monthrange(year, month_num)[1]
     start_date = datetime(year, month_num, 1).date()
     today = datetime.now(tzinfo).date()
+    if require_data is None:
+        require_data = start_date.year == today.year and start_date.month == today.month
 
     actual_variable = 0.0
     actual_kwh = 0.0
@@ -540,27 +544,28 @@ def compute_monthly_billing(cfg, month_str, tzinfo):
                 actual_variable += totals["cost_total"]
                 days_with_data += 1
 
-    if days_with_data == 0 and start_date <= today:
+    if days_with_data == 0 and start_date <= today and require_data:
         raise HTTPException(
             status_code=500,
             detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
         )
 
-    projected_variable = 0.0
-    if days_with_data > 0:
+    if days_with_data == 0:
+        actual = {"kwh_total": None, "variable_cost": None, "fixed_cost": None, "total_cost": None}
+        projected = {"variable_cost": None, "fixed_cost": None, "total_cost": None}
+    else:
         projected_variable = (actual_variable / days_with_data) * days_in_month
-
-    actual = {
-        "kwh_total": round(actual_kwh, 5) if days_with_data else None,
-        "variable_cost": round(actual_variable, 5),
-        "fixed_cost": round(fixed_total, 5),
-        "total_cost": round(actual_variable + fixed_total, 5),
-    }
-    projected = {
-        "variable_cost": round(projected_variable, 5),
-        "fixed_cost": round(fixed_total, 5),
-        "total_cost": round(projected_variable + fixed_total, 5),
-    }
+        actual = {
+            "kwh_total": round(actual_kwh, 5),
+            "variable_cost": round(actual_variable, 5),
+            "fixed_cost": round(fixed_total, 5),
+            "total_cost": round(actual_variable + fixed_total, 5),
+        }
+        projected = {
+            "variable_cost": round(projected_variable, 5),
+            "fixed_cost": round(fixed_total, 5),
+            "total_cost": round(projected_variable + fixed_total, 5),
+        }
     fixed_breakdown["daily"] = {k: round(v, 5) for k, v in fixed_breakdown["daily"].items()}
     fixed_breakdown["monthly"] = {k: round(v, 5) for k, v in fixed_breakdown["monthly"].items()}
 
@@ -931,7 +936,7 @@ def get_billing_year(year: int = Query(..., ge=2000, le=2100)):
 
     for month_num in range(1, end_month + 1):
         month_str = f"{year}-{month_num:02d}"
-        data = compute_monthly_billing(cfg, month_str, tzinfo)
+        data = compute_monthly_billing(cfg, month_str, tzinfo, require_data=False)
         months.append(
             {
                 "month": data["month"],
@@ -941,12 +946,13 @@ def get_billing_year(year: int = Query(..., ge=2000, le=2100)):
                 "projected": data["projected"],
             }
         )
-        totals_actual_var += data["actual"]["variable_cost"]
-        totals_actual_fixed += data["actual"]["fixed_cost"]
-        totals_actual_total += data["actual"]["total_cost"]
-        totals_projected_var += data["projected"]["variable_cost"]
-        totals_projected_fixed += data["projected"]["fixed_cost"]
-        totals_projected_total += data["projected"]["total_cost"]
+        if data["days_with_data"] > 0:
+            totals_actual_var += data["actual"]["variable_cost"]
+            totals_actual_fixed += data["actual"]["fixed_cost"]
+            totals_actual_total += data["actual"]["total_cost"]
+            totals_projected_var += data["projected"]["variable_cost"]
+            totals_projected_fixed += data["projected"]["fixed_cost"]
+            totals_projected_total += data["projected"]["total_cost"]
 
     totals = {
         "actual": {

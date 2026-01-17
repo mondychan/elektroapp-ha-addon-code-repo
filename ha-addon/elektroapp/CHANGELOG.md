@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.36
+- UI: zvyrazneni aktualniho 15m slotu v grafu cen (carkovana cara).
+- UI: Odhad vyuctovani prehled (sjednocene fixni poplatky, upravene popisky).
+- Billing: rocni prehled nehada chybu pri mesicich bez dat.
+
 ## 0.1.35
 - UI: temny/svetly prepinac s ikonami a opravenym zarovnanim.
 

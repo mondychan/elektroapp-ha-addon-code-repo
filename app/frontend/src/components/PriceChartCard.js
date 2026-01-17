@@ -8,10 +8,12 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   Cell,
+  ReferenceLine,
 } from "recharts";
 import * as d3 from "d3-scale";
+import { formatSlotToTime } from "../utils/formatters";
 
-const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, className }) => {
+const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, className, highlightSlot }) => {
   if (!chartData.length && !fallbackMessage) {
     return null;
   }
@@ -25,6 +27,9 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
     return vtPeriodsSafe.some(([start, end]) => slot >= start * 4 && slot < end * 4) ? "VT" : "NT";
   };
 
+  const shouldHighlight = Number.isInteger(highlightSlot) && highlightSlot >= 0 && highlightSlot < 96;
+  const highlightDash = "4 3";
+
   return (
     <div className={`card ${className || ""}`.trim()}>
       <div className="card-header">
@@ -36,12 +41,23 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={chartData} margin={{ top: 20, right: 20, left: 40, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            {shouldHighlight && (
+              <ReferenceLine
+                x={highlightSlot}
+                stroke="rgba(77, 121, 255, 0.85)"
+                strokeWidth={2}
+                strokeDasharray={highlightDash}
+                ifOverflow="discard"
+              />
+            )}
             <XAxis
-              dataKey="time"
+              dataKey="slot"
+              type="number"
+              domain={[-0.5, 95.5]}
               tick={({ x, y, payload }) => {
-                const time = payload.value;
-                const [h, m] = time.split(":").map(Number);
-                const slot = h * 4 + m / 15;
+                const slot = payload.value;
+                if (!Number.isInteger(slot) || slot < 0 || slot > 95) return null;
+                const time = formatSlotToTime(slot);
                 const isVT = getVTStatus(slot) === "VT";
                 return (
                   <text
@@ -71,11 +87,12 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
                 return [`${value.toFixed(2)},-Kc`, name];
               }}
               labelFormatter={(label, payload) => {
-                if (!payload || !payload.length) return `Cas: ${label}`;
-                const [h, m] = label.split(":").map(Number);
-                const slot = h * 4 + m / 15;
+                if (!payload || !payload.length) return `Cas: -`;
+                const slot = Number(label);
+                if (!Number.isInteger(slot) || slot < 0 || slot > 95) return `Cas: -`;
+                const time = formatSlotToTime(slot);
                 const vtStatus = getVTStatus(slot);
-                return `Cas: ${label} (${vtStatus})`;
+                return `Cas: ${time} (${vtStatus})`;
               }}
             />
             <Bar dataKey="spot" stackId="a">
