@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.43
+- Konfigurace: oprava tlacitek Upravit/Smazat u historickych poplatku.
+
 ## 0.1.42
 - Spotreba: cache spotreby z InfluxDB (lokalni zaloha + mene dotazu).
 - Konfigurace: prehled cache cen a spotreby v konfiguraci.

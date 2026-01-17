@@ -140,7 +140,7 @@ const FeesHistorySection = ({
         }
       }
       const fromDate = parseDateLocal(entry.effective_from);
-      const toDate = parseDateLocal(entry.effective_to);
+      const toDate = validTo ? parseDateLocal(validTo) : null;
       const isCurrent =
         !!fromDate &&
         !!todayDate &&
