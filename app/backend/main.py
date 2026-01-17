@@ -741,6 +741,7 @@ def update_fees_history(payload: dict = Body(...)):
     today = datetime.now(tzinfo).date()
 
     normalized_map = {}
+    seen_dates = set()
     for entry in history:
         if not isinstance(entry, dict):
             continue
@@ -751,6 +752,9 @@ def update_fees_history(payload: dict = Body(...)):
             date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid effective_from: {date_str}")
+        if date_str in seen_dates:
+            raise HTTPException(status_code=400, detail=f"Duplicated effective_from: {date_str}")
+        seen_dates.add(date_str)
         if date_obj > today:
             raise HTTPException(status_code=400, detail="effective_from cannot be in the future.")
         snapshot = normalize_fee_snapshot(entry.get("snapshot", {}))

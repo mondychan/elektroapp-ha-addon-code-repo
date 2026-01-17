@@ -98,11 +98,15 @@ const FeesHistorySection = ({
 }) => {
   const [drafts, setDrafts] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [validationError, setValidationError] = useState(null);
   const todayStr = useMemo(() => formatDateLocal(new Date()), []);
 
   useEffect(() => {
     setDrafts(history.map(toDraft));
     setEditingId(null);
+    setConfirmDeleteId(null);
+    setValidationError(null);
   }, [history]);
 
   const sortedDrafts = useMemo(() => {
@@ -142,9 +146,33 @@ const FeesHistorySection = ({
   }, [sortedDrafts, todayStr]);
 
   const updateDraft = (id, updater) => {
+    setConfirmDeleteId(null);
     setDrafts((prev) =>
       prev.map((draft) => (draft.id === id ? { ...draft, ...updater(draft) } : draft))
     );
+  };
+
+  const buildPayload = (entries) => {
+    return entries.filter((entry) => entry.effective_from).map((entry) => toPayload(entry));
+  };
+
+  const validateDrafts = (entries) => {
+    const seen = new Set();
+    const candidates = entries.filter((entry) => entry.effective_from);
+    if (candidates.length === 0) {
+      return "Historie nesmi byt prazdna.";
+    }
+    for (const entry of candidates) {
+      const parsed = parseDateLocal(entry.effective_from);
+      if (!parsed) {
+        return `Neplatne datum: ${entry.effective_from}`;
+      }
+      if (seen.has(entry.effective_from)) {
+        return `Duplicita data Platne od: ${entry.effective_from}`;
+      }
+      seen.add(entry.effective_from);
+    }
+    return null;
   };
 
   const handleAdd = () => {
@@ -188,19 +216,46 @@ const FeesHistorySection = ({
     };
     setDrafts((prev) => [newEntry, ...prev]);
     setEditingId(newId);
+    setConfirmDeleteId(null);
+    setValidationError(null);
   };
 
   const handleCancel = () => {
     setDrafts(history.map(toDraft));
     setEditingId(null);
+    setConfirmDeleteId(null);
+    setValidationError(null);
   };
 
   const handleSave = (id) => {
-    const payload = drafts
-      .filter((entry) => entry.effective_from)
-      .map((entry) => toPayload(entry));
+    const validation = validateDrafts(drafts);
+    if (validation) {
+      setValidationError(validation);
+      return;
+    }
+    setValidationError(null);
+    const payload = buildPayload(drafts);
     onSave(payload).then(() => {
       setEditingId(null);
+    });
+  };
+
+  const handleDelete = (id) => {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      return;
+    }
+    const nextDrafts = drafts.filter((entry) => entry.id !== id);
+    const validation = validateDrafts(nextDrafts);
+    if (validation) {
+      setValidationError(validation);
+      setConfirmDeleteId(null);
+      return;
+    }
+    setValidationError(null);
+    const payload = buildPayload(nextDrafts);
+    onSave(payload).then(() => {
+      setConfirmDeleteId(null);
     });
   };
 
@@ -227,6 +282,7 @@ const FeesHistorySection = ({
 
       {loading && <div className="config-muted">Nacitam historii...</div>}
       {error && <div className="alert error">{error}</div>}
+      {validationError && <div className="alert error">{validationError}</div>}
 
       {!loading && !error && sortedDrafts.length === 0 && (
         <div className="config-muted">Historie poplatku neni k dispozici.</div>
@@ -238,7 +294,7 @@ const FeesHistorySection = ({
           const validTo = rangeInfo.valid_to || "nyni";
           const isCurrent = rangeInfo.is_current;
           const isEditing = editingId === entry.id;
-          const canEdit = !isCurrent;
+          const canManage = !isCurrent;
           const dateMax = todayStr;
 
           const rows = [
@@ -398,10 +454,26 @@ const FeesHistorySection = ({
               </div>
               <InfoTable rows={rows} valueAlign="right" headerValueAlign="right" />
               <div className="fees-history-actions">
-                {!isEditing && (
-                  <button onClick={() => setEditingId(entry.id)} disabled={!canEdit}>
+                {!isEditing && canManage && (
+                  <button onClick={() => { setEditingId(entry.id); setConfirmDeleteId(null); }}>
                     Upravit
                   </button>
+                )}
+                {!isEditing && canManage && (
+                  <>
+                    {confirmDeleteId !== entry.id ? (
+                      <button onClick={() => handleDelete(entry.id)}>
+                        Smazat
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => handleDelete(entry.id)}>
+                          Potvrdit smazani
+                        </button>
+                        <button onClick={() => setConfirmDeleteId(null)}>Zrusit</button>
+                      </>
+                    )}
+                  </>
                 )}
                 {isEditing && (
                   <>
