@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.45
+- Docker: update base images to node:22-alpine and python:3.13-slim.
+- Backend: FastAPI/Uvicorn loosened to latest compatible versions at build time.
+
 ## 0.1.44
 - Konfigurace: potvrzeni smazani ma 5s odpoctem + cervene zvyrazneni.
 

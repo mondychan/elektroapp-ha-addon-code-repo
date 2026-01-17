@@ -1,7 +1,7 @@
 # Stage 1: build React frontend (build on host platform to avoid qemu issues)
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
-FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 WORKDIR /app
 COPY app/frontend/package*.json ./
 RUN npm install
@@ -9,7 +9,7 @@ COPY app/frontend/ ./
 RUN npm run build
 
 # Stage 2: Python backend
-FROM python:3.12-slim
+FROM python:3.13-slim
 WORKDIR /app
 COPY app/backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
