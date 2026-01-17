@@ -429,15 +429,15 @@ function App() {
             <label htmlFor="refresh-toggle" aria-label="Auto refresh" title="Auto refresh">
               <span className="theme-toggle-track">
                 <span className="theme-toggle-scenery">
-                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-off" aria-hidden="true">
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                  </svg>
                   <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-on" aria-hidden="true">
                     <path d="M21 12a9 9 0 00-15.3-6.3" />
                     <path d="M3 4v6h6" />
                     <path d="M3 12a9 9 0 0015.3 6.3" />
                     <path d="M21 20v-6h-6" />
+                  </svg>
+                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-off" aria-hidden="true">
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
                   </svg>
                 </span>
                 <span className="theme-toggle-ball" />

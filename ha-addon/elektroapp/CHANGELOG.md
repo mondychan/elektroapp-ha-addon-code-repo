@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.39
+- UI: ikony auto-refresh prepinace vlevo/vpravo pro jasny stav.
+
 ## 0.1.38
 - UI: opravene zobrazeni ikon v prepinaci auto-refresh.
 
