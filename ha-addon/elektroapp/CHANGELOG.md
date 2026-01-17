@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.38
+- UI: opravene zobrazeni ikon v prepinaci auto-refresh.
+
 ## 0.1.37
 - UI: auto-refresh grafu (ceny + naklady dnes) s prepinacem.
 - Konfigurace: historie poplatku s moznosti uprav (bez mazani).
