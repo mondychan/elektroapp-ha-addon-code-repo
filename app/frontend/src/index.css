@@ -71,13 +71,115 @@ code {
   font-size: 14px;
 }
 
-.icon-toggle {
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 8px 12px;
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  --toggle-width: 64px;
+  --toggle-height: 32px;
+  --toggle-padding: 4px;
+  --toggle-knob: 24px;
+  --toggle-icon: 13px;
+}
+
+.theme-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-toggle label {
   cursor: pointer;
+}
+
+.theme-toggle-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--toggle-width);
+  height: var(--toggle-height);
+  padding: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.theme-toggle-ball {
+  position: absolute;
+  top: 50%;
+  left: var(--toggle-padding);
+  width: var(--toggle-knob);
+  height: var(--toggle-knob);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
+  transform: translateY(-50%);
+  transition: transform 0.25s ease, background 0.25s ease;
+}
+
+.theme-toggle-scenery {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.theme-toggle-sun,
+.theme-toggle-moon {
+  width: var(--toggle-icon);
+  height: var(--toggle-icon);
+  display: block;
+}
+
+.theme-toggle-sun {
+  color: #f7c948;
+}
+
+.theme-toggle-moon {
+  color: #9aa7b5;
+}
+
+.theme-toggle-sun line,
+.theme-toggle-sun circle {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: currentColor;
+}
+
+.theme-toggle-moon path {
+  fill: currentColor;
+}
+
+.theme-toggle input:checked + label .theme-toggle-ball {
+  transform: translateY(-50%) translateX(calc(var(--toggle-width) - var(--toggle-knob) - (var(--toggle-padding) * 2)));
+}
+
+.theme-toggle input:checked + label .theme-toggle-track {
+  background: #0f1522;
+  border-color: #273046;
+}
+
+.theme-toggle input:checked + label .theme-toggle-ball {
+  background: #1b2332;
+  border-color: #2c3950;
+}
+
+.theme-toggle input:checked + label .theme-toggle-sun {
+  opacity: 0.4;
+}
+
+.theme-toggle input:checked + label .theme-toggle-moon {
+  color: #cfd6e1;
 }
 
 .section h2 {

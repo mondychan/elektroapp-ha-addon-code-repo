@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.35
+- UI: temny/svetly prepinac s ikonami a opravenym zarovnanim.
+
 ## 0.1.34
 - API: spatne formaty date/start/end vraci 400 misto 500.
 - UI: refaktor do komponent + presun inline stylu do CSS.
