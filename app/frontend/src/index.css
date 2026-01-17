@@ -350,6 +350,10 @@ input {
   margin: 6px 0 8px;
 }
 
+.config-subtitle {
+  margin: 16px 0 8px;
+}
+
 .config-list {
   list-style: none;
   padding: 0;

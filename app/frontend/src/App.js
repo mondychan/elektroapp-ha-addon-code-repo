@@ -19,6 +19,8 @@ function App() {
   const [costs, setCosts] = useState([]);
   const [costsSummary, setCostsSummary] = useState(null);
   const [costsError, setCostsError] = useState(null);
+  const [costsFromCache, setCostsFromCache] = useState(false);
+  const [costsCacheFallback, setCostsCacheFallback] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const y = today.getFullYear();
@@ -145,16 +147,22 @@ function App() {
       setCosts([]);
       setCostsSummary(null);
       setCostsError(null);
+      setCostsFromCache(false);
+      setCostsCacheFallback(false);
     }
     axios
       .get(`${API_PREFIX}/costs`, { params: { date: dateValue } })
       .then((res) => {
         setCosts(res.data.points || []);
         setCostsSummary(res.data.summary || null);
+        setCostsFromCache(Boolean(res.data.from_cache));
+        setCostsCacheFallback(Boolean(res.data.cache_fallback));
       })
       .catch((err) => {
         console.error("Error fetching costs:", err);
         setCostsError(buildInfluxError(err));
+        setCostsFromCache(false);
+        setCostsCacheFallback(false);
       });
   };
 
@@ -245,12 +253,23 @@ function App() {
     };
   }, [config]);
   const cacheRows = useMemo(() => {
-    if (!cacheStatus) return [];
+    if (!cacheStatus?.prices) return [];
+    const status = cacheStatus.prices;
     return [
-      { label: "Cache dny", value: `${cacheStatus.count} dni` },
-      { label: "Cache nejnovejsi", value: cacheStatus.latest || "-" },
-      { label: "Cache velikost", value: formatBytes(cacheStatus.size_bytes) },
-      { label: "Cache cesta", value: cacheStatus.dir, valueWrap: true },
+      { label: "Cache dny", value: `${status.count} dni` },
+      { label: "Cache nejnovejsi", value: status.latest || "-" },
+      { label: "Cache velikost", value: formatBytes(status.size_bytes) },
+      { label: "Cache cesta", value: status.dir, valueWrap: true },
+    ];
+  }, [cacheStatus]);
+  const consumptionCacheRows = useMemo(() => {
+    if (!cacheStatus?.consumption) return [];
+    const status = cacheStatus.consumption;
+    return [
+      { label: "Cache dny", value: `${status.count} dni` },
+      { label: "Cache nejnovejsi", value: status.latest || "-" },
+      { label: "Cache velikost", value: formatBytes(status.size_bytes) },
+      { label: "Cache cesta", value: status.dir, valueWrap: true },
     ];
   }, [cacheStatus]);
 
@@ -472,6 +491,8 @@ function App() {
           costs={costs}
           costsSummary={costsSummary}
           costsError={costsError}
+          costsFromCache={costsFromCache}
+          costsCacheFallback={costsCacheFallback}
         />
       </section>
 
@@ -533,6 +554,7 @@ function App() {
         <ConfigCard
           configRows={configRows}
           cacheRows={cacheRows}
+          consumptionCacheRows={consumptionCacheRows}
           cacheStatus={cacheStatus}
           showFeesHistory={showFeesHistory}
           onToggleFeesHistory={() => setShowFeesHistory((prev) => !prev)}

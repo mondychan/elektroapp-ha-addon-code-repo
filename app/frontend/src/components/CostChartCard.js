@@ -12,7 +12,15 @@ import {
 } from "recharts";
 import { formatDate, toDateInputValue } from "../utils/formatters";
 
-const CostChartCard = ({ selectedDate, setSelectedDate, costs, costsSummary, costsError }) => {
+const CostChartCard = ({
+  selectedDate,
+  setSelectedDate,
+  costs,
+  costsSummary,
+  costsError,
+  costsFromCache,
+  costsCacheFallback,
+}) => {
   const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const formatIsoToTime = (iso) => {
     const dt = new Date(iso);
@@ -70,6 +78,12 @@ const CostChartCard = ({ selectedDate, setSelectedDate, costs, costsSummary, cos
         <div className="muted-note">Data pro vybrany den nejsou k dispozici.</div>
       ) : (
         <>
+          {costsCacheFallback && (
+            <div className="alert">InfluxDB neni dostupna, zobrazuji data z cache.</div>
+          )}
+          {!costsCacheFallback && costsFromCache && (
+            <div className="muted-note">Data jsou z cache spotreby.</div>
+          )}
           {costsSummary && (
             <div className="summary">
               Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc

@@ -29,6 +29,10 @@ else:
 PRICES_CACHE = {}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR else (Path(__file__).parent / "cache")
+CONSUMPTION_CACHE_DIR = (
+    STORAGE_DIR / "consumption-cache" if STORAGE_DIR else (Path(__file__).parent / "consumption-cache")
+)
+CONSUMPTION_CACHE_TTL_SECONDS = 600
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 FEES_HISTORY_FILE = STORAGE_DIR / "fees-history.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -448,23 +452,88 @@ def save_prices_cache(date_str, entries):
         json.dump(entries, f)
     logger.info("Saved prices cache for %s to %s", date_str, path)
 
+def build_consumption_cache_key(influx):
+    return {
+        "entity_id": influx.get("entity_id"),
+        "measurement": influx.get("measurement"),
+        "field": influx.get("field"),
+        "interval": influx.get("interval", "15m"),
+        "retention_policy": influx.get("retention_policy"),
+        "timezone": influx.get("timezone"),
+    }
+
+def load_consumption_cache(date_str, cache_key):
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    path = CONSUMPTION_CACHE_DIR / f"consumption-{date_str}.json"
+    if not path.exists():
+        return None, None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    meta = payload.get("meta", {})
+    if meta.get("key") != cache_key:
+        return None, None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None, None
+    return data, path
+
+def save_consumption_cache(date_str, cache_key, data):
+    if STORAGE_DIR:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    CONSUMPTION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = CONSUMPTION_CACHE_DIR / f"consumption-{date_str}.json"
+    payload = {
+        "meta": {"key": cache_key, "fetched_at": datetime.utcnow().isoformat() + "Z"},
+        "data": data,
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    logger.info("Saved consumption cache for %s to %s", date_str, path)
+
+def is_cache_fresh(path, ttl_seconds):
+    if not path or ttl_seconds <= 0:
+        return False
+    try:
+        age = time_module.time() - path.stat().st_mtime
+    except OSError:
+        return False
+    return age < ttl_seconds
+
+def is_today_date(date_str, tzinfo):
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return date_obj == datetime.now(tzinfo).date()
 
 def has_price_cache(date_str):
     cached = load_prices_cache(date_str)
     return bool(cached)
 
-def cache_status():
+def cache_status_for_dir(path, prefix):
     if STORAGE_DIR:
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    if not CACHE_DIR.exists():
-        return {"dir": str(CACHE_DIR), "count": 0, "latest": None, "size_bytes": 0}
-    files = sorted(CACHE_DIR.glob("prices-*.json"))
+    if not path.exists():
+        return {"dir": str(path), "count": 0, "latest": None, "size_bytes": 0}
+    files = sorted(path.glob(f"{prefix}-*.json"))
     latest = None
     total_size = 0
     if files:
-        latest = files[-1].stem.replace("prices-", "")
+        latest = files[-1].stem.replace(f"{prefix}-", "")
         total_size = sum(path.stat().st_size for path in files)
-    return {"dir": str(CACHE_DIR), "count": len(files), "latest": latest, "size_bytes": total_size}
+    return {"dir": str(path), "count": len(files), "latest": latest, "size_bytes": total_size}
+
+def cache_status():
+    return {
+        "prices": cache_status_for_dir(CACHE_DIR, "prices"),
+        "consumption": cache_status_for_dir(CONSUMPTION_CACHE_DIR, "consumption"),
+    }
 
 def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
     entries = []
@@ -679,6 +748,18 @@ def compute_monthly_billing(cfg, month_str, tzinfo, require_data=None):
 def get_consumption_points(cfg, date=None, start=None, end=None):
     influx = get_influx_cfg(cfg)
     tzinfo = get_local_tz(influx.get("timezone"))
+    cache_key = None
+    cached = None
+    cache_path = None
+    if date and not start and not end:
+        cache_key = build_consumption_cache_key(influx)
+        cached, cache_path = load_consumption_cache(date, cache_key)
+        if cached and (not is_today_date(date, tzinfo) or is_cache_fresh(cache_path, CONSUMPTION_CACHE_TTL_SECONDS)):
+            cached["tzinfo"] = tzinfo
+            cached["from_cache"] = True
+            cached["cache_fallback"] = False
+            return cached
+
     start_utc, end_utc = parse_time_range(date, start, end, tzinfo)
 
     rp = influx.get("retention_policy")
@@ -696,7 +777,15 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
         f"GROUP BY time({interval}) fill(null)"
     )
 
-    data = influx_query(influx, q)
+    try:
+        data = influx_query(influx, q)
+    except Exception:
+        if cached:
+            cached["tzinfo"] = tzinfo
+            cached["from_cache"] = True
+            cached["cache_fallback"] = True
+            return cached
+        raise
     series = data.get("results", [{}])[0].get("series", [])
     has_series = bool(series)
     values = series[0]["values"] if series else []
@@ -727,14 +816,26 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
             }
         )
 
-    return {
+    result = {
         "range": {"start": to_rfc3339(start_utc), "end": to_rfc3339(end_utc)},
         "interval": interval,
         "entity_id": entity_id,
         "points": points,
         "tzinfo": tzinfo,
         "has_series": has_series,
+        "from_cache": False,
+        "cache_fallback": False,
     }
+    if date and not start and not end and has_series:
+        cache_payload = {
+            "range": result["range"],
+            "interval": result["interval"],
+            "entity_id": result["entity_id"],
+            "points": result["points"],
+            "has_series": result["has_series"],
+        }
+        save_consumption_cache(date, cache_key, cache_payload)
+    return result
 
 @app.get("/api/config")
 def get_config():
@@ -895,6 +996,8 @@ def get_consumption(
         "interval": result["interval"],
         "entity_id": result["entity_id"],
         "points": result["points"],
+        "from_cache": result.get("from_cache", False),
+        "cache_fallback": result.get("cache_fallback", False),
     }
 
 @app.get("/api/costs")
@@ -969,6 +1072,8 @@ def get_costs(
             "cost_total": round(total_cost, 5),
         },
         "points": points,
+        "from_cache": consumption.get("from_cache", False),
+        "cache_fallback": consumption.get("cache_fallback", False),
     }
 
 
@@ -1191,12 +1296,21 @@ def log_cache_status():
     if STORAGE_DIR:
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     status = cache_status()
+    prices_status = status.get("prices", {})
+    consumption_status = status.get("consumption", {})
     logger.info(
         "Prices cache status: dir=%s count=%s latest=%s size_bytes=%s",
-        status["dir"],
-        status["count"],
-        status["latest"],
-        status["size_bytes"],
+        prices_status.get("dir"),
+        prices_status.get("count"),
+        prices_status.get("latest"),
+        prices_status.get("size_bytes"),
+    )
+    logger.info(
+        "Consumption cache status: dir=%s count=%s latest=%s size_bytes=%s",
+        consumption_status.get("dir"),
+        consumption_status.get("count"),
+        consumption_status.get("latest"),
+        consumption_status.get("size_bytes"),
     )
 
 # --- Frontend React Build ---

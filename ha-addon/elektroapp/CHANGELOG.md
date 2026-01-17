@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.42
+- Spotreba: cache spotreby z InfluxDB (lokalni zaloha + mene dotazu).
+- Konfigurace: prehled cache cen a spotreby v konfiguraci.
+- UI: oznaceni dat z cache pri nakladech/spotrebe.
+
 ## 0.1.41
 - Konfigurace: editace Platne od/do u historickych poplatku + kontrola prekryvu.
 

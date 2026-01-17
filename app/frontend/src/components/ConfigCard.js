@@ -5,6 +5,7 @@ import FeesHistorySection from "./FeesHistorySection";
 const ConfigCard = ({
   configRows,
   cacheRows,
+  consumptionCacheRows,
   cacheStatus,
   showFeesHistory,
   onToggleFeesHistory,
@@ -23,11 +24,23 @@ const ConfigCard = ({
         <InfoTable rows={configRows} valueAlign="right" headerValueAlign="right" />
       </div>
       <div className="config-column">
-        <h4>Cache</h4>
-        {cacheStatus ? (
+        <h4>Cache cen</h4>
+        {cacheStatus?.prices ? (
           <InfoTable rows={cacheRows} valueAlign="left" headerValueAlign="left" showUnit={false} showHeader={false} />
         ) : (
-          <div className="config-muted">Cache data nejsou k dispozici.</div>
+          <div className="config-muted">Cache cen nejsou k dispozici.</div>
+        )}
+        <h4 className="config-subtitle">Cache spotreby</h4>
+        {cacheStatus?.consumption ? (
+          <InfoTable
+            rows={consumptionCacheRows}
+            valueAlign="left"
+            headerValueAlign="left"
+            showUnit={false}
+            showHeader={false}
+          />
+        ) : (
+          <div className="config-muted">Cache spotreby nejsou k dispozici.</div>
         )}
       </div>
     </div>
