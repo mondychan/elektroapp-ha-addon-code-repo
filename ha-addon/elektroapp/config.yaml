@@ -1,0 +1,91 @@
+name: "Elektroapp"
+slug: "elektroapp"
+description: "Spot prices and energy costs UI with Ingress for Home Assistant"
+url: "https://github.com/mondychan/elektroapp-ha-addon"
+version: "0.1.49"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+ingress: true
+ingress_port: 8000
+panel_icon: "mdi:flash"
+image: "mondychan/elektroapp-ha"
+environment:
+  ADDON_VERSION: "0.1.49"
+ports:
+  8000/tcp: null
+ports_description:
+  8000/tcp: "Elektroapp Web UI"
+webui: "http://[HOST]:[PORT:8000]/"
+map:
+  - config:rw
+options:
+  dph: 21
+  price_provider: "spotovaelektrina"
+  poplatky:
+    komodita_sluzba: 0.35
+    oze: 0.0
+    dan: 0.0283
+    systemove_sluzby: 0.16424
+    distribuce:
+      NT: 0.1165
+      VT: 0.75477
+  fixni:
+    denni:
+      staly_plat: 4.18
+    mesicni:
+      provoz_nesitove_infrastruktury: 12.87
+      jistic: 710
+  tarif:
+    vt_periods: "6-7,9-10,13-14,16-17"
+  influxdb:
+    host: "192.168.82.120"
+    port: 8086
+    database: "homeassistant"
+    retention_policy: "autogen"
+    measurement: "kWh"
+    field: "value"
+    entity_id: "solax_drinov_today_s_import_energy"
+    export_entity_id: "solax_drinov_today_s_export_energy"
+    username: "electroapp"
+    password: "CHANGE_ME"
+    timezone: "Europe/Prague"
+    interval: "15m"
+  prodej:
+    koeficient_snizeni_ceny: 390
+schema:
+  dph: float
+  price_provider: str?
+  poplatky:
+    komodita_sluzba: float
+    oze: float
+    dan: float
+    systemove_sluzby: float
+    distribuce:
+      NT: float
+      VT: float
+  fixni:
+    denni:
+      staly_plat: float
+    mesicni:
+      provoz_nesitove_infrastruktury: float
+      jistic: float
+  tarif:
+    vt_periods: str
+  influxdb:
+    host: str
+    port: int
+    database: str
+    retention_policy: str?
+    measurement: str
+    field: str
+    entity_id: str
+    export_entity_id: str?
+    username: str?
+    password: password?
+    timezone: str
+    interval: str
+  prodej:
+    koeficient_snizeni_ceny: float?
