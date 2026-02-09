@@ -1,0 +1,20 @@
+configuration:
+  dph:
+    name: "VAT %"
+    description: "Example: 21"
+  price_provider:
+    name: "Price source"
+    description: "spotovaelektrina or ote"
+  poplatky:
+    name: "Fees"
+  fixni:
+    name: "Fixed fees"
+  tarif:
+    name: "Tariff"
+    description: "VT periods as \"6-7,9-10,13-14,16-17\""
+  influxdb:
+    name: "InfluxDB"
+    description: "Connection settings for consumption data"
+  prodej:
+    name: "Sales"
+    description: "Energy export settings"

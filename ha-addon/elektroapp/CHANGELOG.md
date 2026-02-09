@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.53
+- Release: navyseni verze addonu na `0.1.53`.
+
+## 0.1.52
+- Ceny: pro vypocty `costs/export` se pri dotazu na dnesek netaha zbytecne i zitrsi den.
+- Provider: odstraneny cross-fallback mezi zdroji; pouziva se striktne jen zvoleny `price_provider` (+ jeho cache).
+- Influx fallback: presnejsi UI hlaska (`Dotaz na InfluxDB selhal...`) misto zavadejiciho textu.
+- Influx fallback: detailnejsi logovani duvodu (napr. 401/timeout) pri prepnuti na cache.
+
+## 0.1.51
+- OTE SOAP request: doplnen `SOAPAction` pro `GetDamPricePeriodE`.
+- OTE endpoint: fallback pokus pres `http://www.ote-cr.cz/services/PublicDataService`, pokud `https` selze.
+- Stabilita: dalsi zjemneni fallback logiky pri docasnych chybach OTE.
+- Ceny: dotazy pro `costs/export` dnes uz nestahuji i zitrsi den.
+- Influx fallback: upraven text hlasky v UI a pridane detailnejsi logovani duvodu fallbacku.
+
+## 0.1.50
+- OTE: odolnost proti HTTP 500 (fallback na cache/spot provider), aby API nepadalo 500.
+- OTE: cooldown po chybe, aby se pri vypadku zbytecne neopakovaly requesty.
+- HA konfigurace: `price_provider` je vyber (radio volby) s hodnotami `spotovaelektrina.cz` a `ote-cr.cz`.
+- Provider parser: akceptuje i alias `ote.cz`.
+
 ## 0.1.49
 - Ceny: pridana podpora volby zdroje (`spotovaelektrina` / `ote`).
 - OTE: nacitani dat z ote-cr.cz + prevod EUR/CZK podle CNB.

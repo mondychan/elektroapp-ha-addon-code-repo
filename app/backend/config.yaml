@@ -1,0 +1,41 @@
+dph: 21
+price_provider: spotovaelektrina
+poplatky:
+  dan: 0.0283
+  systemove_sluzby: 0.16424
+  distribuce:
+    NT: 0.1165
+    VT: 0.75477
+  komodita_sluzba: 0.35
+  oze: 0.0
+fixni:
+  denni:
+    staly_plat: 4.18
+  mesicni:
+    provoz_nesitove_infrastruktury: 12.87
+    jistic: 710
+tarif:
+  vt_periods:
+  - - 6
+    - 7
+  - - 9
+    - 10
+  - - 13
+    - 14
+  - - 16
+    - 17
+influxdb:
+  host: 192.168.82.120
+  port: 8086
+  database: homeassistant
+  retention_policy: autogen
+  measurement: kWh
+  field: value
+  entity_id: solax_drinov_today_s_import_energy
+  export_entity_id: solax_drinov_today_s_export_energy
+  username: electroapp
+  password: nv2Zrc!#rSyR
+  timezone: Europe/Prague
+  interval: 15m
+prodej:
+  koeficient_snizeni_ceny: 390

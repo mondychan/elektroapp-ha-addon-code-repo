@@ -1,0 +1,20 @@
+configuration:
+  dph:
+    name: "DPH %"
+    description: "Napr. 21"
+  price_provider:
+    name: "Zdroj cen"
+    description: "spotovaelektrina nebo ote"
+  poplatky:
+    name: "Poplatky"
+  fixni:
+    name: "Fixni poplatky"
+  tarif:
+    name: "Tarif"
+    description: "VT intervaly jako \"6-7,9-10,13-14,16-17\""
+  influxdb:
+    name: "InfluxDB"
+    description: "Nastaveni pripojeni pro spotrebu"
+  prodej:
+    name: "Prodej"
+    description: "Nastaveni prodeje elektriny"
