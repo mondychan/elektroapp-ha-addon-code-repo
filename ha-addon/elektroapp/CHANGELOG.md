@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.55
+- Cache spotreby/exportu: historicky den se uz nebere z nedokoncene cache vytvorene behem dne (donuti se refresh z InfluxDB).
+- Cache spotreby/exportu: verze klice cache navysena, aby se prepoctly starsi cache po oprave logiky vykresleni useku.
+
 ## 0.1.54
 - Naklady/nakup: opraven vypocet po preruseni nakupu behem dne (novy usek se znovu vykresli po navratu odberu ze site).
 - Export/prodej: stejna oprava pri resetu/poklesu kumulativniho citace behem dne.

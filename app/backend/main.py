@@ -39,6 +39,7 @@ EXPORT_CACHE_DIR = (
     STORAGE_DIR / "export-cache" if STORAGE_DIR else (Path(__file__).parent / "export-cache")
 )
 EXPORT_CACHE_TTL_SECONDS = 600
+SERIES_CACHE_KEY_VERSION = 2
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 FEES_HISTORY_FILE = STORAGE_DIR / "fees-history.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -584,6 +585,7 @@ def clear_prices_cache_for_date(date_str, remove_files=True):
 
 def build_consumption_cache_key(influx):
     return {
+        "cache_version": SERIES_CACHE_KEY_VERSION,
         "entity_id": influx.get("entity_id"),
         "measurement": influx.get("measurement"),
         "field": influx.get("field"),
@@ -597,21 +599,21 @@ def load_consumption_cache(date_str, cache_key):
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     path = CONSUMPTION_CACHE_DIR / f"consumption-{date_str}.json"
     if not path.exists():
-        return None, None
+        return None, None, None
     try:
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
     except Exception:
-        return None, None
+        return None, None, None
     if not isinstance(payload, dict):
-        return None, None
+        return None, None, None
     meta = payload.get("meta", {})
     if meta.get("key") != cache_key:
-        return None, None
+        return None, None, None
     data = payload.get("data")
     if not isinstance(data, dict):
-        return None, None
-    return data, path
+        return None, None, None
+    return data, path, meta
 
 def save_consumption_cache(date_str, cache_key, data):
     if STORAGE_DIR:
@@ -628,6 +630,7 @@ def save_consumption_cache(date_str, cache_key, data):
 
 def build_export_cache_key(influx, export_entity_id):
     return {
+        "cache_version": SERIES_CACHE_KEY_VERSION,
         "entity_id": export_entity_id,
         "measurement": influx.get("measurement"),
         "field": influx.get("field"),
@@ -641,21 +644,21 @@ def load_export_cache(date_str, cache_key):
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     path = EXPORT_CACHE_DIR / f"export-{date_str}.json"
     if not path.exists():
-        return None, None
+        return None, None, None
     try:
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
     except Exception:
-        return None, None
+        return None, None, None
     if not isinstance(payload, dict):
-        return None, None
+        return None, None, None
     meta = payload.get("meta", {})
     if meta.get("key") != cache_key:
-        return None, None
+        return None, None, None
     data = payload.get("data")
     if not isinstance(data, dict):
-        return None, None
-    return data, path
+        return None, None, None
+    return data, path, meta
 
 def save_export_cache(date_str, cache_key, data):
     if STORAGE_DIR:
@@ -685,6 +688,21 @@ def is_today_date(date_str, tzinfo):
     except ValueError:
         return False
     return date_obj == datetime.now(tzinfo).date()
+
+def is_date_cache_complete(date_str, meta, tzinfo):
+    if not isinstance(meta, dict):
+        return False
+    fetched_at_raw = meta.get("fetched_at")
+    if not isinstance(fetched_at_raw, str):
+        return False
+    try:
+        fetched_at_utc = datetime.fromisoformat(fetched_at_raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    day_end_local = datetime.combine(date_obj + timedelta(days=1), datetime_time(0, 0), tzinfo)
+    day_end_utc = day_end_local.astimezone(timezone.utc)
+    return fetched_at_utc >= day_end_utc
 
 def has_price_cache(date_str, provider=None):
     cached = load_prices_cache(date_str)
@@ -1293,10 +1311,17 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
     cache_key = None
     cached = None
     cache_path = None
+    cache_meta = None
     if date and not start and not end:
         cache_key = build_consumption_cache_key(influx)
-        cached, cache_path = load_consumption_cache(date, cache_key)
-        if cached and (not is_today_date(date, tzinfo) or is_cache_fresh(cache_path, CONSUMPTION_CACHE_TTL_SECONDS)):
+        cached, cache_path, cache_meta = load_consumption_cache(date, cache_key)
+        use_cached = False
+        if cached:
+            if is_today_date(date, tzinfo):
+                use_cached = is_cache_fresh(cache_path, CONSUMPTION_CACHE_TTL_SECONDS)
+            else:
+                use_cached = is_date_cache_complete(date, cache_meta, tzinfo)
+        if use_cached:
             cached["tzinfo"] = tzinfo
             cached["from_cache"] = True
             cached["cache_fallback"] = False
@@ -1394,10 +1419,17 @@ def get_export_points(cfg, date=None, start=None, end=None):
     cache_key = None
     cached = None
     cache_path = None
+    cache_meta = None
     if date and not start and not end:
         cache_key = build_export_cache_key(influx, export_entity_id)
-        cached, cache_path = load_export_cache(date, cache_key)
-        if cached and (not is_today_date(date, tzinfo) or is_cache_fresh(cache_path, EXPORT_CACHE_TTL_SECONDS)):
+        cached, cache_path, cache_meta = load_export_cache(date, cache_key)
+        use_cached = False
+        if cached:
+            if is_today_date(date, tzinfo):
+                use_cached = is_cache_fresh(cache_path, EXPORT_CACHE_TTL_SECONDS)
+            else:
+                use_cached = is_date_cache_complete(date, cache_meta, tzinfo)
+        if use_cached:
             cached["tzinfo"] = tzinfo
             cached["from_cache"] = True
             cached["cache_fallback"] = False
