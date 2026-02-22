@@ -428,6 +428,54 @@ def get_export_entity_id(cfg):
     influx = cfg.get("influxdb", {}) if isinstance(cfg.get("influxdb"), dict) else {}
     return influx.get("export_entity_id")
 
+def get_battery_cfg(cfg):
+    battery = cfg.get("battery", {}) if isinstance(cfg.get("battery"), dict) else {}
+    return {
+        "enabled": bool(battery.get("enabled", False)),
+        "soc_entity_id": battery.get("soc_entity_id"),
+        "power_entity_id": battery.get("power_entity_id"),
+        "input_energy_today_entity_id": battery.get("input_energy_today_entity_id"),
+        "output_energy_today_entity_id": battery.get("output_energy_today_entity_id"),
+        "usable_capacity_kwh": _safe_float(battery.get("usable_capacity_kwh", 0)),
+        "reserve_soc_percent": _safe_float(battery.get("reserve_soc_percent", 15)),
+        "eta_smoothing_minutes": max(1, int(_safe_float(battery.get("eta_smoothing_minutes", 15)) or 15)),
+        "min_power_threshold_w": max(0.0, _safe_float(battery.get("min_power_threshold_w", 150))),
+        "charge_efficiency": _safe_float(battery.get("charge_efficiency", 0.95)) or 0.95,
+        "discharge_efficiency": _safe_float(battery.get("discharge_efficiency", 0.95)) or 0.95,
+    }
+
+def get_energy_entities_cfg(cfg):
+    energy = cfg.get("energy", {}) if isinstance(cfg.get("energy"), dict) else {}
+    return {
+        "house_load_power_entity_id": energy.get("house_load_power_entity_id"),
+        "grid_import_power_entity_id": energy.get("grid_import_power_entity_id"),
+        "grid_export_power_entity_id": energy.get("grid_export_power_entity_id"),
+        "pv_power_total_entity_id": energy.get("pv_power_total_entity_id"),
+        "pv_power_1_entity_id": energy.get("pv_power_1_entity_id"),
+        "pv_power_2_entity_id": energy.get("pv_power_2_entity_id"),
+    }
+
+def get_forecast_solar_cfg(cfg):
+    forecast = cfg.get("forecast_solar", {}) if isinstance(cfg.get("forecast_solar"), dict) else {}
+    return {
+        "enabled": bool(forecast.get("enabled", False)),
+        "power_now_entity_id": forecast.get("power_now_entity_id"),
+        "energy_current_hour_entity_id": forecast.get("energy_current_hour_entity_id"),
+        "energy_next_hour_entity_id": forecast.get("energy_next_hour_entity_id"),
+        "energy_production_today_entity_id": forecast.get("energy_production_today_entity_id"),
+        "energy_production_today_remaining_entity_id": forecast.get("energy_production_today_remaining_entity_id"),
+        "energy_production_tomorrow_entity_id": forecast.get("energy_production_tomorrow_entity_id"),
+        "power_highest_peak_time_today_entity_id": forecast.get("power_highest_peak_time_today_entity_id"),
+        "power_highest_peak_time_tomorrow_entity_id": forecast.get("power_highest_peak_time_tomorrow_entity_id"),
+    }
+
+def has_battery_required_cfg(battery_cfg):
+    return bool(
+        battery_cfg.get("soc_entity_id")
+        and battery_cfg.get("power_entity_id")
+        and battery_cfg.get("usable_capacity_kwh", 0) > 0
+    )
+
 def get_sell_coefficient_kwh(cfg, fee_snapshot=None):
     prodej = None
     if isinstance(fee_snapshot, dict):
@@ -454,6 +502,635 @@ def influx_query(influx, query):
     if data.get("results") and data["results"][0].get("error"):
         raise HTTPException(status_code=500, detail=data["results"][0]["error"])
     return data
+
+def build_influx_from_clause(influx):
+    rp = influx.get("retention_policy")
+    measurement = influx["measurement"]
+    return f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
+
+def parse_influx_interval_to_minutes(interval_value, default_minutes=15):
+    if not isinstance(interval_value, str):
+        return default_minutes
+    value = interval_value.strip().lower()
+    m = re.fullmatch(r"(\d+)([smhd])", value)
+    if not m:
+        return default_minutes
+    amount = int(m.group(1))
+    unit = m.group(2)
+    if amount <= 0:
+        return default_minutes
+    if unit == "s":
+        return max(1, amount // 60) if amount >= 60 else 1
+    if unit == "m":
+        return amount
+    if unit == "h":
+        return amount * 60
+    if unit == "d":
+        return amount * 1440
+    return default_minutes
+
+def query_entity_series(influx, entity_id, start_utc, end_utc, interval="15m", tzinfo=None, numeric=True):
+    if not entity_id:
+        return []
+    from_clause = build_influx_from_clause(influx)
+    field = influx["field"]
+    q = (
+        f'SELECT last("{field}") AS "value" '
+        f"FROM {from_clause} "
+        f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
+        f'AND "entity_id"=\'{entity_id}\' '
+        f"GROUP BY time({interval}) fill(null)"
+    )
+    data = influx_query(influx, q)
+    series = data.get("results", [{}])[0].get("series", [])
+    values = series[0]["values"] if series else []
+    tz = tzinfo or timezone.utc
+    points = []
+    for ts, raw_value in values:
+        value = raw_value
+        if numeric and raw_value is not None:
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                value = None
+        ts_dt_utc = datetime.fromtimestamp(ts, tz=timezone.utc)
+        ts_local = ts_dt_utc.astimezone(tz)
+        points.append(
+            {
+                "time": ts_local.isoformat(),
+                "time_utc": to_rfc3339(ts_dt_utc),
+                "value": value,
+            }
+        )
+    return points
+
+def query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, numeric=True):
+    if not entity_id:
+        return None
+    end_utc = datetime.now(timezone.utc)
+    start_utc = end_utc - timedelta(hours=max(1, int(lookback_hours)))
+    from_clause = build_influx_from_clause(influx)
+    field = influx["field"]
+    q = (
+        f'SELECT last("{field}") AS "value" '
+        f"FROM {from_clause} "
+        f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
+        f'AND "entity_id"=\'{entity_id}\''
+    )
+    data = influx_query(influx, q)
+    series = data.get("results", [{}])[0].get("series", [])
+    values = series[0]["values"] if series else []
+    if not values:
+        return None
+    ts, raw_value = values[0]
+    value = raw_value
+    if numeric and raw_value is not None:
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            value = None
+    tz = tzinfo or timezone.utc
+    ts_dt_utc = datetime.fromtimestamp(ts, tz=timezone.utc)
+    return {
+        "time": ts_dt_utc.astimezone(tz).isoformat(),
+        "time_utc": to_rfc3339(ts_dt_utc),
+        "value": value,
+        "raw_value": raw_value,
+    }
+
+def safe_query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, numeric=True, label=None):
+    try:
+        return query_entity_last_value(influx, entity_id, tzinfo=tzinfo, lookback_hours=lookback_hours, numeric=numeric)
+    except Exception as exc:
+        logger.warning("Optional entity query failed (%s / %s): %s", label or "entity", entity_id, exc)
+        return None
+
+def average_recent_power(points):
+    values = [p.get("value") for p in points if isinstance(p, dict) and p.get("value") is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+def get_slot_index_for_dt(dt):
+    return dt.hour * 4 + (dt.minute // 15)
+
+def build_slot_avg_profile(points, tzinfo=None):
+    slot_buckets = {}
+    for point in points or []:
+        value = point.get("value")
+        if value is None:
+            continue
+        time_raw = point.get("time")
+        if not time_raw:
+            continue
+        try:
+            dt_local = datetime.fromisoformat(time_raw)
+        except ValueError:
+            continue
+        if tzinfo:
+            try:
+                dt_local = dt_local.astimezone(tzinfo)
+            except Exception:
+                pass
+        slot = get_slot_index_for_dt(dt_local)
+        bucket = slot_buckets.setdefault(slot, [])
+        bucket.append(float(value))
+    profile = {}
+    for slot, values in slot_buckets.items():
+        if values:
+            profile[slot] = sum(values) / len(values)
+    return profile
+
+def query_recent_slot_profile(influx, entity_id, tzinfo, days=7, interval="15m"):
+    if not entity_id:
+        return {}
+    today_start_local = datetime.now(tzinfo).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_local = today_start_local - timedelta(days=max(1, int(days)))
+    points = query_entity_series(
+        influx,
+        entity_id,
+        start_local.astimezone(timezone.utc),
+        today_start_local.astimezone(timezone.utc),
+        interval=interval,
+        tzinfo=tzinfo,
+        numeric=True,
+    )
+    return build_slot_avg_profile(points, tzinfo=tzinfo)
+
+def query_recent_slot_profile_by_day_type(influx, entity_id, tzinfo, target_date, days=28, interval="15m"):
+    if not entity_id:
+        return {}
+    target_is_weekend = target_date.weekday() >= 5
+    today_start_local = datetime.now(tzinfo).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_local = today_start_local - timedelta(days=max(1, int(days)))
+    points = query_entity_series(
+        influx,
+        entity_id,
+        start_local.astimezone(timezone.utc),
+        today_start_local.astimezone(timezone.utc),
+        interval=interval,
+        tzinfo=tzinfo,
+        numeric=True,
+    )
+    filtered = []
+    for point in points:
+        time_raw = point.get("time")
+        if not time_raw:
+            continue
+        try:
+            dt_local = datetime.fromisoformat(time_raw).astimezone(tzinfo)
+        except ValueError:
+            continue
+        if (dt_local.weekday() >= 5) == target_is_weekend:
+            filtered.append(point)
+    profile = build_slot_avg_profile(filtered, tzinfo=tzinfo)
+    if profile:
+        return profile
+    return build_slot_avg_profile(points, tzinfo=tzinfo)
+
+def aggregate_power_points(points, interval_minutes, bucket="day", tzinfo=None):
+    buckets = {}
+    step_kwh_factor = (max(1, interval_minutes) / 60.0) / 1000.0
+    tz = tzinfo
+    for point in points or []:
+        value = point.get("value")
+        if value is None:
+            continue
+        time_raw = point.get("time")
+        if not time_raw:
+            continue
+        try:
+            dt_local = datetime.fromisoformat(time_raw)
+        except ValueError:
+            continue
+        if tz:
+            try:
+                dt_local = dt_local.astimezone(tz)
+            except Exception:
+                pass
+        if bucket == "month":
+            bucket_key = dt_local.strftime("%Y-%m")
+        else:
+            bucket_key = dt_local.strftime("%Y-%m-%d")
+        buckets[bucket_key] = buckets.get(bucket_key, 0.0) + (float(value) * step_kwh_factor)
+    return {k: round(v, 5) for k, v in buckets.items()}
+
+def build_energy_balance_range(period, anchor_value, tzinfo):
+    now_local = datetime.now(tzinfo)
+    if period == "week":
+        try:
+            anchor_date = datetime.strptime(anchor_value, "%Y-%m-%d").date() if anchor_value else now_local.date()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid anchor for week. Use YYYY-MM-DD.") from exc
+        start_date = anchor_date - timedelta(days=anchor_date.weekday())
+        end_date = start_date + timedelta(days=7)
+        start_local = datetime.combine(start_date, datetime_time(0, 0), tzinfo)
+        end_local = datetime.combine(end_date, datetime_time(0, 0), tzinfo)
+        bucket = "day"
+        anchor = start_date.strftime("%Y-%m-%d")
+    elif period == "month":
+        try:
+            if anchor_value:
+                year, month = map(int, str(anchor_value).split("-"))
+                anchor_date = datetime(year, month, 1).date()
+            else:
+                anchor_date = now_local.replace(day=1).date()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid anchor for month. Use YYYY-MM.") from exc
+        if anchor_date.month == 12:
+            end_date = datetime(anchor_date.year + 1, 1, 1).date()
+        else:
+            end_date = datetime(anchor_date.year, anchor_date.month + 1, 1).date()
+        start_local = datetime.combine(anchor_date, datetime_time(0, 0), tzinfo)
+        end_local = datetime.combine(end_date, datetime_time(0, 0), tzinfo)
+        bucket = "day"
+        anchor = anchor_date.strftime("%Y-%m")
+    elif period == "year":
+        try:
+            year = int(anchor_value) if anchor_value else now_local.year
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid anchor for year. Use YYYY.") from exc
+        start_local = datetime(year, 1, 1, tzinfo=tzinfo)
+        end_local = datetime(year + 1, 1, 1, tzinfo=tzinfo)
+        bucket = "month"
+        anchor = f"{year:04d}"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid period. Use week|month|year.")
+    return {
+        "period": period,
+        "anchor": anchor,
+        "bucket": bucket,
+        "start_local": start_local,
+        "end_local": end_local,
+        "start_utc": start_local.astimezone(timezone.utc),
+        "end_utc": end_local.astimezone(timezone.utc),
+    }
+
+def build_energy_balance_buckets(range_info, tzinfo):
+    items = []
+    start_local = range_info["start_local"]
+    end_local = range_info["end_local"]
+    bucket = range_info["bucket"]
+    current = start_local
+    while current < end_local:
+        if bucket == "month":
+            key = current.strftime("%Y-%m")
+            label = current.strftime("%m/%Y")
+            if current.month == 12:
+                next_dt = current.replace(year=current.year + 1, month=1)
+            else:
+                next_dt = current.replace(month=current.month + 1)
+        else:
+            key = current.strftime("%Y-%m-%d")
+            label = current.strftime("%d.%m.")
+            next_dt = current + timedelta(days=1)
+        items.append({"key": key, "label": label, "start": current.isoformat()})
+        current = next_dt
+    return items
+
+def aggregate_hourly_from_price_entries(entries):
+    hours = [None] * 24
+    buckets = {hour: [] for hour in range(24)}
+    for entry in entries or []:
+        time_str = entry.get("time")
+        final_price = entry.get("final")
+        if time_str is None or final_price is None:
+            continue
+        try:
+            dt_local = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+        buckets[dt_local.hour].append(float(final_price))
+    for hour in range(24):
+        values = buckets.get(hour) or []
+        if values:
+            hours[hour] = round(sum(values) / len(values), 5)
+    return hours
+
+def aggregate_hourly_from_kwh_points(points):
+    hours = [0.0] * 24
+    has_any = [False] * 24
+    for entry in points or []:
+        kwh = entry.get("kwh")
+        if kwh is None:
+            continue
+        time_raw = entry.get("time")
+        if not time_raw:
+            continue
+        try:
+            dt_local = datetime.fromisoformat(time_raw)
+        except ValueError:
+            continue
+        hour = dt_local.hour
+        hours[hour] += float(kwh)
+        has_any[hour] = True
+    return [round(hours[idx], 5) if has_any[idx] else None for idx in range(24)]
+
+def build_hybrid_battery_projection(
+    now_local,
+    soc_percent,
+    avg_power_w,
+    battery_cfg,
+    tzinfo,
+    interval_minutes,
+    current_energy,
+    forecast_payload,
+    load_profile,
+    pv_profile,
+):
+    usable_capacity_kwh = battery_cfg["usable_capacity_kwh"]
+    reserve_soc = max(0.0, min(100.0, battery_cfg["reserve_soc_percent"]))
+    charge_eff = max(0.01, min(1.0, battery_cfg["charge_efficiency"]))
+    discharge_eff = max(0.01, min(1.0, battery_cfg["discharge_efficiency"]))
+    min_power_threshold_w = battery_cfg["min_power_threshold_w"]
+
+    if soc_percent is None or usable_capacity_kwh <= 0:
+        return None
+
+    step_minutes = max(5, min(60, int(interval_minutes or 15)))
+    step_hours = step_minutes / 60.0
+    current_energy_kwh = usable_capacity_kwh * max(0.0, min(100.0, soc_percent)) / 100.0
+    target_full_kwh = usable_capacity_kwh
+    target_reserve_kwh = usable_capacity_kwh * reserve_soc / 100.0
+    end_of_day_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    current_load_w = current_energy.get("house_load_w") if isinstance(current_energy, dict) else None
+    current_pv_w = current_energy.get("pv_power_total_w") if isinstance(current_energy, dict) else None
+    power_now_w = forecast_payload.get("power_now_w") if isinstance(forecast_payload, dict) else None
+    energy_next_hour_kwh = forecast_payload.get("energy_next_hour_kwh") if isinstance(forecast_payload, dict) else None
+    remaining_today_kwh = (
+        forecast_payload.get("energy_production_today_remaining_kwh") if isinstance(forecast_payload, dict) else None
+    )
+
+    if not load_profile and current_load_w is None:
+        return None
+    if not pv_profile and power_now_w is None and current_pv_w is None:
+        return None
+
+    future_steps = []
+    probe_time = now_local
+    max_points = int((24 * 60) / step_minutes) + 2
+    for _ in range(max_points):
+        if probe_time > end_of_day_local:
+            break
+        future_steps.append(probe_time)
+        probe_time = probe_time + timedelta(minutes=step_minutes)
+    if not future_steps:
+        return None
+
+    base_pv_power = []
+    for dt_local in future_steps:
+        slot = get_slot_index_for_dt(dt_local)
+        base_pv_power.append(float(pv_profile.get(slot, current_pv_w or power_now_w or 0.0)))
+
+    # Scale historical PV shape to today's remaining Forecast.Solar energy (if available).
+    if remaining_today_kwh is not None and remaining_today_kwh >= 0:
+        base_energy_kwh = sum(max(0.0, p) * step_hours / 1000.0 for p in base_pv_power)
+        if base_energy_kwh > 0:
+            scale = remaining_today_kwh / base_energy_kwh
+            scale = max(0.0, min(scale, 5.0))
+            base_pv_power = [p * scale for p in base_pv_power]
+
+    # Anchor immediate forecast to current Forecast.Solar now power if available.
+    if base_pv_power and power_now_w is not None:
+        base_pv_power[0] = float(power_now_w)
+
+    # Use Forecast.Solar next-hour energy as average power for the next hour slots.
+    if energy_next_hour_kwh is not None and len(future_steps) > 1:
+        next_hour_start = (now_local.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        next_hour_end = next_hour_start + timedelta(hours=1)
+        next_hour_avg_w = max(0.0, float(energy_next_hour_kwh) * 1000.0)
+        for idx, dt_local in enumerate(future_steps):
+            if next_hour_start <= dt_local < next_hour_end:
+                base_pv_power[idx] = next_hour_avg_w
+
+    projection_points = []
+    eta_to_full_minutes = None
+    eta_to_reserve_minutes = None
+    eta_to_full_at = None
+    eta_to_reserve_at = None
+    state = "idle"
+    sim_energy_kwh = current_energy_kwh
+    last_pred_battery_w = None
+
+    for idx, dt_local in enumerate(future_steps):
+        slot = get_slot_index_for_dt(dt_local)
+        predicted_load_w = float(load_profile.get(slot, current_load_w or 0.0))
+        predicted_pv_w = max(0.0, float(base_pv_power[idx] if idx < len(base_pv_power) else 0.0))
+        predicted_battery_w = predicted_pv_w - predicted_load_w
+
+        # Blend with measured battery trend to reduce jumps at "now".
+        if avg_power_w is not None:
+            blend_weight = 0.55 if idx == 0 else (0.35 if idx < 4 else 0.15)
+            predicted_battery_w = (predicted_battery_w * (1 - blend_weight)) + (avg_power_w * blend_weight)
+
+        last_pred_battery_w = predicted_battery_w
+        if predicted_battery_w > min_power_threshold_w:
+            state = "charging"
+        elif predicted_battery_w < -min_power_threshold_w:
+            state = "discharging"
+        else:
+            state = "idle"
+
+        projection_points.append(
+            {
+                "time": dt_local.isoformat(),
+                "time_utc": to_rfc3339(dt_local.astimezone(timezone.utc)),
+                "soc_percent": round(max(0.0, min(100.0, (sim_energy_kwh / usable_capacity_kwh) * 100.0)), 3),
+                "predicted_load_w": round(predicted_load_w, 3),
+                "predicted_pv_w": round(predicted_pv_w, 3),
+                "predicted_battery_w": round(predicted_battery_w, 3),
+            }
+        )
+
+        if idx == len(future_steps) - 1:
+            break
+
+        delta_kwh = (predicted_battery_w / 1000.0) * step_hours
+        if delta_kwh >= 0:
+            delta_kwh *= charge_eff
+        else:
+            delta_kwh /= discharge_eff
+        next_energy_kwh = min(max(0.0, sim_energy_kwh + delta_kwh), usable_capacity_kwh)
+
+        if eta_to_full_minutes is None and sim_energy_kwh < target_full_kwh <= next_energy_kwh:
+            eta_to_full_minutes = round((dt_local + timedelta(minutes=step_minutes) - now_local).total_seconds() / 60)
+            eta_to_full_at = (now_local + timedelta(minutes=eta_to_full_minutes)).isoformat()
+        if eta_to_reserve_minutes is None and sim_energy_kwh > target_reserve_kwh >= next_energy_kwh:
+            eta_to_reserve_minutes = round((dt_local + timedelta(minutes=step_minutes) - now_local).total_seconds() / 60)
+            eta_to_reserve_at = (now_local + timedelta(minutes=eta_to_reserve_minutes)).isoformat()
+
+        sim_energy_kwh = next_energy_kwh
+
+    confidence = "medium" if (remaining_today_kwh is not None and load_profile and pv_profile) else "low"
+    if last_pred_battery_w is not None:
+        if abs(last_pred_battery_w) < min_power_threshold_w:
+            state = "idle"
+        elif last_pred_battery_w > 0:
+            state = "charging"
+        else:
+            state = "discharging"
+
+    return {
+        "method": "hybrid_forecast_load_profile",
+        "confidence": confidence,
+        "state": state,
+        "eta_to_full_minutes": eta_to_full_minutes,
+        "eta_to_reserve_minutes": eta_to_reserve_minutes,
+        "eta_to_full_at": eta_to_full_at,
+        "eta_to_reserve_at": eta_to_reserve_at,
+        "step_minutes": step_minutes,
+        "points": projection_points,
+        "inputs": {
+            "uses_load_profile": bool(load_profile),
+            "uses_pv_profile": bool(pv_profile),
+            "uses_forecast_remaining": remaining_today_kwh is not None,
+            "uses_forecast_power_now": power_now_w is not None,
+            "uses_forecast_next_hour": energy_next_hour_kwh is not None,
+        },
+    }
+
+def build_battery_history_points(soc_points, power_points):
+    by_time = {}
+    for point in soc_points or []:
+        key = point["time"]
+        row = by_time.setdefault(key, {"time": point["time"], "time_utc": point["time_utc"]})
+        row["soc_percent"] = point.get("value")
+    for point in power_points or []:
+        key = point["time"]
+        row = by_time.setdefault(key, {"time": point["time"], "time_utc": point["time_utc"]})
+        row["battery_power_w"] = point.get("value")
+    rows = list(by_time.values())
+    rows.sort(key=lambda item: item.get("time_utc") or item.get("time") or "")
+    return rows
+
+def get_last_non_null_value(points):
+    for point in reversed(points or []):
+        value = point.get("value")
+        if value is not None:
+            return point
+    return None
+
+def iso_to_display_hhmm(iso_value):
+    if not iso_value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(iso_value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(iso_value)
+    return dt.strftime("%H:%M")
+
+def build_battery_projection(now_local, soc_percent, avg_power_w, battery_cfg, tzinfo):
+    usable_capacity_kwh = battery_cfg["usable_capacity_kwh"]
+    reserve_soc = max(0.0, min(100.0, battery_cfg["reserve_soc_percent"]))
+    min_power_threshold_w = battery_cfg["min_power_threshold_w"]
+    charge_eff = max(0.01, min(1.0, battery_cfg["charge_efficiency"]))
+    discharge_eff = max(0.01, min(1.0, battery_cfg["discharge_efficiency"]))
+
+    if soc_percent is None or usable_capacity_kwh <= 0 or avg_power_w is None:
+        return {
+            "method": "trend",
+            "confidence": "low",
+            "state": "unknown",
+            "eta_to_full_minutes": None,
+            "eta_to_reserve_minutes": None,
+            "eta_to_full_at": None,
+            "eta_to_reserve_at": None,
+            "points": [],
+        }
+
+    if abs(avg_power_w) < min_power_threshold_w:
+        return {
+            "method": "trend",
+            "confidence": "low",
+            "state": "idle",
+            "eta_to_full_minutes": None,
+            "eta_to_reserve_minutes": None,
+            "eta_to_full_at": None,
+            "eta_to_reserve_at": None,
+            "points": [],
+        }
+
+    current_energy_kwh = usable_capacity_kwh * max(0.0, min(100.0, soc_percent)) / 100.0
+    target_full_kwh = usable_capacity_kwh
+    target_reserve_kwh = usable_capacity_kwh * reserve_soc / 100.0
+
+    if avg_power_w > 0:
+        delta_kwh_per_hour = (avg_power_w / 1000.0) * charge_eff
+        state = "charging"
+    else:
+        delta_kwh_per_hour = (avg_power_w / 1000.0) / discharge_eff
+        state = "discharging"
+
+    eta_to_full_minutes = None
+    eta_to_reserve_minutes = None
+    eta_to_full_at = None
+    eta_to_reserve_at = None
+
+    if delta_kwh_per_hour > 0 and current_energy_kwh < target_full_kwh:
+        eta_hours = (target_full_kwh - current_energy_kwh) / delta_kwh_per_hour if delta_kwh_per_hour else None
+        if eta_hours is not None and eta_hours >= 0:
+            eta_to_full_minutes = round(eta_hours * 60)
+            eta_to_full_at = (now_local + timedelta(minutes=eta_to_full_minutes)).isoformat()
+    if delta_kwh_per_hour < 0 and current_energy_kwh > target_reserve_kwh:
+        eta_hours = (current_energy_kwh - target_reserve_kwh) / abs(delta_kwh_per_hour) if delta_kwh_per_hour else None
+        if eta_hours is not None and eta_hours >= 0:
+            eta_to_reserve_minutes = round(eta_hours * 60)
+            eta_to_reserve_at = (now_local + timedelta(minutes=eta_to_reserve_minutes)).isoformat()
+
+    end_of_day_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    step_minutes = max(5, min(60, parse_influx_interval_to_minutes("15m")))
+    projection_points = []
+    proj_time = now_local
+    proj_energy = current_energy_kwh
+    step_delta = delta_kwh_per_hour * (step_minutes / 60.0)
+    max_points = 96
+
+    for _ in range(max_points):
+        if proj_time > end_of_day_local:
+            break
+        projection_points.append(
+            {
+                "time": proj_time.isoformat(),
+                "time_utc": to_rfc3339(proj_time.astimezone(timezone.utc)),
+                "soc_percent": round(max(0.0, min(100.0, (proj_energy / usable_capacity_kwh) * 100.0)), 3),
+            }
+        )
+        next_time = proj_time + timedelta(minutes=step_minutes)
+        if next_time > end_of_day_local:
+            break
+        proj_energy = min(max(0.0, proj_energy + step_delta), usable_capacity_kwh)
+        proj_time = next_time
+        if state == "charging" and proj_energy >= target_full_kwh:
+            projection_points.append(
+                {
+                    "time": proj_time.isoformat(),
+                    "time_utc": to_rfc3339(proj_time.astimezone(timezone.utc)),
+                    "soc_percent": 100.0,
+                }
+            )
+            break
+        if state == "discharging" and proj_energy <= target_reserve_kwh:
+            projection_points.append(
+                {
+                    "time": proj_time.isoformat(),
+                    "time_utc": to_rfc3339(proj_time.astimezone(timezone.utc)),
+                    "soc_percent": round((target_reserve_kwh / usable_capacity_kwh) * 100.0, 3),
+                }
+            )
+            break
+
+    return {
+        "method": "trend",
+        "confidence": "low",
+        "state": state,
+        "eta_to_full_minutes": eta_to_full_minutes,
+        "eta_to_reserve_minutes": eta_to_reserve_minutes,
+        "eta_to_full_at": eta_to_full_at,
+        "eta_to_reserve_at": eta_to_reserve_at,
+        "step_minutes": step_minutes,
+        "points": projection_points,
+    }
 
 class PriceTableParser(HTMLParser):
     def __init__(self):
@@ -1877,6 +2554,384 @@ def get_export(
         "points": points,
         "from_cache": export.get("from_cache", False),
         "cache_fallback": export.get("cache_fallback", False),
+    }
+
+@app.get("/api/battery")
+def get_battery(date: str = Query(default=None)):
+    cfg = load_config()
+    influx = get_influx_cfg(cfg)
+    tzinfo = get_local_tz(influx.get("timezone"))
+    battery_cfg = get_battery_cfg(cfg)
+    energy_cfg = get_energy_entities_cfg(cfg)
+    forecast_cfg = get_forecast_solar_cfg(cfg)
+
+    selected_date = date or datetime.now(tzinfo).strftime("%Y-%m-%d")
+    start_utc, end_utc = parse_time_range(selected_date, None, None, tzinfo)
+    is_today = selected_date == datetime.now(tzinfo).strftime("%Y-%m-%d")
+
+    if not battery_cfg.get("enabled"):
+        return {
+            "enabled": False,
+            "configured": False,
+            "date": selected_date,
+            "detail": "Battery feature is disabled in config.",
+        }
+    if not has_battery_required_cfg(battery_cfg):
+        return {
+            "enabled": True,
+            "configured": False,
+            "date": selected_date,
+            "detail": "Missing battery config (soc_entity_id, power_entity_id, usable_capacity_kwh).",
+        }
+
+    history_interval = influx.get("interval", "15m")
+    soc_series = query_entity_series(
+        influx, battery_cfg["soc_entity_id"], start_utc, end_utc, interval=history_interval, tzinfo=tzinfo, numeric=True
+    )
+    power_series = query_entity_series(
+        influx, battery_cfg["power_entity_id"], start_utc, end_utc, interval=history_interval, tzinfo=tzinfo, numeric=True
+    )
+    history_points = build_battery_history_points(soc_series, power_series)
+    last_soc_point = get_last_non_null_value(soc_series)
+    last_power_point = get_last_non_null_value(power_series)
+
+    now_local = datetime.now(tzinfo)
+    avg_power_w = None
+    if is_today:
+        smoothing_start_utc = (now_local - timedelta(minutes=battery_cfg["eta_smoothing_minutes"])).astimezone(timezone.utc)
+        smoothing_end_utc = now_local.astimezone(timezone.utc) + timedelta(minutes=1)
+        trend_series = query_entity_series(
+            influx,
+            battery_cfg["power_entity_id"],
+            smoothing_start_utc,
+            smoothing_end_utc,
+            interval="1m",
+            tzinfo=tzinfo,
+            numeric=True,
+        )
+        avg_power_w = average_recent_power(trend_series)
+
+    latest_soc = safe_query_entity_last_value(influx, battery_cfg["soc_entity_id"], tzinfo=tzinfo, numeric=True, label="soc")
+    latest_power = safe_query_entity_last_value(
+        influx, battery_cfg["power_entity_id"], tzinfo=tzinfo, numeric=True, label="battery_power"
+    )
+    if (latest_soc is None or latest_soc.get("value") is None) and last_soc_point:
+        latest_soc = {"time": last_soc_point["time"], "time_utc": last_soc_point["time_utc"], "value": last_soc_point["value"]}
+    if (latest_power is None or latest_power.get("value") is None) and last_power_point:
+        latest_power = {"time": last_power_point["time"], "time_utc": last_power_point["time_utc"], "value": last_power_point["value"]}
+
+    soc_percent = latest_soc.get("value") if latest_soc else None
+    battery_power_w = latest_power.get("value") if latest_power else None
+    usable_capacity_kwh = max(0.0, battery_cfg["usable_capacity_kwh"])
+    reserve_soc_percent = max(0.0, min(100.0, battery_cfg["reserve_soc_percent"]))
+    clamped_soc = None if soc_percent is None else max(0.0, min(100.0, soc_percent))
+    stored_kwh = round(usable_capacity_kwh * clamped_soc / 100.0, 4) if clamped_soc is not None else None
+    available_to_reserve_kwh = (
+        round(usable_capacity_kwh * max(0.0, clamped_soc - reserve_soc_percent) / 100.0, 4)
+        if clamped_soc is not None
+        else None
+    )
+    remaining_to_full_kwh = (
+        round(usable_capacity_kwh * max(0.0, 100.0 - clamped_soc) / 100.0, 4) if clamped_soc is not None else None
+    )
+
+    threshold = battery_cfg["min_power_threshold_w"]
+    if battery_power_w is None:
+        battery_state = "unknown"
+    elif battery_power_w > threshold:
+        battery_state = "charging"
+    elif battery_power_w < -threshold:
+        battery_state = "discharging"
+    else:
+        battery_state = "idle"
+
+    def _latest_numeric(entity_id, label):
+        record = safe_query_entity_last_value(influx, entity_id, tzinfo=tzinfo, numeric=True, label=label)
+        return None if not record else record.get("value")
+
+    def _latest_raw(entity_id, label):
+        record = safe_query_entity_last_value(influx, entity_id, tzinfo=tzinfo, numeric=False, label=label)
+        return None if not record else record.get("raw_value")
+
+    current_energy = {
+        "house_load_w": _latest_numeric(energy_cfg.get("house_load_power_entity_id"), "house_load"),
+        "grid_import_w": _latest_numeric(energy_cfg.get("grid_import_power_entity_id"), "grid_import"),
+        "grid_export_w": _latest_numeric(energy_cfg.get("grid_export_power_entity_id"), "grid_export"),
+        "pv_power_total_w": _latest_numeric(energy_cfg.get("pv_power_total_entity_id"), "pv_total"),
+        "pv_power_1_w": _latest_numeric(energy_cfg.get("pv_power_1_entity_id"), "pv_1"),
+        "pv_power_2_w": _latest_numeric(energy_cfg.get("pv_power_2_entity_id"), "pv_2"),
+        "battery_input_today_kwh": _latest_numeric(battery_cfg.get("input_energy_today_entity_id"), "battery_input_today"),
+        "battery_output_today_kwh": _latest_numeric(
+            battery_cfg.get("output_energy_today_entity_id"), "battery_output_today"
+        ),
+    }
+
+    forecast_payload = {"enabled": bool(forecast_cfg.get("enabled")), "available": False}
+    if forecast_cfg.get("enabled"):
+        forecast_payload.update(
+            {
+                "power_now_w": _latest_numeric(forecast_cfg.get("power_now_entity_id"), "forecast_power_now"),
+                "energy_current_hour_kwh": _latest_numeric(
+                    forecast_cfg.get("energy_current_hour_entity_id"), "forecast_energy_current_hour"
+                ),
+                "energy_next_hour_kwh": _latest_numeric(
+                    forecast_cfg.get("energy_next_hour_entity_id"), "forecast_energy_next_hour"
+                ),
+                "energy_production_today_kwh": _latest_numeric(
+                    forecast_cfg.get("energy_production_today_entity_id"), "forecast_energy_today"
+                ),
+                "energy_production_today_remaining_kwh": _latest_numeric(
+                    forecast_cfg.get("energy_production_today_remaining_entity_id"), "forecast_energy_today_remaining"
+                ),
+                "energy_production_tomorrow_kwh": _latest_numeric(
+                    forecast_cfg.get("energy_production_tomorrow_entity_id"), "forecast_energy_tomorrow"
+                ),
+                "peak_time_today": _latest_raw(
+                    forecast_cfg.get("power_highest_peak_time_today_entity_id"), "forecast_peak_time_today"
+                ),
+                "peak_time_tomorrow": _latest_raw(
+                    forecast_cfg.get("power_highest_peak_time_tomorrow_entity_id"), "forecast_peak_time_tomorrow"
+                ),
+            }
+        )
+        forecast_payload["peak_time_today_hhmm"] = iso_to_display_hhmm(forecast_payload.get("peak_time_today"))
+        forecast_payload["peak_time_tomorrow_hhmm"] = iso_to_display_hhmm(forecast_payload.get("peak_time_tomorrow"))
+        forecast_payload["available"] = any(
+            forecast_payload.get(key) is not None
+            for key in (
+                "power_now_w",
+                "energy_current_hour_kwh",
+                "energy_next_hour_kwh",
+                "energy_production_today_kwh",
+                "energy_production_today_remaining_kwh",
+                "energy_production_tomorrow_kwh",
+                "peak_time_today",
+                "peak_time_tomorrow",
+            )
+        )
+
+    projection = None
+    if is_today:
+        interval_minutes = parse_influx_interval_to_minutes(history_interval, default_minutes=15)
+        load_profile = {}
+        pv_profile = {}
+        if energy_cfg.get("house_load_power_entity_id"):
+            try:
+                load_profile = query_recent_slot_profile_by_day_type(
+                    influx,
+                    energy_cfg.get("house_load_power_entity_id"),
+                    tzinfo,
+                    target_date=now_local.date(),
+                    days=28,
+                    interval=history_interval,
+                )
+            except Exception as exc:
+                logger.warning("Battery projection load profile query failed: %s", exc)
+        if energy_cfg.get("pv_power_total_entity_id"):
+            try:
+                pv_profile = query_recent_slot_profile_by_day_type(
+                    influx,
+                    energy_cfg.get("pv_power_total_entity_id"),
+                    tzinfo,
+                    target_date=now_local.date(),
+                    days=28,
+                    interval=history_interval,
+                )
+            except Exception as exc:
+                logger.warning("Battery projection PV profile query failed: %s", exc)
+
+        projection = build_hybrid_battery_projection(
+            now_local=now_local,
+            soc_percent=clamped_soc,
+            avg_power_w=avg_power_w,
+            battery_cfg=battery_cfg,
+            tzinfo=tzinfo,
+            interval_minutes=interval_minutes,
+            current_energy=current_energy,
+            forecast_payload=forecast_payload,
+            load_profile=load_profile,
+            pv_profile=pv_profile,
+        )
+        if projection is None:
+            projection = build_battery_projection(now_local, clamped_soc, avg_power_w, battery_cfg, tzinfo)
+    else:
+        projection = {
+            "method": "none",
+            "confidence": "low",
+            "state": "historical",
+            "eta_to_full_minutes": None,
+            "eta_to_reserve_minutes": None,
+            "eta_to_full_at": None,
+            "eta_to_reserve_at": None,
+            "points": [],
+        }
+
+    return {
+        "enabled": True,
+        "configured": True,
+        "date": selected_date,
+        "is_today": is_today,
+        "timezone": str(tzinfo),
+        "history": {
+            "interval": history_interval,
+            "soc_entity_id": battery_cfg["soc_entity_id"],
+            "power_entity_id": battery_cfg["power_entity_id"],
+            "points": history_points,
+        },
+        "status": {
+            "soc_percent": clamped_soc,
+            "battery_power_w": battery_power_w,
+            "battery_state": battery_state,
+            "avg_battery_power_w": round(avg_power_w, 3) if avg_power_w is not None else None,
+            "eta_smoothing_minutes": battery_cfg["eta_smoothing_minutes"],
+            "min_power_threshold_w": battery_cfg["min_power_threshold_w"],
+            "usable_capacity_kwh": usable_capacity_kwh,
+            "reserve_soc_percent": reserve_soc_percent,
+            "stored_kwh": stored_kwh,
+            "available_to_reserve_kwh": available_to_reserve_kwh,
+            "remaining_to_full_kwh": remaining_to_full_kwh,
+            "last_soc_time": latest_soc.get("time") if latest_soc else None,
+            "last_power_time": latest_power.get("time") if latest_power else None,
+        },
+        "projection": projection,
+        "current_energy": current_energy,
+        "forecast_solar": forecast_payload,
+    }
+
+@app.get("/api/energy-balance")
+def get_energy_balance(
+    period: str = Query(default="week"),
+    anchor: str = Query(default=None),
+):
+    cfg = load_config()
+    influx = get_influx_cfg(cfg)
+    tzinfo = get_local_tz(influx.get("timezone"))
+    energy_cfg = get_energy_entities_cfg(cfg)
+    range_info = build_energy_balance_range(period, anchor, tzinfo)
+    interval = influx.get("interval", "15m")
+    interval_minutes = parse_influx_interval_to_minutes(interval, default_minutes=15)
+
+    entity_map = {
+        "pv_kwh": energy_cfg.get("pv_power_total_entity_id"),
+        "house_load_kwh": energy_cfg.get("house_load_power_entity_id"),
+        "grid_import_kwh": energy_cfg.get("grid_import_power_entity_id"),
+        "grid_export_kwh": energy_cfg.get("grid_export_power_entity_id"),
+    }
+
+    aggregated = {}
+    for key, entity_id in entity_map.items():
+        if not entity_id:
+            aggregated[key] = {}
+            continue
+        points = query_entity_series(
+            influx,
+            entity_id,
+            range_info["start_utc"],
+            range_info["end_utc"],
+            interval=interval,
+            tzinfo=tzinfo,
+            numeric=True,
+        )
+        aggregated[key] = aggregate_power_points(points, interval_minutes, bucket=range_info["bucket"], tzinfo=tzinfo)
+
+    buckets = build_energy_balance_buckets(range_info, tzinfo)
+    rows = []
+    totals = {
+        "pv_kwh": 0.0,
+        "house_load_kwh": 0.0,
+        "grid_import_kwh": 0.0,
+        "grid_export_kwh": 0.0,
+    }
+    for bucket in buckets:
+        row = {
+            "key": bucket["key"],
+            "label": bucket["label"],
+            "start": bucket["start"],
+        }
+        for metric_key in totals.keys():
+            value = aggregated.get(metric_key, {}).get(bucket["key"])
+            row[metric_key] = value if value is not None else 0.0
+            totals[metric_key] += row[metric_key]
+        rows.append(row)
+
+    return {
+        "period": range_info["period"],
+        "anchor": range_info["anchor"],
+        "bucket": range_info["bucket"],
+        "range": {
+            "start": range_info["start_local"].isoformat(),
+            "end": range_info["end_local"].isoformat(),
+        },
+        "interval": interval,
+        "entities": entity_map,
+        "points": rows,
+        "totals": {k: round(v, 5) for k, v in totals.items()},
+    }
+
+@app.get("/api/history-heatmap")
+def get_history_heatmap(
+    month: str = Query(...),
+    metric: str = Query(default="buy"),
+):
+    if not re.match(r"^\d{4}-\d{2}$", month):
+        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
+    metric_norm = (metric or "buy").strip().lower()
+    if metric_norm not in {"price", "buy", "export"}:
+        raise HTTPException(status_code=400, detail="Invalid metric. Use price|buy|export.")
+
+    cfg = load_config()
+    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    year, month_num = map(int, month.split("-"))
+    days_in_month = calendar.monthrange(year, month_num)[1]
+    today_local = datetime.now(tzinfo).date()
+    month_rows = []
+    min_value = None
+    max_value = None
+
+    for day in range(1, days_in_month + 1):
+        date_obj = datetime(year, month_num, day).date()
+        date_str = date_obj.strftime("%Y-%m-%d")
+        if date_obj > today_local:
+            values = [None] * 24
+        else:
+            try:
+                if metric_norm == "price":
+                    entries = get_prices_for_date(cfg, date_str, tzinfo)
+                    values = aggregate_hourly_from_price_entries(entries)
+                elif metric_norm == "buy":
+                    consumption = get_consumption_points(cfg, date=date_str)
+                    values = aggregate_hourly_from_kwh_points(consumption.get("points", []))
+                else:
+                    export = get_export_points(cfg, date=date_str)
+                    values = aggregate_hourly_from_kwh_points(export.get("points", []))
+            except Exception as exc:
+                logger.warning("Heatmap load failed (%s %s): %s", metric_norm, date_str, exc)
+                values = [None] * 24
+
+        for val in values:
+            if val is None:
+                continue
+            min_value = val if min_value is None else min(min_value, val)
+            max_value = val if max_value is None else max(max_value, val)
+
+        month_rows.append(
+            {
+                "date": date_str,
+                "day": day,
+                "weekday": date_obj.weekday(),
+                "values": values,
+            }
+        )
+
+    return {
+        "month": month,
+        "metric": metric_norm,
+        "hours": list(range(24)),
+        "days": month_rows,
+        "stats": {
+            "min": round(min_value, 5) if min_value is not None else None,
+            "max": round(max_value, 5) if max_value is not None else None,
+        },
     }
 
 

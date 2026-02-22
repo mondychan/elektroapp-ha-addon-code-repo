@@ -51,6 +51,10 @@ code {
   box-sizing: border-box;
 }
 
+.app--detail {
+  max-width: 1580px;
+}
+
 .app-header {
   display: flex;
   align-items: center;
@@ -79,6 +83,28 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.view-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  border-radius: 12px;
+}
+
+.view-mode-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.view-mode-btn.is-active {
+  background: var(--panel);
+  border-color: var(--border);
 }
 
 .theme-toggle {
@@ -241,6 +267,77 @@ code {
 }
 .section {
   margin-top: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.detail-grid > .card {
+  margin: 0;
+}
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.kpi-tile {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--border);
+  opacity: 0.9;
+}
+
+.kpi-tile--price::before {
+  background: var(--accent-2);
+}
+
+.kpi-tile--buy::before {
+  background: #e7a52a;
+}
+
+.kpi-tile--sell::before {
+  background: #39b56a;
+}
+
+.kpi-tile--battery::before {
+  background: var(--accent);
+}
+
+.kpi-tile-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.kpi-tile-value {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.kpi-tile-detail {
+  margin-top: 4px;
+  min-height: 16px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .card {
@@ -576,6 +673,136 @@ input {
 .cost-stack {
   display: grid;
   gap: 12px;
+}
+
+.battery-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+
+.battery-kpi {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.battery-kpi-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.battery-kpi-value {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.battery-kpi-state {
+  text-transform: capitalize;
+}
+
+.battery-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.battery-meta-block {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.battery-meta-block h4 {
+  margin: 0 0 8px;
+}
+
+.battery-meta-list {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.energy-balance-totals {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.heatmap-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: 42px repeat(24, 22px);
+  gap: 3px;
+  align-items: center;
+  min-width: fit-content;
+}
+
+.heatmap-corner {
+  height: 18px;
+}
+
+.heatmap-hour {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.heatmap-day-label {
+  padding: 2px 0;
+  min-height: 20px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.heatmap-cell {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  padding: 0;
+}
+
+.heatmap-cell:hover,
+.heatmap-day-label:hover {
+  outline: 1px solid var(--accent-2);
+  outline-offset: 0;
+}
+
+.heatmap-legend {
+  margin-top: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+select {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+@media (max-width: 1100px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 a {

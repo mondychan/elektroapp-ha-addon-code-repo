@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.1.55"
+version: "0.1.56"
 arch:
   - amd64
   - aarch64
@@ -13,7 +13,7 @@ ingress_port: 8000
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.1.55"
+  ADDON_VERSION: "0.1.56"
 ports:
   8000/tcp: null
 ports_description:
@@ -55,6 +55,35 @@ options:
     interval: "15m"
   prodej:
     koeficient_snizeni_ceny: 390
+  battery:
+    enabled: true
+    soc_entity_id: "sensor.solax_drinov_battery_capacity"
+    power_entity_id: "sensor.solax_drinov_battery_power_charge"
+    input_energy_today_entity_id: "sensor.solax_drinov_battery_input_energy_today"
+    output_energy_today_entity_id: "sensor.solax_drinov_battery_output_energy_today"
+    usable_capacity_kwh: 11.6
+    reserve_soc_percent: 15
+    eta_smoothing_minutes: 15
+    min_power_threshold_w: 150
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+  energy:
+    house_load_power_entity_id: "sensor.solax_drinov_house_load"
+    grid_import_power_entity_id: "sensor.solax_drinov_grid_import"
+    grid_export_power_entity_id: "sensor.solax_drinov_grid_export"
+    pv_power_total_entity_id: "sensor.solax_drinov_pv_power_total"
+    pv_power_1_entity_id: "sensor.solax_drinov_pv_power_1"
+    pv_power_2_entity_id: "sensor.solax_drinov_pv_power_2"
+  forecast_solar:
+    enabled: true
+    power_now_entity_id: "sensor.power_production_now"
+    energy_current_hour_entity_id: "sensor.energy_current_hour"
+    energy_next_hour_entity_id: "sensor.energy_next_hour"
+    energy_production_today_entity_id: "sensor.energy_production_today"
+    energy_production_today_remaining_entity_id: "sensor.energy_production_today_remaining"
+    energy_production_tomorrow_entity_id: "sensor.energy_production_tomorrow"
+    power_highest_peak_time_today_entity_id: "sensor.power_highest_peak_time_today"
+    power_highest_peak_time_tomorrow_entity_id: "sensor.power_highest_peak_time_tomorrow"
 schema:
   dph: float
   price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
@@ -89,3 +118,32 @@ schema:
     interval: str
   prodej:
     koeficient_snizeni_ceny: float?
+  battery:
+    enabled: bool?
+    soc_entity_id: str?
+    power_entity_id: str?
+    input_energy_today_entity_id: str?
+    output_energy_today_entity_id: str?
+    usable_capacity_kwh: float?
+    reserve_soc_percent: float?
+    eta_smoothing_minutes: int?
+    min_power_threshold_w: float?
+    charge_efficiency: float?
+    discharge_efficiency: float?
+  energy:
+    house_load_power_entity_id: str?
+    grid_import_power_entity_id: str?
+    grid_export_power_entity_id: str?
+    pv_power_total_entity_id: str?
+    pv_power_1_entity_id: str?
+    pv_power_2_entity_id: str?
+  forecast_solar:
+    enabled: bool?
+    power_now_entity_id: str?
+    energy_current_hour_entity_id: str?
+    energy_next_hour_entity_id: str?
+    energy_production_today_entity_id: str?
+    energy_production_today_remaining_entity_id: str?
+    energy_production_tomorrow_entity_id: str?
+    power_highest_peak_time_today_entity_id: str?
+    power_highest_peak_time_tomorrow_entity_id: str?

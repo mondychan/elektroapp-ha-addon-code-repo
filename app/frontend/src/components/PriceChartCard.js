@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 import * as d3 from "d3-scale";
 import { formatSlotToTime } from "../utils/formatters";
@@ -41,6 +42,16 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={chartData} margin={{ top: 20, right: 20, left: 40, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            {vtPeriodsSafe.map(([start, end], idx) => (
+              <ReferenceArea
+                key={`vt-bg-${idx}`}
+                x1={start * 4 - 0.5}
+                x2={end * 4 - 0.5}
+                ifOverflow="hidden"
+                fill="rgba(255, 122, 89, 0.06)"
+                strokeOpacity={0}
+              />
+            ))}
             {shouldHighlight && (
               <ReferenceLine
                 x={highlightSlot}

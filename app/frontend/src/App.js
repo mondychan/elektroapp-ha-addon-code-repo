@@ -7,7 +7,10 @@ import MonthlySummaryCard from "./components/MonthlySummaryCard";
 import BillingCard from "./components/BillingCard";
 import PlannerCard from "./components/PlannerCard";
 import ConfigCard from "./components/ConfigCard";
-import { formatDate, formatBytes, formatSlotToTime } from "./utils/formatters";
+import BatteryProjectionCard from "./components/BatteryProjectionCard";
+import EnergyBalanceCard from "./components/EnergyBalanceCard";
+import HistoryHeatmapCard from "./components/HistoryHeatmapCard";
+import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./utils/formatters";
 
 function App() {
   const [data, setData] = useState([]);
@@ -73,6 +76,34 @@ function App() {
   const [pricesRefreshLoading, setPricesRefreshLoading] = useState(false);
   const [pricesRefreshMessage, setPricesRefreshMessage] = useState(null);
   const [pricesRefreshError, setPricesRefreshError] = useState(null);
+  const [showBatteryPanel, setShowBatteryPanel] = useState(false);
+  const [batteryData, setBatteryData] = useState(null);
+  const [batteryLoading, setBatteryLoading] = useState(false);
+  const [batteryError, setBatteryError] = useState(null);
+  const [todayCostsKpi, setTodayCostsKpi] = useState(null);
+  const [todayExportKpi, setTodayExportKpi] = useState(null);
+  const [pageMode, setPageMode] = useState("overview");
+  const [energyBalancePeriod, setEnergyBalancePeriod] = useState("week");
+  const [energyBalanceAnchor, setEnergyBalanceAnchor] = useState(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  });
+  const [energyBalanceData, setEnergyBalanceData] = useState(null);
+  const [energyBalanceLoading, setEnergyBalanceLoading] = useState(false);
+  const [energyBalanceError, setEnergyBalanceError] = useState(null);
+  const [heatmapMetric, setHeatmapMetric] = useState("buy");
+  const [heatmapMonth, setHeatmapMonth] = useState(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  });
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapError, setHeatmapError] = useState(null);
 
   useEffect(() => {
     document.body.dataset.theme = theme;
@@ -155,6 +186,8 @@ function App() {
 
   useEffect(() => {
     fetchPrices();
+    fetchTodayKpiSummaries();
+    fetchBattery({ silent: true });
   }, []);
 
   useEffect(() => {
@@ -178,6 +211,21 @@ function App() {
       .then((res) => setCacheStatus(res.data))
       .catch((err) => console.error("Error fetching cache status:", err));
   }, [showConfig]);
+
+  useEffect(() => {
+    if (!showBatteryPanel) return;
+    fetchBattery();
+  }, [showBatteryPanel]);
+
+  useEffect(() => {
+    if (pageMode !== "detail") return;
+    fetchEnergyBalance();
+  }, [pageMode, energyBalancePeriod, energyBalanceAnchor]);
+
+  useEffect(() => {
+    if (pageMode !== "detail") return;
+    fetchHeatmap();
+  }, [pageMode, heatmapMonth, heatmapMetric]);
 
   const fetchCosts = (dateValue, options = {}) => {
     const { reset = true } = options;
@@ -227,6 +275,117 @@ function App() {
         setExportFromCache(false);
         setExportCacheFallback(false);
       });
+  };
+
+  const fetchBattery = (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setBatteryLoading(true);
+    }
+    setBatteryError(null);
+    axios
+      .get(`${API_PREFIX}/battery`)
+      .then((res) => {
+        setBatteryData(res.data);
+      })
+      .catch((err) => {
+        console.error("Error fetching battery data:", err);
+        setBatteryError(buildInfluxError(err));
+      })
+      .finally(() => {
+        if (!silent) {
+          setBatteryLoading(false);
+        }
+      });
+  };
+
+  const getTodayDateStr = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const fetchTodayKpiSummaries = () => {
+    const todayDate = getTodayDateStr();
+    axios
+      .get(`${API_PREFIX}/costs`, { params: { date: todayDate } })
+      .then((res) => setTodayCostsKpi(res.data.summary || null))
+      .catch((err) => {
+        console.error("Error fetching today cost KPI:", err);
+        setTodayCostsKpi(null);
+      });
+    axios
+      .get(`${API_PREFIX}/export`, { params: { date: todayDate } })
+      .then((res) => setTodayExportKpi(res.data.summary || null))
+      .catch((err) => {
+        console.error("Error fetching today export KPI:", err);
+        setTodayExportKpi(null);
+      });
+  };
+
+  const normalizeEnergyBalanceAnchor = (period, currentAnchor) => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    if (period === "year") {
+      const parsed = Number.parseInt(currentAnchor, 10);
+      return Number.isFinite(parsed) ? String(parsed) : String(y);
+    }
+    if (period === "month") {
+      if (/^\d{4}-\d{2}$/.test(currentAnchor || "")) return currentAnchor;
+      return `${y}-${m}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(currentAnchor || "")) return currentAnchor;
+    return `${y}-${m}-${d}`;
+  };
+
+  const shiftEnergyBalanceAnchor = (period, anchorValue, delta) => {
+    const anchorNorm = normalizeEnergyBalanceAnchor(period, anchorValue);
+    if (period === "year") {
+      return String((Number.parseInt(anchorNorm, 10) || new Date().getFullYear()) + delta);
+    }
+    if (period === "month") {
+      const [year, month] = anchorNorm.split("-").map(Number);
+      const dt = new Date(year, (month || 1) - 1 + delta, 1);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    }
+    const [year, month, day] = anchorNorm.split("-").map(Number);
+    const dt = new Date(year, (month || 1) - 1, day || 1);
+    dt.setDate(dt.getDate() + delta * 7);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
+
+  const fetchEnergyBalance = () => {
+    setEnergyBalanceLoading(true);
+    setEnergyBalanceError(null);
+    const anchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
+    axios
+      .get(`${API_PREFIX}/energy-balance`, { params: { period: energyBalancePeriod, anchor } })
+      .then((res) => {
+        setEnergyBalanceData(res.data);
+        setEnergyBalanceAnchor(anchor);
+      })
+      .catch((err) => {
+        console.error("Error fetching energy balance:", err);
+        setEnergyBalanceError(buildInfluxError(err));
+      })
+      .finally(() => setEnergyBalanceLoading(false));
+  };
+
+  const fetchHeatmap = () => {
+    setHeatmapLoading(true);
+    setHeatmapError(null);
+    axios
+      .get(`${API_PREFIX}/history-heatmap`, { params: { month: heatmapMonth, metric: heatmapMetric } })
+      .then((res) => setHeatmapData(res.data))
+      .catch((err) => {
+        console.error("Error fetching heatmap:", err);
+        setHeatmapError(buildInfluxError(err));
+      })
+      .finally(() => setHeatmapLoading(false));
   };
 
   useEffect(() => {
@@ -305,6 +464,20 @@ function App() {
       {
         label: "Export entity_id",
         value: config.influxdb?.export_entity_id || "-",
+      },
+      {
+        label: "Baterie (SoC entity_id)",
+        value: config.battery?.soc_entity_id || "-",
+      },
+      {
+        label: "Baterie kapacita (usable)",
+        value: config.battery?.usable_capacity_kwh ?? "-",
+        unit: config.battery?.usable_capacity_kwh != null ? "kWh" : undefined,
+      },
+      {
+        label: "Baterie rezerva",
+        value: config.battery?.reserve_soc_percent ?? "-",
+        unit: config.battery?.reserve_soc_percent != null ? "%" : undefined,
       },
     ];
   }, [config, priceProviderLabel]);
@@ -389,11 +562,7 @@ function App() {
   };
 
   const isTodayDateStr = (dateStr) => {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, "0");
-    const d = String(today.getDate()).padStart(2, "0");
-    return dateStr === `${y}-${m}-${d}`;
+    return dateStr === getTodayDateStr();
   };
 
   useEffect(() => {
@@ -405,15 +574,25 @@ function App() {
     if (!autoRefreshEnabled || !isPageVisible) return;
     const refresh = () => {
       fetchPrices();
+      fetchTodayKpiSummaries();
       if (isTodayDateStr(selectedDate)) {
         fetchCosts(selectedDate, { reset: false });
         fetchExport(selectedDate, { reset: false });
       }
+      fetchBattery({ silent: true });
     };
     refresh();
     const intervalId = setInterval(refresh, 600000);
     return () => clearInterval(intervalId);
-  }, [autoRefreshEnabled, isPageVisible, selectedDate]);
+  }, [autoRefreshEnabled, isPageVisible, selectedDate, showBatteryPanel]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled || !isPageVisible) return;
+    const intervalId = setInterval(() => {
+      fetchBattery({ silent: true });
+    }, 60000);
+    return () => clearInterval(intervalId);
+  }, [showBatteryPanel, autoRefreshEnabled, isPageVisible]);
 
   const normalizeDuration = (value) => {
     if (value == null || value === "") return null;
@@ -482,18 +661,111 @@ function App() {
     }));
   }, [data]);
 
+  const kpiItems = useMemo(() => {
+    const currentPriceItem =
+      Number.isInteger(currentSlot) && currentSlot >= 0 && currentSlot < todayData.length ? todayData[currentSlot] : null;
+    const minFinal = todayData.length ? Math.min(...todayData.map((item) => item.final)) : null;
+    const maxFinal = todayData.length ? Math.max(...todayData.map((item) => item.final)) : null;
+    const todayCost = todayCostsKpi?.cost_total ?? null;
+    const todayExport = todayExportKpi?.sell_total ?? null;
+    const netTotal = todayCost != null || todayExport != null ? (todayCost || 0) - (todayExport || 0) : null;
+    const batterySoc = batteryData?.status?.soc_percent;
+    const batteryState = batteryData?.status?.battery_state;
+    const batteryPower = batteryData?.status?.battery_power_w;
+
+    const batteryText =
+      batterySoc == null
+        ? "-"
+        : `${batterySoc.toFixed(0)} %${batteryState && batteryState !== "unknown" ? ` (${batteryState})` : ""}`;
+    const batteryDetail =
+      batteryPower == null
+        ? null
+        : `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W`;
+
+    return [
+      {
+        key: "price-now",
+        label: "Cena ted",
+        value: currentPriceItem ? formatCurrency(currentPriceItem.final) : "-",
+        detail: currentPriceItem ? currentPriceItem.time : null,
+        tone: "price",
+      },
+      {
+        key: "price-min",
+        label: "Dnes min",
+        value: minFinal != null ? formatCurrency(minFinal) : "-",
+        tone: "neutral",
+      },
+      {
+        key: "price-max",
+        label: "Dnes max",
+        value: maxFinal != null ? formatCurrency(maxFinal) : "-",
+        tone: "neutral",
+      },
+      {
+        key: "cost-today",
+        label: "Naklad dnes",
+        value: formatCurrency(todayCost),
+        detail: todayCostsKpi?.kwh_total != null ? `${todayCostsKpi.kwh_total.toFixed(2)} kWh` : null,
+        tone: "buy",
+      },
+      {
+        key: "export-today",
+        label: "Export dnes",
+        value: formatCurrency(todayExport),
+        detail: todayExportKpi?.export_kwh_total != null ? `${todayExportKpi.export_kwh_total.toFixed(2)} kWh` : null,
+        tone: "sell",
+      },
+      {
+        key: "net-today",
+        label: "Netto dnes",
+        value: formatCurrency(netTotal),
+        tone: netTotal != null && netTotal <= 0 ? "sell" : "buy",
+      },
+      {
+        key: "battery",
+        label: "Baterie",
+        value: batteryText,
+        detail: batteryDetail,
+        tone: "battery",
+      },
+    ];
+  }, [todayData, currentSlot, todayCostsKpi, todayExportKpi, batteryData]);
+
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
+  const showDetailAnnotations = pageMode === "detail";
+
   return (
-    <div className="app">
+    <div className={`app ${pageMode === "detail" ? "app--detail" : ""}`.trim()}>
       <header className="app-header">
         <div>
           <h1>Elektroapp</h1>
           <div className="subhead">Ceny, nakup a prodej energie v realnem case</div>
         </div>
         <div className="header-toggles">
+          <div className="view-mode-toggle" role="tablist" aria-label="Rezimu stranky">
+            <button
+              type="button"
+              className={`view-mode-btn ${pageMode === "overview" ? "is-active" : ""}`}
+              onClick={() => setPageMode("overview")}
+              role="tab"
+              aria-selected={pageMode === "overview"}
+            >
+              Prehled
+            </button>
+            <button
+              type="button"
+              className={`view-mode-btn ${pageMode === "detail" ? "is-active" : ""}`}
+              onClick={() => setPageMode("detail")}
+              role="tab"
+              aria-selected={pageMode === "detail"}
+            >
+              Detail
+            </button>
+          </div>
           <div className="theme-toggle">
             <input
               type="checkbox"
@@ -551,119 +823,223 @@ function App() {
         </div>
       </header>
 
-      <section className="section">
-        <h2>Cena elektriny (Kc/kWh)</h2>
-        <PriceChartCard
-          className="card-spaced"
-          chartData={todayData}
-          title={`Dnes (${formatDate(today)})`}
-          vtPeriods={config?.tarif?.vt_periods}
-          highlightSlot={currentSlot}
-        />
-        <PriceChartCard
-          className="card-spaced"
-          chartData={tomorrowData}
-          title={`Zitra (${formatDate(tomorrow)})`}
-          fallbackMessage="Data pro nasledujici den zatim nebyla publikovana"
-          vtPeriods={config?.tarif?.vt_periods}
-        />
+      <section className="kpi-strip" aria-label="Dnesni KPI">
+        {kpiItems.map((item) => (
+          <div key={item.key} className={`kpi-tile ${item.tone ? `kpi-tile--${item.tone}` : ""}`}>
+            <div className="kpi-tile-label">{item.label}</div>
+            <div className="kpi-tile-value">{item.value}</div>
+            {item.detail ? <div className="kpi-tile-detail">{item.detail}</div> : <div className="kpi-tile-detail" />}
+          </div>
+        ))}
       </section>
 
-      <section className="section">
-        <CostChartCard
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          costs={costs}
-          costsSummary={costsSummary}
-          costsError={costsError}
-          costsFromCache={costsFromCache}
-          costsCacheFallback={costsCacheFallback}
-        />
-        <ExportChartCard
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          exportPoints={exportPoints}
-          exportSummary={exportSummary}
-          exportError={exportError}
-          exportFromCache={exportFromCache}
-          exportCacheFallback={exportCacheFallback}
-        />
-      </section>
+      {pageMode === "overview" ? (
+        <>
+          <section className="section">
+            <h2>Cena elektriny (Kc/kWh)</h2>
+            <PriceChartCard
+              className="card-spaced"
+              chartData={todayData}
+              title={`Dnes (${formatDate(today)})`}
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={currentSlot}
+            />
+            <PriceChartCard
+              className="card-spaced"
+              chartData={tomorrowData}
+              title={`Zitra (${formatDate(tomorrow)})`}
+              fallbackMessage="Data pro nasledujici den zatim nebyla publikovana"
+              vtPeriods={config?.tarif?.vt_periods}
+            />
+          </section>
 
-      <button onClick={() => setShowMonthlySummary(!showMonthlySummary)} className="ghost-button">
-        {showMonthlySummary ? "Skryt souhrn" : "Zobrazit souhrn"}
-      </button>
+          <section className="section">
+            <CostChartCard
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              costs={costs}
+              costsSummary={costsSummary}
+              costsError={costsError}
+              costsFromCache={costsFromCache}
+              costsCacheFallback={costsCacheFallback}
+              showAnnotations={false}
+            />
+            <ExportChartCard
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              exportPoints={exportPoints}
+              exportSummary={exportSummary}
+              exportError={exportError}
+              exportFromCache={exportFromCache}
+              exportCacheFallback={exportCacheFallback}
+              showAnnotations={false}
+            />
+          </section>
 
-      {showMonthlySummary && (
-        <section className="section">
-          <MonthlySummaryCard
-            selectedMonth={selectedMonth}
-            setSelectedMonth={setSelectedMonth}
-            monthlySummary={monthlySummary}
-            monthlyTotals={monthlyTotals}
-            monthlyError={monthlyError}
-          />
-        </section>
-      )}
+          <button onClick={() => setShowMonthlySummary(!showMonthlySummary)} className="ghost-button">
+            {showMonthlySummary ? "Skryt souhrn" : "Zobrazit souhrn"}
+          </button>
 
-      <button onClick={() => setShowBilling(!showBilling)} className="ghost-button">
-        {showBilling ? "Skryt vyuctovani" : "Odhad vyuctovani"}
-      </button>
+          {showMonthlySummary && (
+            <section className="section">
+              <MonthlySummaryCard
+                selectedMonth={selectedMonth}
+                setSelectedMonth={setSelectedMonth}
+                monthlySummary={monthlySummary}
+                monthlyTotals={monthlyTotals}
+                monthlyError={monthlyError}
+              />
+            </section>
+          )}
 
-      {showBilling && (
-        <BillingCard
-          billingMode={billingMode}
-          setBillingMode={setBillingMode}
-          billingMonth={billingMonth}
-          setBillingMonth={setBillingMonth}
-          billingYear={billingYear}
-          setBillingYear={setBillingYear}
-          billingData={billingData}
-          billingLoading={billingLoading}
-          billingError={billingError}
-        />
-      )}
+          <button onClick={() => setShowBilling(!showBilling)} className="ghost-button">
+            {showBilling ? "Skryt vyuctovani" : "Odhad vyuctovani"}
+          </button>
 
-      <button onClick={() => setShowPlanner(!showPlanner)} className="ghost-button">
-        {showPlanner ? "Skryt planovac" : "Zobrazit planovac"}
-      </button>
+          {showBilling && (
+            <BillingCard
+              billingMode={billingMode}
+              setBillingMode={setBillingMode}
+              billingMonth={billingMonth}
+              setBillingMonth={setBillingMonth}
+              billingYear={billingYear}
+              setBillingYear={setBillingYear}
+              billingData={billingData}
+              billingLoading={billingLoading}
+              billingError={billingError}
+            />
+          )}
 
-      {showPlanner && (
-        <PlannerCard
-          plannerDuration={plannerDuration}
-          setPlannerDuration={setPlannerDuration}
-          loadPlanner={loadPlanner}
-          plannerError={plannerError}
-          plannerLoading={plannerLoading}
-          plannerNote={plannerNote}
-          plannerResults={plannerResults}
-        />
-      )}
+          <button onClick={() => setShowBatteryPanel(!showBatteryPanel)} className="ghost-button">
+            {showBatteryPanel ? "Skryt baterii a projekci" : "Baterie a projekce"}
+          </button>
 
-      <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">
-        {showConfig ? "Skryt konfiguraci" : "Zobrazit konfiguraci"}
-      </button>
+          {showBatteryPanel && (
+            <BatteryProjectionCard
+              batteryData={batteryData}
+              batteryLoading={batteryLoading}
+              batteryError={batteryError}
+              onRefresh={() => fetchBattery()}
+            />
+          )}
 
-      {showConfig && (
-        <ConfigCard
-          configRows={configRows}
-          cacheRows={cacheRows}
-          consumptionCacheRows={consumptionCacheRows}
-          cacheStatus={cacheStatus}
-          showFeesHistory={showFeesHistory}
-          onToggleFeesHistory={() => setShowFeesHistory((prev) => !prev)}
-          feesHistory={feesHistory}
-          feesHistoryLoading={feesHistoryLoading}
-          feesHistoryError={feesHistoryError}
-          onSaveFeesHistory={saveFeesHistory}
-          defaultFeesValues={defaultFeesValues}
-          priceProviderLabel={priceProviderLabel}
-          priceProviderUrl={priceProviderUrl}
-          onRefreshPrices={refreshPrices}
-          refreshingPrices={pricesRefreshLoading}
-          pricesRefreshMessage={pricesRefreshMessage}
-          pricesRefreshError={pricesRefreshError}
-        />
+          <button onClick={() => setShowPlanner(!showPlanner)} className="ghost-button">
+            {showPlanner ? "Skryt planovac" : "Zobrazit planovac"}
+          </button>
+
+          {showPlanner && (
+            <PlannerCard
+              plannerDuration={plannerDuration}
+              setPlannerDuration={setPlannerDuration}
+              loadPlanner={loadPlanner}
+              plannerError={plannerError}
+              plannerLoading={plannerLoading}
+              plannerNote={plannerNote}
+              plannerResults={plannerResults}
+            />
+          )}
+
+          <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">
+            {showConfig ? "Skryt konfiguraci" : "Zobrazit konfiguraci"}
+          </button>
+
+          {showConfig && (
+            <ConfigCard
+              configRows={configRows}
+              cacheRows={cacheRows}
+              consumptionCacheRows={consumptionCacheRows}
+              cacheStatus={cacheStatus}
+              showFeesHistory={showFeesHistory}
+              onToggleFeesHistory={() => setShowFeesHistory((prev) => !prev)}
+              feesHistory={feesHistory}
+              feesHistoryLoading={feesHistoryLoading}
+              feesHistoryError={feesHistoryError}
+              onSaveFeesHistory={saveFeesHistory}
+              defaultFeesValues={defaultFeesValues}
+              priceProviderLabel={priceProviderLabel}
+              priceProviderUrl={priceProviderUrl}
+              onRefreshPrices={refreshPrices}
+              refreshingPrices={pricesRefreshLoading}
+              pricesRefreshMessage={pricesRefreshMessage}
+              pricesRefreshError={pricesRefreshError}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <section className="section">
+            <h2>Detail grafu cen a toku energie</h2>
+            <PriceChartCard
+              className="card-spaced"
+              chartData={todayData}
+              title={`Dnes (${formatDate(today)})`}
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={currentSlot}
+            />
+          </section>
+
+          <section className="section detail-grid">
+            <CostChartCard
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              costs={costs}
+              costsSummary={costsSummary}
+              costsError={costsError}
+              costsFromCache={costsFromCache}
+              costsCacheFallback={costsCacheFallback}
+              showAnnotations={showDetailAnnotations}
+            />
+            <ExportChartCard
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              exportPoints={exportPoints}
+              exportSummary={exportSummary}
+              exportError={exportError}
+              exportFromCache={exportFromCache}
+              exportCacheFallback={exportCacheFallback}
+              showAnnotations={showDetailAnnotations}
+            />
+          </section>
+
+          <section className="section detail-grid">
+            <EnergyBalanceCard
+              period={energyBalancePeriod}
+              anchor={normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor)}
+              onPrev={() =>
+                setEnergyBalanceAnchor((prev) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
+              }
+              onNext={() =>
+                setEnergyBalanceAnchor((prev) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
+              }
+              onPeriodChange={(value) => {
+                setEnergyBalancePeriod(value);
+                setEnergyBalanceAnchor((prev) => normalizeEnergyBalanceAnchor(value, prev));
+              }}
+              data={energyBalanceData}
+              loading={energyBalanceLoading}
+              error={energyBalanceError}
+            />
+            <HistoryHeatmapCard
+              month={heatmapMonth}
+              setMonth={setHeatmapMonth}
+              metric={heatmapMetric}
+              setMetric={setHeatmapMetric}
+              heatmapData={heatmapData}
+              loading={heatmapLoading}
+              error={heatmapError}
+              onSelectDate={(dateValue) => setSelectedDate(dateValue)}
+            />
+          </section>
+
+          <section className="section">
+            <BatteryProjectionCard
+              batteryData={batteryData}
+              batteryLoading={batteryLoading}
+              batteryError={batteryError}
+              onRefresh={() => fetchBattery()}
+            />
+          </section>
+        </>
       )}
 
       <footer className="footer">

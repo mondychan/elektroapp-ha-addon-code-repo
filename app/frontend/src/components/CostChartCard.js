@@ -9,6 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import { formatDate, toDateInputValue } from "../utils/formatters";
 
@@ -20,6 +21,7 @@ const CostChartCard = ({
   costsError,
   costsFromCache,
   costsCacheFallback,
+  showAnnotations = false,
 }) => {
   const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const formatIsoToTime = (iso) => {
@@ -36,6 +38,20 @@ const CostChartCard = ({
       cost: p.cost,
     }));
   }, [costs]);
+  const buyTransitions = useMemo(() => {
+    const events = [];
+    let wasBuying = false;
+    costChartData.forEach((row) => {
+      const isBuying = (row.kwh ?? 0) > 0;
+      if (isBuying && !wasBuying) {
+        events.push({ time: row.time, kind: "start" });
+      } else if (!isBuying && wasBuying) {
+        events.push({ time: row.time, kind: "stop" });
+      }
+      wasBuying = isBuying;
+    });
+    return events;
+  }, [costChartData]);
 
   return (
     <div className="card card-spaced-lg">
@@ -101,6 +117,16 @@ const CostChartCard = ({
                   labelStyle={{ color: "var(--text)" }}
                   formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Naklad"]}
                 />
+                {showAnnotations &&
+                  buyTransitions.map((event, idx) => (
+                    <ReferenceLine
+                      key={`cost-ann-${idx}`}
+                      x={event.time}
+                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.35)" : "rgba(212, 106, 106, 0.28)"}
+                      strokeDasharray="3 4"
+                      ifOverflow="hidden"
+                    />
+                  ))}
                 <Line type="monotone" dataKey="cost" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -115,6 +141,16 @@ const CostChartCard = ({
                   labelStyle={{ color: "var(--text)" }}
                   formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Nakup kWh"]}
                 />
+                {showAnnotations &&
+                  buyTransitions.map((event, idx) => (
+                    <ReferenceLine
+                      key={`cost-bar-ann-${idx}`}
+                      x={event.time}
+                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.25)" : "rgba(212, 106, 106, 0.22)"}
+                      strokeDasharray="3 4"
+                      ifOverflow="hidden"
+                    />
+                  ))}
                 <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
               </BarChart>
             </ResponsiveContainer>

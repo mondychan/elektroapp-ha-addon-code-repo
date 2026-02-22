@@ -9,6 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import { formatDate, toDateInputValue } from "../utils/formatters";
 
@@ -20,6 +21,7 @@ const ExportChartCard = ({
   exportError,
   exportFromCache,
   exportCacheFallback,
+  showAnnotations = false,
 }) => {
   const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const formatIsoToTime = (iso) => {
@@ -36,6 +38,20 @@ const ExportChartCard = ({
       sell: p.sell,
     }));
   }, [exportPoints]);
+  const exportTransitions = useMemo(() => {
+    const events = [];
+    let wasExporting = false;
+    exportChartData.forEach((row) => {
+      const isExporting = (row.kwh ?? 0) > 0;
+      if (isExporting && !wasExporting) {
+        events.push({ time: row.time, kind: "start" });
+      } else if (!isExporting && wasExporting) {
+        events.push({ time: row.time, kind: "stop" });
+      }
+      wasExporting = isExporting;
+    });
+    return events;
+  }, [exportChartData]);
 
   return (
     <div className="card card-spaced-lg">
@@ -101,6 +117,16 @@ const ExportChartCard = ({
                   labelStyle={{ color: "var(--text)" }}
                   formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Trzby"]}
                 />
+                {showAnnotations &&
+                  exportTransitions.map((event, idx) => (
+                    <ReferenceLine
+                      key={`export-ann-${idx}`}
+                      x={event.time}
+                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.35)" : "rgba(212, 106, 106, 0.28)"}
+                      strokeDasharray="3 4"
+                      ifOverflow="hidden"
+                    />
+                  ))}
                 <Line type="monotone" dataKey="sell" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -115,6 +141,16 @@ const ExportChartCard = ({
                   labelStyle={{ color: "var(--text)" }}
                   formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Prodej kWh"]}
                 />
+                {showAnnotations &&
+                  exportTransitions.map((event, idx) => (
+                    <ReferenceLine
+                      key={`export-bar-ann-${idx}`}
+                      x={event.time}
+                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.25)" : "rgba(212, 106, 106, 0.22)"}
+                      strokeDasharray="3 4"
+                      ifOverflow="hidden"
+                    />
+                  ))}
                 <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
               </BarChart>
             </ResponsiveContainer>

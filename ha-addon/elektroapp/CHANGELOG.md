@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.56
+- Baterie: novy panel "Baterie a projekce" (SoC, tok, ETA, historie, projekce) + podpora Forecast.Solar metrik.
+- Baterie: hybridni projekce SoC (Forecast.Solar + historicky profil spotreby/PV) s fallbackem na trend; rozliseni pracovni den/vikend.
+- UI: horni KPI pas (cena ted, dnes min/max, naklad, export, netto, stav baterie).
+- UI: novy rezim "Detail" s full-width rozlozenim.
+- UI/API: novy modul "Vyroba vs spotreba" (tyden/mesic/rok; PV, spotreba domu, grid import/export).
+- UI/API: nova mesicni heatmapa historie (cena / nakup / export) s klikem na den pro detail.
+- Grafy: jemne anotace v detailu (VT/NT podbarveni, markery start/stop nakupu/exportu).
+- Konfigurace: nove sekce `battery`, `energy`, `forecast_solar` v add-on options/schema.
+
 ## 0.1.55
 - Cache spotreby/exportu: historicky den se uz nebere z nedokoncene cache vytvorene behem dne (donuti se refresh z InfluxDB).
 - Cache spotreby/exportu: verze klice cache navysena, aby se prepoctly starsi cache po oprave logiky vykresleni useku.
