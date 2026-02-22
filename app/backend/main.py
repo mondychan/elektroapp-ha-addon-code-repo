@@ -1344,7 +1344,12 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
             kwh = total if ts == start_utc_ts else None
         else:
             diff = total - prev_total
-            kwh = diff if diff >= 0 else None
+            if diff >= 0:
+                kwh = diff
+            else:
+                # Some sensors restart the import counter when buying resumes later
+                # in the same day. Treat the lower value as a new series baseline.
+                kwh = total
         if total is not None:
             prev_total = total
 
@@ -1438,7 +1443,11 @@ def get_export_points(cfg, date=None, start=None, end=None):
             kwh = total if ts == start_utc_ts else None
         else:
             diff = total - prev_total
-            kwh = diff if diff >= 0 else None
+            if diff >= 0:
+                kwh = diff
+            else:
+                # Export counters can also restart within the day (e.g. inverter/session reset).
+                kwh = total
         if total is not None:
             prev_total = total
 

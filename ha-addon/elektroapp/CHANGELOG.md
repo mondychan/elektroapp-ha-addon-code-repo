@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.54
+- Naklady/nakup: opraven vypocet po preruseni nakupu behem dne (novy usek se znovu vykresli po navratu odberu ze site).
+- Export/prodej: stejna oprava pri resetu/poklesu kumulativniho citace behem dne.
+
 ## 0.1.53
 - Release: navyseni verze addonu na `0.1.53`.
 
