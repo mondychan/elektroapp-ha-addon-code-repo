@@ -529,21 +529,50 @@ def parse_influx_interval_to_minutes(interval_value, default_minutes=15):
         return amount * 1440
     return default_minutes
 
+def get_entity_id_candidates(entity_id):
+    if not isinstance(entity_id, str):
+        return []
+    raw = entity_id.strip()
+    if not raw:
+        return []
+
+    candidates = []
+
+    def _add(value):
+        if value and value not in candidates:
+            candidates.append(value)
+
+    _add(raw)
+    if "." in raw:
+        _, suffix = raw.split(".", 1)
+        _add(suffix)
+    else:
+        _add(f"sensor.{raw}")
+    return candidates
+
 def query_entity_series(influx, entity_id, start_utc, end_utc, interval="15m", tzinfo=None, numeric=True):
     if not entity_id:
         return []
     from_clause = build_influx_from_clause(influx)
     field = influx["field"]
-    q = (
-        f'SELECT last("{field}") AS "value" '
-        f"FROM {from_clause} "
-        f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
-        f'AND "entity_id"=\'{entity_id}\' '
-        f"GROUP BY time({interval}) fill(null)"
-    )
-    data = influx_query(influx, q)
-    series = data.get("results", [{}])[0].get("series", [])
-    values = series[0]["values"] if series else []
+    values = []
+    used_entity_id = None
+    for candidate_entity_id in get_entity_id_candidates(entity_id):
+        q = (
+            f'SELECT last("{field}") AS "value" '
+            f"FROM {from_clause} "
+            f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
+            f'AND "entity_id"=\'{candidate_entity_id}\' '
+            f"GROUP BY time({interval}) fill(null)"
+        )
+        data = influx_query(influx, q)
+        series = data.get("results", [{}])[0].get("series", [])
+        if series:
+            values = series[0]["values"]
+            used_entity_id = candidate_entity_id
+            break
+    if used_entity_id and used_entity_id != entity_id:
+        logger.info("Entity fallback matched for series: %s -> %s", entity_id, used_entity_id)
     tz = tzinfo or timezone.utc
     points = []
     for ts, raw_value in values:
@@ -571,17 +600,25 @@ def query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, n
     start_utc = end_utc - timedelta(hours=max(1, int(lookback_hours)))
     from_clause = build_influx_from_clause(influx)
     field = influx["field"]
-    q = (
-        f'SELECT last("{field}") AS "value" '
-        f"FROM {from_clause} "
-        f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
-        f'AND "entity_id"=\'{entity_id}\''
-    )
-    data = influx_query(influx, q)
-    series = data.get("results", [{}])[0].get("series", [])
-    values = series[0]["values"] if series else []
+    values = []
+    used_entity_id = None
+    for candidate_entity_id in get_entity_id_candidates(entity_id):
+        q = (
+            f'SELECT last("{field}") AS "value" '
+            f"FROM {from_clause} "
+            f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
+            f'AND "entity_id"=\'{candidate_entity_id}\''
+        )
+        data = influx_query(influx, q)
+        series = data.get("results", [{}])[0].get("series", [])
+        if series and series[0].get("values"):
+            values = series[0]["values"]
+            used_entity_id = candidate_entity_id
+            break
     if not values:
         return None
+    if used_entity_id and used_entity_id != entity_id:
+        logger.info("Entity fallback matched for last value: %s -> %s", entity_id, used_entity_id)
     ts, raw_value = values[0]
     value = raw_value
     if numeric and raw_value is not None:
