@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.58
+- Baterie/Forecast/Energy modules: opraveno nacitani z InfluxDB pri rozdilnych measurementech podle jednotek (`kWh`, `W`, `%`, `state`), aby se spravne nacitaly power/SoC/peak-time entity.
+
 ## 0.1.57
 - Baterie/Forecast entities: tolerantnejsi nacitani z InfluxDB pri rozdilu `entity_id` formatu (`sensor.xxx` vs `xxx`), aby nove battery/forecast sekce fungovaly bez rucniho upravovani prefixu.
 

@@ -508,6 +508,10 @@ def build_influx_from_clause(influx):
     measurement = influx["measurement"]
     return f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
 
+def build_influx_from_clause_for_measurement(influx, measurement):
+    rp = influx.get("retention_policy")
+    return f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
+
 def parse_influx_interval_to_minutes(interval_value, default_minutes=15):
     if not isinstance(interval_value, str):
         return default_minutes
@@ -528,6 +532,24 @@ def parse_influx_interval_to_minutes(interval_value, default_minutes=15):
     if unit == "d":
         return amount * 1440
     return default_minutes
+
+def get_measurement_candidates(influx, preferred=None):
+    configured = influx.get("measurement") if isinstance(influx, dict) else None
+    candidates = []
+
+    def _add(value):
+        if isinstance(value, str):
+            raw = value.strip()
+            if raw and raw not in candidates:
+                candidates.append(raw)
+
+    if isinstance(preferred, (list, tuple)):
+        for item in preferred:
+            _add(item)
+    else:
+        _add(preferred)
+    _add(configured)
+    return candidates
 
 def get_entity_id_candidates(entity_id):
     if not isinstance(entity_id, str):
@@ -550,29 +572,45 @@ def get_entity_id_candidates(entity_id):
         _add(f"sensor.{raw}")
     return candidates
 
-def query_entity_series(influx, entity_id, start_utc, end_utc, interval="15m", tzinfo=None, numeric=True):
+def query_entity_series(
+    influx,
+    entity_id,
+    start_utc,
+    end_utc,
+    interval="15m",
+    tzinfo=None,
+    numeric=True,
+    measurement_candidates=None,
+):
     if not entity_id:
         return []
-    from_clause = build_influx_from_clause(influx)
     field = influx["field"]
     values = []
     used_entity_id = None
-    for candidate_entity_id in get_entity_id_candidates(entity_id):
-        q = (
-            f'SELECT last("{field}") AS "value" '
-            f"FROM {from_clause} "
-            f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
-            f'AND "entity_id"=\'{candidate_entity_id}\' '
-            f"GROUP BY time({interval}) fill(null)"
-        )
-        data = influx_query(influx, q)
-        series = data.get("results", [{}])[0].get("series", [])
-        if series:
-            values = series[0]["values"]
-            used_entity_id = candidate_entity_id
+    used_measurement = None
+    for measurement in get_measurement_candidates(influx, measurement_candidates):
+        from_clause = build_influx_from_clause_for_measurement(influx, measurement)
+        for candidate_entity_id in get_entity_id_candidates(entity_id):
+            q = (
+                f'SELECT last("{field}") AS "value" '
+                f"FROM {from_clause} "
+                f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
+                f'AND "entity_id"=\'{candidate_entity_id}\' '
+                f"GROUP BY time({interval}) fill(null)"
+            )
+            data = influx_query(influx, q)
+            series = data.get("results", [{}])[0].get("series", [])
+            if series:
+                values = series[0]["values"]
+                used_entity_id = candidate_entity_id
+                used_measurement = measurement
+                break
+        if used_entity_id:
             break
     if used_entity_id and used_entity_id != entity_id:
         logger.info("Entity fallback matched for series: %s -> %s", entity_id, used_entity_id)
+    if used_measurement and used_measurement != influx.get("measurement"):
+        logger.info("Measurement fallback matched for series: %s -> %s", entity_id, used_measurement)
     tz = tzinfo or timezone.utc
     points = []
     for ts, raw_value in values:
@@ -593,32 +631,46 @@ def query_entity_series(influx, entity_id, start_utc, end_utc, interval="15m", t
         )
     return points
 
-def query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, numeric=True):
+def query_entity_last_value(
+    influx,
+    entity_id,
+    tzinfo=None,
+    lookback_hours=72,
+    numeric=True,
+    measurement_candidates=None,
+):
     if not entity_id:
         return None
     end_utc = datetime.now(timezone.utc)
     start_utc = end_utc - timedelta(hours=max(1, int(lookback_hours)))
-    from_clause = build_influx_from_clause(influx)
     field = influx["field"]
     values = []
     used_entity_id = None
-    for candidate_entity_id in get_entity_id_candidates(entity_id):
-        q = (
-            f'SELECT last("{field}") AS "value" '
-            f"FROM {from_clause} "
-            f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
-            f'AND "entity_id"=\'{candidate_entity_id}\''
-        )
-        data = influx_query(influx, q)
-        series = data.get("results", [{}])[0].get("series", [])
-        if series and series[0].get("values"):
-            values = series[0]["values"]
-            used_entity_id = candidate_entity_id
+    used_measurement = None
+    for measurement in get_measurement_candidates(influx, measurement_candidates):
+        from_clause = build_influx_from_clause_for_measurement(influx, measurement)
+        for candidate_entity_id in get_entity_id_candidates(entity_id):
+            q = (
+                f'SELECT last("{field}") AS "value" '
+                f"FROM {from_clause} "
+                f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
+                f'AND "entity_id"=\'{candidate_entity_id}\''
+            )
+            data = influx_query(influx, q)
+            series = data.get("results", [{}])[0].get("series", [])
+            if series and series[0].get("values"):
+                values = series[0]["values"]
+                used_entity_id = candidate_entity_id
+                used_measurement = measurement
+                break
+        if used_entity_id:
             break
     if not values:
         return None
     if used_entity_id and used_entity_id != entity_id:
         logger.info("Entity fallback matched for last value: %s -> %s", entity_id, used_entity_id)
+    if used_measurement and used_measurement != influx.get("measurement"):
+        logger.info("Measurement fallback matched for last value: %s -> %s", entity_id, used_measurement)
     ts, raw_value = values[0]
     value = raw_value
     if numeric and raw_value is not None:
@@ -635,9 +687,24 @@ def query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, n
         "raw_value": raw_value,
     }
 
-def safe_query_entity_last_value(influx, entity_id, tzinfo=None, lookback_hours=72, numeric=True, label=None):
+def safe_query_entity_last_value(
+    influx,
+    entity_id,
+    tzinfo=None,
+    lookback_hours=72,
+    numeric=True,
+    label=None,
+    measurement_candidates=None,
+):
     try:
-        return query_entity_last_value(influx, entity_id, tzinfo=tzinfo, lookback_hours=lookback_hours, numeric=numeric)
+        return query_entity_last_value(
+            influx,
+            entity_id,
+            tzinfo=tzinfo,
+            lookback_hours=lookback_hours,
+            numeric=numeric,
+            measurement_candidates=measurement_candidates,
+        )
     except Exception as exc:
         logger.warning("Optional entity query failed (%s / %s): %s", label or "entity", entity_id, exc)
         return None
@@ -678,7 +745,7 @@ def build_slot_avg_profile(points, tzinfo=None):
             profile[slot] = sum(values) / len(values)
     return profile
 
-def query_recent_slot_profile(influx, entity_id, tzinfo, days=7, interval="15m"):
+def query_recent_slot_profile(influx, entity_id, tzinfo, days=7, interval="15m", measurement_candidates=None):
     if not entity_id:
         return {}
     today_start_local = datetime.now(tzinfo).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -691,10 +758,19 @@ def query_recent_slot_profile(influx, entity_id, tzinfo, days=7, interval="15m")
         interval=interval,
         tzinfo=tzinfo,
         numeric=True,
+        measurement_candidates=measurement_candidates,
     )
     return build_slot_avg_profile(points, tzinfo=tzinfo)
 
-def query_recent_slot_profile_by_day_type(influx, entity_id, tzinfo, target_date, days=28, interval="15m"):
+def query_recent_slot_profile_by_day_type(
+    influx,
+    entity_id,
+    tzinfo,
+    target_date,
+    days=28,
+    interval="15m",
+    measurement_candidates=None,
+):
     if not entity_id:
         return {}
     target_is_weekend = target_date.weekday() >= 5
@@ -708,6 +784,7 @@ def query_recent_slot_profile_by_day_type(influx, entity_id, tzinfo, target_date
         interval=interval,
         tzinfo=tzinfo,
         numeric=True,
+        measurement_candidates=measurement_candidates,
     )
     filtered = []
     for point in points:
@@ -2622,11 +2699,29 @@ def get_battery(date: str = Query(default=None)):
         }
 
     history_interval = influx.get("interval", "15m")
+    kwh_measurements = ["kWh", "Wh"]
+    power_measurements = ["W", "kW"]
+    soc_measurements = ["%", "percent"]
+    state_measurements = ["state"]
     soc_series = query_entity_series(
-        influx, battery_cfg["soc_entity_id"], start_utc, end_utc, interval=history_interval, tzinfo=tzinfo, numeric=True
+        influx,
+        battery_cfg["soc_entity_id"],
+        start_utc,
+        end_utc,
+        interval=history_interval,
+        tzinfo=tzinfo,
+        numeric=True,
+        measurement_candidates=soc_measurements,
     )
     power_series = query_entity_series(
-        influx, battery_cfg["power_entity_id"], start_utc, end_utc, interval=history_interval, tzinfo=tzinfo, numeric=True
+        influx,
+        battery_cfg["power_entity_id"],
+        start_utc,
+        end_utc,
+        interval=history_interval,
+        tzinfo=tzinfo,
+        numeric=True,
+        measurement_candidates=power_measurements,
     )
     history_points = build_battery_history_points(soc_series, power_series)
     last_soc_point = get_last_non_null_value(soc_series)
@@ -2645,12 +2740,25 @@ def get_battery(date: str = Query(default=None)):
             interval="1m",
             tzinfo=tzinfo,
             numeric=True,
+            measurement_candidates=power_measurements,
         )
         avg_power_w = average_recent_power(trend_series)
 
-    latest_soc = safe_query_entity_last_value(influx, battery_cfg["soc_entity_id"], tzinfo=tzinfo, numeric=True, label="soc")
+    latest_soc = safe_query_entity_last_value(
+        influx,
+        battery_cfg["soc_entity_id"],
+        tzinfo=tzinfo,
+        numeric=True,
+        label="soc",
+        measurement_candidates=soc_measurements,
+    )
     latest_power = safe_query_entity_last_value(
-        influx, battery_cfg["power_entity_id"], tzinfo=tzinfo, numeric=True, label="battery_power"
+        influx,
+        battery_cfg["power_entity_id"],
+        tzinfo=tzinfo,
+        numeric=True,
+        label="battery_power",
+        measurement_candidates=power_measurements,
     )
     if (latest_soc is None or latest_soc.get("value") is None) and last_soc_point:
         latest_soc = {"time": last_soc_point["time"], "time_utc": last_soc_point["time_utc"], "value": last_soc_point["value"]}
@@ -2682,24 +2790,40 @@ def get_battery(date: str = Query(default=None)):
     else:
         battery_state = "idle"
 
-    def _latest_numeric(entity_id, label):
-        record = safe_query_entity_last_value(influx, entity_id, tzinfo=tzinfo, numeric=True, label=label)
+    def _latest_numeric(entity_id, label, measurements=None):
+        record = safe_query_entity_last_value(
+            influx,
+            entity_id,
+            tzinfo=tzinfo,
+            numeric=True,
+            label=label,
+            measurement_candidates=measurements,
+        )
         return None if not record else record.get("value")
 
-    def _latest_raw(entity_id, label):
-        record = safe_query_entity_last_value(influx, entity_id, tzinfo=tzinfo, numeric=False, label=label)
+    def _latest_raw(entity_id, label, measurements=None):
+        record = safe_query_entity_last_value(
+            influx,
+            entity_id,
+            tzinfo=tzinfo,
+            numeric=False,
+            label=label,
+            measurement_candidates=measurements,
+        )
         return None if not record else record.get("raw_value")
 
     current_energy = {
-        "house_load_w": _latest_numeric(energy_cfg.get("house_load_power_entity_id"), "house_load"),
-        "grid_import_w": _latest_numeric(energy_cfg.get("grid_import_power_entity_id"), "grid_import"),
-        "grid_export_w": _latest_numeric(energy_cfg.get("grid_export_power_entity_id"), "grid_export"),
-        "pv_power_total_w": _latest_numeric(energy_cfg.get("pv_power_total_entity_id"), "pv_total"),
-        "pv_power_1_w": _latest_numeric(energy_cfg.get("pv_power_1_entity_id"), "pv_1"),
-        "pv_power_2_w": _latest_numeric(energy_cfg.get("pv_power_2_entity_id"), "pv_2"),
-        "battery_input_today_kwh": _latest_numeric(battery_cfg.get("input_energy_today_entity_id"), "battery_input_today"),
+        "house_load_w": _latest_numeric(energy_cfg.get("house_load_power_entity_id"), "house_load", power_measurements),
+        "grid_import_w": _latest_numeric(energy_cfg.get("grid_import_power_entity_id"), "grid_import", power_measurements),
+        "grid_export_w": _latest_numeric(energy_cfg.get("grid_export_power_entity_id"), "grid_export", power_measurements),
+        "pv_power_total_w": _latest_numeric(energy_cfg.get("pv_power_total_entity_id"), "pv_total", power_measurements),
+        "pv_power_1_w": _latest_numeric(energy_cfg.get("pv_power_1_entity_id"), "pv_1", power_measurements),
+        "pv_power_2_w": _latest_numeric(energy_cfg.get("pv_power_2_entity_id"), "pv_2", power_measurements),
+        "battery_input_today_kwh": _latest_numeric(
+            battery_cfg.get("input_energy_today_entity_id"), "battery_input_today", kwh_measurements
+        ),
         "battery_output_today_kwh": _latest_numeric(
-            battery_cfg.get("output_energy_today_entity_id"), "battery_output_today"
+            battery_cfg.get("output_energy_today_entity_id"), "battery_output_today", kwh_measurements
         ),
     }
 
@@ -2707,27 +2831,35 @@ def get_battery(date: str = Query(default=None)):
     if forecast_cfg.get("enabled"):
         forecast_payload.update(
             {
-                "power_now_w": _latest_numeric(forecast_cfg.get("power_now_entity_id"), "forecast_power_now"),
+                "power_now_w": _latest_numeric(
+                    forecast_cfg.get("power_now_entity_id"), "forecast_power_now", power_measurements
+                ),
                 "energy_current_hour_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_current_hour_entity_id"), "forecast_energy_current_hour"
+                    forecast_cfg.get("energy_current_hour_entity_id"), "forecast_energy_current_hour", kwh_measurements
                 ),
                 "energy_next_hour_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_next_hour_entity_id"), "forecast_energy_next_hour"
+                    forecast_cfg.get("energy_next_hour_entity_id"), "forecast_energy_next_hour", kwh_measurements
                 ),
                 "energy_production_today_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_today_entity_id"), "forecast_energy_today"
+                    forecast_cfg.get("energy_production_today_entity_id"), "forecast_energy_today", kwh_measurements
                 ),
                 "energy_production_today_remaining_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_today_remaining_entity_id"), "forecast_energy_today_remaining"
+                    forecast_cfg.get("energy_production_today_remaining_entity_id"),
+                    "forecast_energy_today_remaining",
+                    kwh_measurements,
                 ),
                 "energy_production_tomorrow_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_tomorrow_entity_id"), "forecast_energy_tomorrow"
+                    forecast_cfg.get("energy_production_tomorrow_entity_id"), "forecast_energy_tomorrow", kwh_measurements
                 ),
                 "peak_time_today": _latest_raw(
-                    forecast_cfg.get("power_highest_peak_time_today_entity_id"), "forecast_peak_time_today"
+                    forecast_cfg.get("power_highest_peak_time_today_entity_id"),
+                    "forecast_peak_time_today",
+                    state_measurements,
                 ),
                 "peak_time_tomorrow": _latest_raw(
-                    forecast_cfg.get("power_highest_peak_time_tomorrow_entity_id"), "forecast_peak_time_tomorrow"
+                    forecast_cfg.get("power_highest_peak_time_tomorrow_entity_id"),
+                    "forecast_peak_time_tomorrow",
+                    state_measurements,
                 ),
             }
         )
@@ -2761,6 +2893,7 @@ def get_battery(date: str = Query(default=None)):
                     target_date=now_local.date(),
                     days=28,
                     interval=history_interval,
+                    measurement_candidates=power_measurements,
                 )
             except Exception as exc:
                 logger.warning("Battery projection load profile query failed: %s", exc)
@@ -2773,6 +2906,7 @@ def get_battery(date: str = Query(default=None)):
                     target_date=now_local.date(),
                     days=28,
                     interval=history_interval,
+                    measurement_candidates=power_measurements,
                 )
             except Exception as exc:
                 logger.warning("Battery projection PV profile query failed: %s", exc)
@@ -2847,6 +2981,7 @@ def get_energy_balance(
     range_info = build_energy_balance_range(period, anchor, tzinfo)
     interval = influx.get("interval", "15m")
     interval_minutes = parse_influx_interval_to_minutes(interval, default_minutes=15)
+    power_measurements = ["W", "kW"]
 
     entity_map = {
         "pv_kwh": energy_cfg.get("pv_power_total_entity_id"),
@@ -2868,6 +3003,7 @@ def get_energy_balance(
             interval=interval,
             tzinfo=tzinfo,
             numeric=True,
+            measurement_candidates=power_measurements,
         )
         aggregated[key] = aggregate_power_points(points, interval_minutes, bucket=range_info["bucket"], tzinfo=tzinfo)
 
