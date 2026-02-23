@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.59
+- UI: graf "Vyroba vs spotreba" ma prehlednejsi tooltip (fixni poradi polozek podle serii + barevne odliseni) a prepinani mezi linkami/sloupci.
+
 ## 0.1.58
 - Baterie/Forecast/Energy modules: opraveno nacitani z InfluxDB pri rozdilnych measurementech podle jednotek (`kWh`, `W`, `%`, `state`), aby se spravne nacitaly power/SoC/peak-time entity.
 

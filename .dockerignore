@@ -1,0 +1,5 @@
+.git
+app/frontend/node_modules
+app/frontend/build
+**/__pycache__
+**/*.pyc
