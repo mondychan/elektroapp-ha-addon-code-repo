@@ -1289,13 +1289,34 @@ def parse_price_html(html_text):
             continue
         time_str = row[0]
         price_text = row[1]
-        m = re.search(r"([0-9][0-9\s\xa0]*)", price_text)
+        # Historical HTML may contain locale formatting and unicode minus.
+        normalized_price = str(price_text).replace("\xa0", " ")
+        m = re.search(r"([\-−–—﹣－]?\s*\d[\d\s]*(?:[.,]\d+)?)", normalized_price)
         if not m:
             continue
-        digits = re.sub(r"[^\d]", "", m.group(1))
-        if not digits:
+        raw_number = (
+            m.group(1)
+            .replace(" ", "")
+            .replace("−", "-")
+            .replace("–", "-")
+            .replace("—", "-")
+            .replace("﹣", "-")
+            .replace("－", "-")
+        )
+        if not raw_number:
             continue
-        price_czk = int(digits)
+        # Support both 1 234,56 and 1,234.56 formats.
+        if "," in raw_number and "." in raw_number:
+            if raw_number.rfind(",") > raw_number.rfind("."):
+                raw_number = raw_number.replace(".", "").replace(",", ".")
+            else:
+                raw_number = raw_number.replace(",", "")
+        else:
+            raw_number = raw_number.replace(",", ".")
+        try:
+            price_czk = float(raw_number)
+        except ValueError:
+            continue
         rows.append((time_str, price_czk))
     return rows
 
@@ -1531,9 +1552,14 @@ def cache_status():
 def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
     entries = []
     for entry in hours:
-        hour = entry["hour"]
-        minute = entry.get("minute", 0)
-        spot_kwh = entry["priceCZK"] / 1000
+        try:
+            hour = int(entry.get("hour", 0))
+            minute = int(entry.get("minute", 0))
+            price_czk_mwh = float(entry.get("priceCZK"))
+        except (TypeError, ValueError):
+            logger.warning("Skipping invalid API price row for %s: %s", date_str, entry)
+            continue
+        spot_kwh = price_czk_mwh / 1000.0
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
         entries.append(
             {

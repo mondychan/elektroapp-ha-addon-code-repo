@@ -738,6 +738,17 @@ input {
   margin-bottom: 8px;
 }
 
+.energy-balance-chart-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.energy-balance-chart-inner {
+  width: 100%;
+}
+
 .heatmap-wrap {
   overflow-x: auto;
   padding-bottom: 4px;

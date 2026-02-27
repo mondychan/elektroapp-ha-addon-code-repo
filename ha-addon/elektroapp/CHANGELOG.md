@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.60
+- Baterie (KPI pas): pridano ETA do detailu baterie (cas do plna / do rezervy), pokud je projekce k dispozici.
+- UI "Vyroba vs spotreba": upravene barvy serii (Export=modra, Import=cervena, PV=zluta, Spotreba domu=cervena tmava).
+- UI "Vyroba vs spotreba": sloupcovy graf ma stabilni citelnou sirku (min-width + horizontalni scroll) a sirsi sloupce, aby nebyly tenke pri ruznych sirkach panelu.
+- Ceny (historie Spot): parser HTML nově zachovava zaporne hodnoty a robustneji parsuje cisla s locale formatovanim.
+
 ## 0.1.59
 - UI: graf "Vyroba vs spotreba" ma prehlednejsi tooltip (fixni poradi polozek podle serii + barevne odliseni) a prepinani mezi linkami/sloupci.
 

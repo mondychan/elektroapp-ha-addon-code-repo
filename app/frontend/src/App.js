@@ -12,6 +12,22 @@ import EnergyBalanceCard from "./components/EnergyBalanceCard";
 import HistoryHeatmapCard from "./components/HistoryHeatmapCard";
 import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./utils/formatters";
 
+const formatEtaTime = (iso) => {
+  if (!iso) return null;
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatEtaDuration = (minutes) => {
+  if (minutes == null || !Number.isFinite(minutes)) return null;
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!m) return `${h} h`;
+  return `${h} h ${m} min`;
+};
+
 function App() {
   const [data, setData] = useState([]);
   const [config, setConfig] = useState(null);
@@ -672,15 +688,29 @@ function App() {
     const batterySoc = batteryData?.status?.soc_percent;
     const batteryState = batteryData?.status?.battery_state;
     const batteryPower = batteryData?.status?.battery_power_w;
+    const batteryProjection = batteryData?.projection;
 
     const batteryText =
       batterySoc == null
         ? "-"
         : `${batterySoc.toFixed(0)} %${batteryState && batteryState !== "unknown" ? ` (${batteryState})` : ""}`;
-    const batteryDetail =
-      batteryPower == null
-        ? null
-        : `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W`;
+    const batteryPowerDetail =
+      batteryPower == null ? null : `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W`;
+    let batteryEtaDetail = null;
+    if (batteryData?.is_today && batteryProjection?.state === "charging" && batteryProjection?.eta_to_full_at) {
+      const etaTime = formatEtaTime(batteryProjection.eta_to_full_at);
+      const etaDuration = formatEtaDuration(batteryProjection.eta_to_full_minutes);
+      if (etaTime) {
+        batteryEtaDetail = `plna v ${etaTime}${etaDuration ? ` (${etaDuration})` : ""}`;
+      }
+    } else if (batteryData?.is_today && batteryProjection?.state === "discharging" && batteryProjection?.eta_to_reserve_at) {
+      const etaTime = formatEtaTime(batteryProjection.eta_to_reserve_at);
+      const etaDuration = formatEtaDuration(batteryProjection.eta_to_reserve_minutes);
+      if (etaTime) {
+        batteryEtaDetail = `do rezervy v ${etaTime}${etaDuration ? ` (${etaDuration})` : ""}`;
+      }
+    }
+    const batteryDetail = [batteryPowerDetail, batteryEtaDetail].filter(Boolean).join(" | ") || null;
 
     return [
       {

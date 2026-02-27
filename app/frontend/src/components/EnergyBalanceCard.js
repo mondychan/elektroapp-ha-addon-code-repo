@@ -15,10 +15,10 @@ import {
 const formatKwh = (value) => (value == null || Number.isNaN(value) ? "-" : `${Number(value).toFixed(2)} kWh`);
 
 const ENERGY_SERIES = [
-  { key: "grid_export_kwh", name: "Export grid", color: "#ff7a59" },
-  { key: "grid_import_kwh", name: "Import grid", color: "#f0b44d" },
-  { key: "pv_kwh", name: "PV vyroba", color: "#39b56a" },
-  { key: "house_load_kwh", name: "Spotreba domu", color: "#7cc4ff" },
+  { key: "grid_export_kwh", name: "Export grid", color: "#4d79ff" },
+  { key: "grid_import_kwh", name: "Import grid", color: "#ff4d4f" },
+  { key: "pv_kwh", name: "PV vyroba", color: "#f2c230" },
+  { key: "house_load_kwh", name: "Spotreba domu", color: "#c7392f" },
 ];
 
 const SERIES_ORDER = ENERGY_SERIES.reduce((acc, series, index) => {
@@ -82,6 +82,10 @@ const EnergyBalanceCard = ({
   const [chartType, setChartType] = useState("line");
 
   const labelTick = useMemo(() => ({ fill: "var(--text-muted)" }), []);
+  const barChartMinWidth = useMemo(() => {
+    const pointCount = Math.max(points.length, 1);
+    return Math.max(680, pointCount * 34);
+  }, [points.length]);
 
   return (
     <div className="card">
@@ -129,8 +133,8 @@ const EnergyBalanceCard = ({
             <span>Import: {formatKwh(totals.grid_import_kwh)}</span>
             <span>Export: {formatKwh(totals.grid_export_kwh)}</span>
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            {chartType === "line" ? (
+          {chartType === "line" ? (
+            <ResponsiveContainer width="100%" height={320}>
               <LineChart data={points} margin={{ top: 10, right: 20, left: 30, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={labelTick} />
@@ -149,19 +153,25 @@ const EnergyBalanceCard = ({
                   />
                 ))}
               </LineChart>
-            ) : (
-              <BarChart data={points} margin={{ top: 10, right: 20, left: 30, bottom: 10 }} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={labelTick} />
-                <YAxis tick={labelTick} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
-                <Tooltip content={<EnergyBalanceTooltip />} />
-                <Legend />
-                {ENERGY_SERIES.map((series) => (
-                  <Bar key={series.key} dataKey={series.key} name={series.name} fill={series.color} />
-                ))}
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          ) : (
+            <div className="energy-balance-chart-scroll">
+              <div className="energy-balance-chart-inner" style={{ minWidth: `${barChartMinWidth}px` }}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={points} margin={{ top: 10, right: 20, left: 30, bottom: 10 }} barCategoryGap="12%" barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={labelTick} />
+                    <YAxis tick={labelTick} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
+                    <Tooltip content={<EnergyBalanceTooltip />} />
+                    <Legend />
+                    {ENERGY_SERIES.map((series) => (
+                      <Bar key={series.key} dataKey={series.key} name={series.name} fill={series.color} barSize={10} maxBarSize={14} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
