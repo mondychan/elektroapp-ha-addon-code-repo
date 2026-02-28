@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.62
+- Log noise reduction: fallback hlasky v Influx service zmeneny z INFO na DEBUG, aby nezahlcovaly bezne logy.
+- Release tooling: oprava kontroly existujiciho tagu ve `tools/release.ps1` (bez padu na starsim PowerShellu).
+
 ## 0.1.61
 - Refaktor backendu: rozdeleni monolitu do modulu (`app_service`, `pricing`, `influx`, `billing`, `battery`, `cache`, routery, services).
 - Refaktor frontendu: `App.js` rozdelen do hooku + API vrstvy; sjednocene volani API a odstranena repetitivni axios logika.
