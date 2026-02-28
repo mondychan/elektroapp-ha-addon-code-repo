@@ -91,6 +91,9 @@ def get_ote_backoff_remaining_seconds():
 def is_ote_unavailable():
     return get_ote_backoff_remaining_seconds() > 0
 
+def utc_now_iso_z():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
 def merge_config(base, override):
     if not isinstance(base, dict):
         base = {}
@@ -902,7 +905,7 @@ def save_prices_cache(date_str, entries, provider=None):
         meta_path = get_prices_cache_meta_path(date_str)
         meta_payload = {
             "provider": normalize_price_provider(provider),
-            "fetched_at": datetime.utcnow().isoformat() + "Z",
+            "fetched_at": utc_now_iso_z(),
         }
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta_payload, f)
@@ -973,7 +976,7 @@ def save_consumption_cache(date_str, cache_key, data):
     CONSUMPTION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CONSUMPTION_CACHE_DIR / f"consumption-{date_str}.json"
     payload = {
-        "meta": {"key": cache_key, "fetched_at": datetime.utcnow().isoformat() + "Z"},
+        "meta": {"key": cache_key, "fetched_at": utc_now_iso_z()},
         "data": data,
     }
     with open(path, "w", encoding="utf-8") as f:
@@ -1018,7 +1021,7 @@ def save_export_cache(date_str, cache_key, data):
     EXPORT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = EXPORT_CACHE_DIR / f"export-{date_str}.json"
     payload = {
-        "meta": {"key": cache_key, "fetched_at": datetime.utcnow().isoformat() + "Z"},
+        "meta": {"key": cache_key, "fetched_at": utc_now_iso_z()},
         "data": data,
     }
     with open(path, "w", encoding="utf-8") as f:
