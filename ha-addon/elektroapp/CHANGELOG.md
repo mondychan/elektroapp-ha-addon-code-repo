@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.63
+- Backend: odstraneni deprecation warningu `datetime.utcnow()` (prechod na timezone-aware UTC timestamp v cache metadata).
+- Interni cleanup: sjednocene generovani UTC `fetched_at` hodnot do helperu.
+
 ## 0.1.62
 - Log noise reduction: fallback hlasky v Influx service zmeneny z INFO na DEBUG, aby nezahlcovaly bezne logy.
 - Release tooling: oprava kontroly existujiciho tagu ve `tools/release.ps1` (bez padu na starsim PowerShellu).
