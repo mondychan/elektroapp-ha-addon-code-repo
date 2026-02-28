@@ -34,6 +34,22 @@ function Invoke-Git {
     }
 }
 
+function Get-RelativePathCompat {
+    param(
+        [Parameter(Mandatory = $true)][string]$BasePath,
+        [Parameter(Mandatory = $true)][string]$TargetPath
+    )
+    try {
+        return [System.IO.Path]::GetRelativePath($BasePath, $TargetPath)
+    }
+    catch {
+        $baseNormalized = $BasePath.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        $baseUri = New-Object System.Uri($baseNormalized)
+        $targetUri = New-Object System.Uri($TargetPath)
+        return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace("/", "\")
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $addonConfigRel = "ha-addon/elektroapp/config.yaml"
 $changelogRel = "ha-addon/elektroapp/CHANGELOG.md"
@@ -64,7 +80,7 @@ if ($NotesFile) {
     }
     $resolvedNotesPath = (Resolve-Path $candidatePath).Path
     if ($resolvedNotesPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $notesRelative = [System.IO.Path]::GetRelativePath($repoRoot, $resolvedNotesPath).Replace("\", "/")
+        $notesRelative = (Get-RelativePathCompat -BasePath $repoRoot -TargetPath $resolvedNotesPath).Replace("\", "/")
         $allowedDirtyPaths[$notesRelative] = $true
     }
     $notesText = [System.IO.File]::ReadAllText($resolvedNotesPath).Trim()
