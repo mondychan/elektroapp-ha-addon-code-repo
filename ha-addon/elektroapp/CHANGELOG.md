@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.61
+- Refaktor backendu: rozdeleni monolitu do modulu (`app_service`, `pricing`, `influx`, `billing`, `battery`, `cache`, routery, services).
+- Refaktor frontendu: `App.js` rozdelen do hooku + API vrstvy; sjednocene volani API a odstranena repetitivni axios logika.
+- Bezpecnost a validace: heslo v configu nahrazeno placeholderem, `/api/config` pres Pydantic modely a strict validaci.
+- Spolehlivost: scheduler ma single-run guard + process lock, sjednoceny error response format s `error.code` a request ID.
+- CI/CD a release flow: pridane GitHub Actions workflow (`ci`, `release`) + automatizace release skriptem.
+- Testy: vyrazne rozsiren backend i frontend test suite.
+
 ## 0.1.60
 - Baterie (KPI pas): pridano ETA do detailu baterie (cas do plna / do rezervy), pokud je projekce k dispozici.
 - UI "Vyroba vs spotreba": upravene barvy serii (Export=modra, Import=cervena, PV=zluta, Spotreba domu=cervena tmava).
