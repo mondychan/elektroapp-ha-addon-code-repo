@@ -103,6 +103,7 @@ jobs:
           rm -rf ha-repo/elektroapp
           mkdir -p ha-repo/elektroapp
           cp -a ha-addon/elektroapp/. ha-repo/elektroapp/
+          cp -a ha-addon/README.md ha-repo/README.md
 
       - name: Commit and push sync changes
         shell: bash
@@ -110,7 +111,7 @@ jobs:
           VERSION="${{ needs.docker_publish.outputs.version }}"
           git -C ha-repo config user.name "github-actions[bot]"
           git -C ha-repo config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C ha-repo add elektroapp
+          git -C ha-repo add elektroapp README.md
           if git -C ha-repo diff --cached --quiet; then
             echo "No metadata changes to push."
             exit 0

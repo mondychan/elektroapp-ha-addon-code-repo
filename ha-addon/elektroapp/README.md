@@ -1,82 +1,80 @@
+<!-- AUTO-SYNCED FROM mondychan/elektroapp-ha-addon-code-repo:ha-addon/elektroapp/README.md -->
 # Elektroapp Home Assistant Add-on
 
-Add-on zobrazuje spotove ceny elektriny a vypocitane naklady na zaklade spotreby
-z InfluxDB. UI je dostupne pres Home Assistant Ingress (panel v postrannim menu).
+Elektroapp je Home Assistant add-on pro sledovani cen elektriny, vypocet nakladu,
+vypocet trzeb z exportu a pokrocilejsi energeticky prehled (baterie, bilance,
+historie). UI bezi pres Home Assistant Ingress.
 
-# Zdroj dat
-Zdroj cen je volitelny pres `price_provider`:
-- `spotovaelektrina` (default)
+## Co add-on umi
+
+- denni ceny (dnes/zitra) a jejich prepocet na finalni cenu podle poplatku a DPH
+- naklady podle importu energie z InfluxDB
+- trzby podle exportu energie z InfluxDB
+- mesicni souhrn a odhad vyuctovani (mesic/rok)
+- planovac spotrebicu (nejlevnejsi okna podle delky programu)
+- panel baterie (SoC, vykon, projekce, ETA)
+- detailni energeticka bilance (tyden/mesic/rok)
+- mesicni heatmapa (cena / nakup / export)
+- lokalni cache pro ceny, spotrebu a export kvuli stabilite a mensi zatezi zdroju
+
+## Zdroje cen
+
+Volba pres `price_provider`:
+
+- `spotovaelektrina` (spotovaelektrina.cz)
 - `ote` (OTE + prevod EUR/CZK dle CNB)
 
 ## Instalace
 
-1. V Home Assistant: Settings > Add-ons > Add-on Store > ... > Repositories.
-2. Pridat URL GitHub repozitare s add-onem.
-3. V seznamu add-onu vybrat "Elektroapp" a kliknout Install.
-4. Otevrit konfiguraci add-onu, vyplnit InfluxDB a tarifni parametry.
-5. Start add-onu a otevrit panel (Ingress).
+1. V Home Assistant otevri `Settings > Add-ons > Add-on Store > ... > Repositories`.
+2. Pridej URL repozitare s add-onem.
+3. V seznamu vyber `Elektroapp` a klikni `Install`.
+4. Vypln konfiguraci add-onu.
+5. Spust add-on a otevri panel pres Ingress.
 
 ## Pouziti
 
 - Otevri Elektroapp z postranniho panelu Home Assistantu.
-- Vyber datum pro denni graf "Naklady a spotreba".
-- Volitelne zobraz mesicni souhrn a tabulku po dnech.
-- Odhad vyuctovani ukazuje realny stav a projekci pro mesic/rok.
-- Planovac spotrebicu najde nejlevnejsi okna pro zadanou delku.
+- V rezimu `Prehled` sleduj ceny, naklady, export, billing a planner.
+- V rezimu `Detail` otevres energetickou bilanci, heatmapu a podrobny bateriovy panel.
+- V konfiguraci je dostupne rucni obnoveni cen a historie poplatku.
 
 ## Konfigurace
 
-Add-on nacita nastaveni z Home Assistant options (Supervisor). 
+Nastaveni se nacita z Home Assistant options (Supervisor).
 
-### `dph`
-- Vyse DPH v procentech, napr. `21`.
+### Zakladni cast
 
-### `poplatky`
-- Vsechny hodnoty jsou bez DPH (Kc / kWh). DPH se aplikuje az ve vypoctu.
-- `komodita_sluzba`: Poplatek za sluzbu obchodu.
-- `oze`: Cena na podporu vykupu elektiny (OZE/POZE).
-- `dan`: Dan z elektriny.
-- `systemove_sluzby`: Systemove sluzby (CEPS).
-- `distribuce.NT`: Distribuce pro nizky tarif.
-- `distribuce.VT`: Distribuce pro vysoky tarif.
+- `dph`: sazba DPH v procentech (napr. `21`)
+- `price_provider`: `spotovaelektrina.cz` nebo `ote-cr.cz`
+- `poplatky`: komodita, OZE, dan, systemove sluzby, distribuce VT/NT
+- `fixni`: denni/mesicni fixni slozky
+- `tarif.vt_periods`: VT intervaly (`HH-HH`, oddelene carkou)
+- `prodej.koeficient_snizeni_ceny`: koeficient snizeni ceny denniho trhu (Kc/MWh)
 
-### `fixni`
-- Fixni poplatky bez DPH (Kc / den, Kc / mesic).
-- `denni.staly_plat`: Staly plat (Kc/den).
-- `mesicni.provoz_nesitove_infrastruktury`: Nesitova infrastruktura (Kc/mesic).
-- `mesicni.jistic`: Jistic (Kc/mesic).
+### InfluxDB
 
-### `tarif.vt_periods`
-- Casove intervaly VT (vysoky tarif), format `HH-HH` oddeleny carkou.
-- Priklad: `6-7,9-10,13-14,16-17`.
-- Pouziva se pro urceni VT/NT pri vypoctu ceny.
+- `influxdb.host`, `influxdb.port`, `influxdb.database`
+- `influxdb.retention_policy` (volitelne, typicky `autogen`)
+- `influxdb.measurement`, `influxdb.field`
+- `influxdb.entity_id` (import)
+- `influxdb.export_entity_id` (export)
+- `influxdb.username`, `influxdb.password`
+- `influxdb.timezone` (napr. `Europe/Prague`)
+- `influxdb.interval` (napr. `15m`)
 
-### `influxdb`
-- `host`: IP nebo hostname InfluxDB.
-- `port`: Port InfluxDB (defaultne 8086).
-- `database`: Jmeno databaze.
-- `retention_policy`: Volitelne, napr. `autogen`.
-- `measurement`: Nazev measurement (napr. `kWh`).
-- `field`: Nazev field (napr. `value`).
-- `entity_id`: ID entity (napr. `solax_drinov_today_s_import_energy`).
-- `export_entity_id`: ID entity pro export (napr. `solax_drinov_today_s_export_energy`).
-- `username`: Volitelne uzivatelske jmeno.
-- `password`: Volitelne heslo.
-- `timezone`: Casove pasmo (napr. `Europe/Prague`).
-- `interval`: Interval spotreby (napr. `15m`).
+### Baterie, energie, forecast
 
-### `prodej`
-- `koeficient_snizeni_ceny`: Koeficient snizeni ceny denniho trhu (Kc/MWh).
+- `battery.*`: entity pro SoC/vykon a parametry baterie
+- `energy.*`: entity domu, gridu a PV pro bilanci
+- `forecast_solar.*`: entity Forecast.Solar pro projekce
 
-### `price_provider`
-- Zdroj cen pro dnesek/zitrek (`spotovaelektrina.cz` nebo `ote-cr.cz`).
-- V konfiguraci add-onu je tato polozka jako vyber (radio volby).
-- Historie v lokalni cache (`/config/elektroapp/prices-cache`) zustava zachovana.
+Pokud tyto sekce nejsou kompletni, add-on zustane funkcni i bez pokrocilych
+panelu, ale cast metrik/projekci nebude dostupna.
 
 ## Poznamky
 
-- Add-on bezi na portu 8000, ale primarne se pouziva Ingress panel v HA.
-- `tarif.vt_periods` se uklada jako retezec a na backendu se prevadi na seznam.
-- Odhad vyuctovani pocita fixni poplatky za cely mesic a variabilni naklady z namerene spotreby.
-- Projekce vyuctovani vychazi z prumeru dosavadnich dni v mesici.
-- Poplatky se ukladaji do historie podle data zmeny konfigurace, aby zpetne vypocty drzely puvodni hodnoty.
+- Add-on je urceny primarne pro HA Ingress (port 8000 se bezne nepublikuje ven).
+- Historie cen zustava v lokalni cache (`/config/elektroapp/prices-cache`).
+- `tarif.vt_periods` se na backendu normalizuje na seznam intervalu.
+- Pri zmene poplatku se uklada historie, aby starsi vypocty zustaly konzistentni.
