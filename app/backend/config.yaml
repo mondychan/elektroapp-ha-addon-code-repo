@@ -34,7 +34,7 @@ influxdb:
   entity_id: solax_drinov_today_s_import_energy
   export_entity_id: solax_drinov_today_s_export_energy
   username: electroapp
-  password: nv2Zrc!#rSyR
+  password: CHANGEME
   timezone: Europe/Prague
   interval: 15m
 prodej:

@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docker_publish:
+    name: Build and Publish Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release_meta.outputs.version }}
+    steps:
+      - name: Checkout code repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        id: release_meta
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z\.-]+)?$ ]]; then
+            echo "Invalid tag: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
+
+      - name: Validate addon version in config
+        shell: bash
+        run: |
+          VERSION="${{ steps.release_meta.outputs.version }}"
+          CONFIG_VERSION="$(grep -E '^version:\s*".*"$' ha-addon/elektroapp/config.yaml | head -1 | sed -E 's/^version:\s*"([^"]+)"$/\1/')"
+          ADDON_VERSION="$(grep -E '^\s*ADDON_VERSION:\s*".*"$' ha-addon/elektroapp/config.yaml | head -1 | sed -E 's/^\s*ADDON_VERSION:\s*"([^"]+)"$/\1/')"
+          if [[ -z "$CONFIG_VERSION" || -z "$ADDON_VERSION" ]]; then
+            echo "Missing version keys in ha-addon/elektroapp/config.yaml"
+            exit 1
+          fi
+          if [[ "$CONFIG_VERSION" != "$VERSION" ]]; then
+            echo "config.yaml version '$CONFIG_VERSION' does not match tag version '$VERSION'"
+            exit 1
+          fi
+          if [[ "$ADDON_VERSION" != "$VERSION" ]]; then
+            echo "ADDON_VERSION '$ADDON_VERSION' does not match tag version '$VERSION'"
+            exit 1
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64/v8
+          tags: |
+            mondychan/elektroapp-ha:${{ steps.release_meta.outputs.version }}
+            mondychan/elektroapp-ha:latest
+
+  sync_ha_repo:
+    name: Sync Add-on Metadata Repo
+    runs-on: ubuntu-latest
+    needs: docker_publish
+    if: needs.docker_publish.result == 'success'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code repo
+        uses: actions/checkout@v4
+
+      - name: Checkout HA metadata repo
+        uses: actions/checkout@v4
+        with:
+          repository: mondychan/elektroapp-ha-addon
+          token: ${{ secrets.HA_REPO_TOKEN }}
+          path: ha-repo
+
+      - name: Sync elektroapp folder
+        shell: bash
+        run: |
+          rm -rf ha-repo/elektroapp
+          mkdir -p ha-repo/elektroapp
+          cp -a ha-addon/elektroapp/. ha-repo/elektroapp/
+
+      - name: Commit and push sync changes
+        shell: bash
+        run: |
+          VERSION="${{ needs.docker_publish.outputs.version }}"
+          git -C ha-repo config user.name "github-actions[bot]"
+          git -C ha-repo config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C ha-repo add elektroapp
+          if git -C ha-repo diff --cached --quiet; then
+            echo "No metadata changes to push."
+            exit 0
+          fi
+          git -C ha-repo commit -m "Release ${VERSION}"
+          git -C ha-repo push

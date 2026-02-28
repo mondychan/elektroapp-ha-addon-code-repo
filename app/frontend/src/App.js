@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import React, { useEffect, useMemo, useState } from "react";
 import PriceChartCard from "./components/PriceChartCard";
 import CostChartCard from "./components/CostChartCard";
 import ExportChartCard from "./components/ExportChartCard";
@@ -11,6 +10,14 @@ import BatteryProjectionCard from "./components/BatteryProjectionCard";
 import EnergyBalanceCard from "./components/EnergyBalanceCard";
 import HistoryHeatmapCard from "./components/HistoryHeatmapCard";
 import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./utils/formatters";
+import { useLocalStorageState } from "./hooks/useLocalStorageState";
+import { usePageVisibility } from "./hooks/usePageVisibility";
+import { useCurrentSlot } from "./hooks/useCurrentSlot";
+import {
+  normalizeEnergyBalanceAnchor,
+  shiftEnergyBalanceAnchor,
+  useDashboardData,
+} from "./hooks/useDashboardData";
 
 const formatEtaTime = (iso) => {
   if (!iso) return null;
@@ -29,23 +36,20 @@ const formatEtaDuration = (minutes) => {
 };
 
 function App() {
-  const [data, setData] = useState([]);
-  const [config, setConfig] = useState(null);
-  const [cacheStatus, setCacheStatus] = useState(null);
-  const [version, setVersion] = useState(null);
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
-  const [costs, setCosts] = useState([]);
-  const [costsSummary, setCostsSummary] = useState(null);
-  const [costsError, setCostsError] = useState(null);
-  const [costsFromCache, setCostsFromCache] = useState(false);
-  const [costsCacheFallback, setCostsCacheFallback] = useState(false);
-  const [exportPoints, setExportPoints] = useState([]);
-  const [exportSummary, setExportSummary] = useState(null);
-  const [exportError, setExportError] = useState(null);
-  const [exportFromCache, setExportFromCache] = useState(false);
-  const [exportCacheFallback, setExportCacheFallback] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
+  const [showFeesHistory, setShowFeesHistory] = useState(false);
+  const [showBatteryPanel, setShowBatteryPanel] = useState(false);
+  const [pageMode, setPageMode] = useState("overview");
+
+  const [theme, setTheme] = useLocalStorageState("theme", "light");
+  const [plannerDuration, setPlannerDuration] = useLocalStorageState("plannerDuration", "120");
+
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => localStorage.getItem("autoRefreshEnabled") !== "false");
+  const [plannerValidationError, setPlannerValidationError] = useState(null);
+
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const y = today.getFullYear();
@@ -59,15 +63,6 @@ function App() {
     const m = String(today.getMonth() + 1).padStart(2, "0");
     return `${y}-${m}`;
   });
-  const [monthlySummary, setMonthlySummary] = useState([]);
-  const [monthlyTotals, setMonthlyTotals] = useState(null);
-  const [showPlanner, setShowPlanner] = useState(false);
-  const [plannerResults, setPlannerResults] = useState([]);
-  const [plannerLoading, setPlannerLoading] = useState(false);
-  const [plannerError, setPlannerError] = useState(null);
-  const [plannerNote, setPlannerNote] = useState(null);
-  const [monthlyError, setMonthlyError] = useState(null);
-  const [showBilling, setShowBilling] = useState(false);
   const [billingMode, setBillingMode] = useState("month");
   const [billingMonth, setBillingMonth] = useState(() => {
     const today = new Date();
@@ -76,29 +71,6 @@ function App() {
     return `${y}-${m}`;
   });
   const [billingYear, setBillingYear] = useState(() => String(new Date().getFullYear()));
-  const [billingData, setBillingData] = useState(null);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [billingError, setBillingError] = useState(null);
-  const [plannerDuration, setPlannerDuration] = useState(() => localStorage.getItem("plannerDuration") || "120");
-  const [currentSlot, setCurrentSlot] = useState(null);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
-    return localStorage.getItem("autoRefreshEnabled") !== "false";
-  });
-  const [isPageVisible, setIsPageVisible] = useState(() => document.visibilityState === "visible");
-  const [showFeesHistory, setShowFeesHistory] = useState(false);
-  const [feesHistory, setFeesHistory] = useState([]);
-  const [feesHistoryLoading, setFeesHistoryLoading] = useState(false);
-  const [feesHistoryError, setFeesHistoryError] = useState(null);
-  const [pricesRefreshLoading, setPricesRefreshLoading] = useState(false);
-  const [pricesRefreshMessage, setPricesRefreshMessage] = useState(null);
-  const [pricesRefreshError, setPricesRefreshError] = useState(null);
-  const [showBatteryPanel, setShowBatteryPanel] = useState(false);
-  const [batteryData, setBatteryData] = useState(null);
-  const [batteryLoading, setBatteryLoading] = useState(false);
-  const [batteryError, setBatteryError] = useState(null);
-  const [todayCostsKpi, setTodayCostsKpi] = useState(null);
-  const [todayExportKpi, setTodayExportKpi] = useState(null);
-  const [pageMode, setPageMode] = useState("overview");
   const [energyBalancePeriod, setEnergyBalancePeriod] = useState("week");
   const [energyBalanceAnchor, setEnergyBalanceAnchor] = useState(() => {
     const today = new Date();
@@ -107,9 +79,6 @@ function App() {
     const d = String(today.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   });
-  const [energyBalanceData, setEnergyBalanceData] = useState(null);
-  const [energyBalanceLoading, setEnergyBalanceLoading] = useState(false);
-  const [energyBalanceError, setEnergyBalanceError] = useState(null);
   const [heatmapMetric, setHeatmapMetric] = useState("buy");
   const [heatmapMonth, setHeatmapMonth] = useState(() => {
     const today = new Date();
@@ -117,337 +86,111 @@ function App() {
     const m = String(today.getMonth() + 1).padStart(2, "0");
     return `${y}-${m}`;
   });
-  const [heatmapData, setHeatmapData] = useState(null);
-  const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapError, setHeatmapError] = useState(null);
+
+  const isPageVisible = usePageVisibility();
+  const currentSlot = useCurrentSlot();
 
   useEffect(() => {
     document.body.dataset.theme = theme;
-    localStorage.setItem("theme", theme);
   }, [theme]);
 
   useEffect(() => {
     localStorage.setItem("autoRefreshEnabled", autoRefreshEnabled ? "true" : "false");
   }, [autoRefreshEnabled]);
 
-  useEffect(() => {
-    const handleVisibility = () => {
-      setIsPageVisible(document.visibilityState === "visible");
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, []);
+  const {
+    prices,
+    config,
+    cacheStatus,
+    version,
+    costs,
+    costsSummary,
+    costsError,
+    costsFromCache,
+    costsCacheFallback,
+    exportPoints,
+    exportSummary,
+    exportError,
+    exportFromCache,
+    exportCacheFallback,
+    monthlySummary,
+    monthlyTotals,
+    monthlyError,
+    billingData,
+    billingLoading,
+    billingError,
+    batteryData,
+    batteryLoading,
+    batteryError,
+    refreshBattery,
+    todayCostsKpi,
+    todayExportKpi,
+    energyBalanceData,
+    energyBalanceLoading,
+    energyBalanceError,
+    heatmapData,
+    heatmapLoading,
+    heatmapError,
+    feesHistory,
+    feesHistoryLoading,
+    feesHistoryError,
+    saveFeesHistory,
+    refreshPrices,
+    pricesRefreshLoading,
+    pricesRefreshMessage,
+    pricesRefreshError,
+    loadPlanner,
+    plannerLoading,
+    plannerResults,
+    plannerNote,
+    plannerError,
+  } = useDashboardData({
+    selectedDate,
+    selectedMonth,
+    showConfig,
+    showFeesHistory,
+    showBilling,
+    billingMode,
+    billingMonth,
+    billingYear,
+    pageMode,
+    energyBalancePeriod,
+    energyBalanceAnchor,
+    heatmapMonth,
+    heatmapMetric,
+    autoRefreshEnabled,
+    isPageVisible,
+  });
 
-  useEffect(() => {
-    const updateSlot = () => {
-      const now = new Date();
-      const slot = now.getHours() * 4 + Math.floor(now.getMinutes() / 15);
-      setCurrentSlot(slot);
-    };
-    updateSlot();
-    const intervalId = setInterval(updateSlot, 60000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const API_PREFIX = "./api";
   const activePriceProvider = config?.price_provider === "ote" ? "ote" : "spotovaelektrina";
   const priceProviderLabel = activePriceProvider === "ote" ? "OTE (ote-cr.cz + CNB)" : "spotovaelektrina.cz";
   const priceProviderUrl = activePriceProvider === "ote" ? "https://www.ote-cr.cz/" : "https://spotovaelektrina.cz/";
-  const buildInfluxError = (err) => {
-    const detail = err?.response?.data?.detail;
-    if (detail) {
-      return String(detail);
-    }
-    if (err?.response?.status === 401) {
-      return "Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo.";
-    }
-    if (err?.response?.status) {
-      return `Chyba pri nacitani z InfluxDB (HTTP ${err.response.status}).`;
-    }
-    return "Nepodarilo se pripojit k InfluxDB.";
+
+  const normalizeDuration = (value) => {
+    if (value == null || value === "") return null;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    if (parsed > 360) return "too-long";
+    return Math.round(parsed);
   };
 
-  const fetchPrices = () => {
-    axios
-      .get(`${API_PREFIX}/prices`)
-      .then((res) => setData(res.data.prices))
-      .catch((err) => console.error("Error fetching prices:", err));
-  };
-
-  const refreshPrices = () => {
-    setPricesRefreshLoading(true);
-    setPricesRefreshMessage(null);
-    setPricesRefreshError(null);
-    axios
-      .post(`${API_PREFIX}/prices/refresh`, {})
-      .then((res) => {
-        const refreshed = res.data?.refreshed || [];
-        const summary = refreshed.map((item) => `${item.date}: ${item.count} zaznamu`).join(" | ");
-        setPricesRefreshMessage(summary || "Ceny byly obnoveny.");
-        fetchPrices();
-        if (showConfig) {
-          axios
-            .get(`${API_PREFIX}/cache-status`)
-            .then((cacheRes) => setCacheStatus(cacheRes.data))
-            .catch((cacheErr) => console.error("Error fetching cache status:", cacheErr));
-        }
-      })
-      .catch((err) => {
-        console.error("Error refreshing prices:", err);
-        const detail = err?.response?.data?.detail;
-        setPricesRefreshError(detail ? String(detail) : "Obnoveni cen selhalo.");
-      })
-      .finally(() => setPricesRefreshLoading(false));
-  };
-
-  useEffect(() => {
-    fetchPrices();
-    fetchTodayKpiSummaries();
-    fetchBattery({ silent: true });
-  }, []);
-
-  useEffect(() => {
-    axios
-      .get(`${API_PREFIX}/config`)
-      .then((res) => setConfig(res.data))
-      .catch((err) => console.error("Error fetching config:", err));
-  }, []);
-
-  useEffect(() => {
-    axios
-      .get(`${API_PREFIX}/version`)
-      .then((res) => setVersion(res.data.version))
-      .catch((err) => console.error("Error fetching version:", err));
-  }, []);
-
-  useEffect(() => {
-    if (!showConfig) return;
-    axios
-      .get(`${API_PREFIX}/cache-status`)
-      .then((res) => setCacheStatus(res.data))
-      .catch((err) => console.error("Error fetching cache status:", err));
-  }, [showConfig]);
-
-  useEffect(() => {
-    if (!showBatteryPanel) return;
-    fetchBattery();
-  }, [showBatteryPanel]);
-
-  useEffect(() => {
-    if (pageMode !== "detail") return;
-    fetchEnergyBalance();
-  }, [pageMode, energyBalancePeriod, energyBalanceAnchor]);
-
-  useEffect(() => {
-    if (pageMode !== "detail") return;
-    fetchHeatmap();
-  }, [pageMode, heatmapMonth, heatmapMetric]);
-
-  const fetchCosts = (dateValue, options = {}) => {
-    const { reset = true } = options;
-    if (reset) {
-      setCosts([]);
-      setCostsSummary(null);
-      setCostsError(null);
-      setCostsFromCache(false);
-      setCostsCacheFallback(false);
-    }
-    axios
-      .get(`${API_PREFIX}/costs`, { params: { date: dateValue } })
-      .then((res) => {
-        setCosts(res.data.points || []);
-        setCostsSummary(res.data.summary || null);
-        setCostsFromCache(Boolean(res.data.from_cache));
-        setCostsCacheFallback(Boolean(res.data.cache_fallback));
-      })
-      .catch((err) => {
-        console.error("Error fetching costs:", err);
-        setCostsError(buildInfluxError(err));
-        setCostsFromCache(false);
-        setCostsCacheFallback(false);
-      });
-  };
-
-  const fetchExport = (dateValue, options = {}) => {
-    const { reset = true } = options;
-    if (reset) {
-      setExportPoints([]);
-      setExportSummary(null);
-      setExportError(null);
-      setExportFromCache(false);
-      setExportCacheFallback(false);
-    }
-    axios
-      .get(`${API_PREFIX}/export`, { params: { date: dateValue } })
-      .then((res) => {
-        setExportPoints(res.data.points || []);
-        setExportSummary(res.data.summary || null);
-        setExportFromCache(Boolean(res.data.from_cache));
-        setExportCacheFallback(Boolean(res.data.cache_fallback));
-      })
-      .catch((err) => {
-        console.error("Error fetching export:", err);
-        setExportError(buildInfluxError(err));
-        setExportFromCache(false);
-        setExportCacheFallback(false);
-      });
-  };
-
-  const fetchBattery = (options = {}) => {
-    const { silent = false } = options;
-    if (!silent) {
-      setBatteryLoading(true);
-    }
-    setBatteryError(null);
-    axios
-      .get(`${API_PREFIX}/battery`)
-      .then((res) => {
-        setBatteryData(res.data);
-      })
-      .catch((err) => {
-        console.error("Error fetching battery data:", err);
-        setBatteryError(buildInfluxError(err));
-      })
-      .finally(() => {
-        if (!silent) {
-          setBatteryLoading(false);
-        }
-      });
-  };
-
-  const getTodayDateStr = () => {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, "0");
-    const d = String(today.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const fetchTodayKpiSummaries = () => {
-    const todayDate = getTodayDateStr();
-    axios
-      .get(`${API_PREFIX}/costs`, { params: { date: todayDate } })
-      .then((res) => setTodayCostsKpi(res.data.summary || null))
-      .catch((err) => {
-        console.error("Error fetching today cost KPI:", err);
-        setTodayCostsKpi(null);
-      });
-    axios
-      .get(`${API_PREFIX}/export`, { params: { date: todayDate } })
-      .then((res) => setTodayExportKpi(res.data.summary || null))
-      .catch((err) => {
-        console.error("Error fetching today export KPI:", err);
-        setTodayExportKpi(null);
-      });
-  };
-
-  const normalizeEnergyBalanceAnchor = (period, currentAnchor) => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    if (period === "year") {
-      const parsed = Number.parseInt(currentAnchor, 10);
-      return Number.isFinite(parsed) ? String(parsed) : String(y);
-    }
-    if (period === "month") {
-      if (/^\d{4}-\d{2}$/.test(currentAnchor || "")) return currentAnchor;
-      return `${y}-${m}`;
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(currentAnchor || "")) return currentAnchor;
-    return `${y}-${m}-${d}`;
-  };
-
-  const shiftEnergyBalanceAnchor = (period, anchorValue, delta) => {
-    const anchorNorm = normalizeEnergyBalanceAnchor(period, anchorValue);
-    if (period === "year") {
-      return String((Number.parseInt(anchorNorm, 10) || new Date().getFullYear()) + delta);
-    }
-    if (period === "month") {
-      const [year, month] = anchorNorm.split("-").map(Number);
-      const dt = new Date(year, (month || 1) - 1 + delta, 1);
-      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
-    }
-    const [year, month, day] = anchorNorm.split("-").map(Number);
-    const dt = new Date(year, (month || 1) - 1, day || 1);
-    dt.setDate(dt.getDate() + delta * 7);
-    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-  };
-
-  const fetchEnergyBalance = () => {
-    setEnergyBalanceLoading(true);
-    setEnergyBalanceError(null);
-    const anchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
-    axios
-      .get(`${API_PREFIX}/energy-balance`, { params: { period: energyBalancePeriod, anchor } })
-      .then((res) => {
-        setEnergyBalanceData(res.data);
-        setEnergyBalanceAnchor(anchor);
-      })
-      .catch((err) => {
-        console.error("Error fetching energy balance:", err);
-        setEnergyBalanceError(buildInfluxError(err));
-      })
-      .finally(() => setEnergyBalanceLoading(false));
-  };
-
-  const fetchHeatmap = () => {
-    setHeatmapLoading(true);
-    setHeatmapError(null);
-    axios
-      .get(`${API_PREFIX}/history-heatmap`, { params: { month: heatmapMonth, metric: heatmapMetric } })
-      .then((res) => setHeatmapData(res.data))
-      .catch((err) => {
-        console.error("Error fetching heatmap:", err);
-        setHeatmapError(buildInfluxError(err));
-      })
-      .finally(() => setHeatmapLoading(false));
-  };
-
-  useEffect(() => {
-    fetchCosts(selectedDate, { reset: true });
-  }, [selectedDate]);
-
-  useEffect(() => {
-    fetchExport(selectedDate, { reset: true });
-  }, [selectedDate]);
-
-  useEffect(() => {
-    setMonthlySummary([]);
-    setMonthlyTotals(null);
-    setMonthlyError(null);
-    axios
-      .get(`${API_PREFIX}/daily-summary`, { params: { month: selectedMonth } })
-      .then((res) => {
-        setMonthlySummary(res.data.days || []);
-        setMonthlyTotals(res.data.summary || null);
-      })
-      .catch((err) => {
-        console.error("Error fetching monthly summary:", err);
-        setMonthlyError(buildInfluxError(err));
-      });
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    if (!showBilling) return;
-    setBillingLoading(true);
-    setBillingError(null);
-    setBillingData(null);
-    const endpoint = billingMode === "year" ? "/billing-year" : "/billing-month";
-    const params = billingMode === "year" ? { year: Number(billingYear) } : { month: billingMonth };
-    if (billingMode === "year" && !params.year) {
-      setBillingLoading(false);
+  const handleLoadPlanner = async () => {
+    const durationValue = normalizeDuration(plannerDuration);
+    if (durationValue === "too-long") {
+      setPlannerValidationError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
       return;
     }
-    axios
-      .get(`${API_PREFIX}${endpoint}`, { params })
-      .then((res) => setBillingData(res.data))
-      .catch((err) => {
-        console.error("Error fetching billing summary:", err);
-        setBillingError(buildInfluxError(err));
-      })
-      .finally(() => setBillingLoading(false));
-  }, [showBilling, billingMode, billingMonth, billingYear]);
+    if (!durationValue) {
+      setPlannerValidationError("Zadej delku programu 1-360 minut.");
+      return;
+    }
+    setPlannerValidationError(null);
+    try {
+      await loadPlanner(durationValue);
+    } catch {
+      // Planner error is exposed by the hook.
+    }
+  };
 
   const formatFeeValue = (value) => (value == null ? "-" : value);
   const configRows = useMemo(() => {
@@ -473,18 +216,9 @@ function App() {
         value: formatFeeValue(config.prodej?.koeficient_snizeni_ceny),
         unit: "Kc/MWh",
       },
-      {
-        label: "Import entity_id",
-        value: config.influxdb?.entity_id || "-",
-      },
-      {
-        label: "Export entity_id",
-        value: config.influxdb?.export_entity_id || "-",
-      },
-      {
-        label: "Baterie (SoC entity_id)",
-        value: config.battery?.soc_entity_id || "-",
-      },
+      { label: "Import entity_id", value: config.influxdb?.entity_id || "-" },
+      { label: "Export entity_id", value: config.influxdb?.export_entity_id || "-" },
+      { label: "Baterie (SoC entity_id)", value: config.battery?.soc_entity_id || "-" },
       {
         label: "Baterie kapacita (usable)",
         value: config.battery?.usable_capacity_kwh ?? "-",
@@ -497,6 +231,7 @@ function App() {
       },
     ];
   }, [config, priceProviderLabel]);
+
   const defaultFeesValues = useMemo(() => {
     if (!config) return null;
     return {
@@ -525,6 +260,7 @@ function App() {
       },
     };
   }, [config]);
+
   const cacheRows = useMemo(() => {
     if (!cacheStatus?.prices) return [];
     const status = cacheStatus.prices;
@@ -535,6 +271,7 @@ function App() {
       { label: "Cache cesta", value: status.dir, valueWrap: true },
     ];
   }, [cacheStatus]);
+
   const consumptionCacheRows = useMemo(() => {
     if (!cacheStatus?.consumption) return [];
     const status = cacheStatus.consumption;
@@ -546,136 +283,27 @@ function App() {
     ];
   }, [cacheStatus]);
 
-  const fetchFeesHistory = () => {
-    setFeesHistoryLoading(true);
-    setFeesHistoryError(null);
-    axios
-      .get(`${API_PREFIX}/fees-history`)
-      .then((res) => setFeesHistory(res.data.history || []))
-      .catch((err) => {
-        console.error("Error fetching fees history:", err);
-        setFeesHistoryError("Nepodarilo se nacist historii poplatku.");
-      })
-      .finally(() => setFeesHistoryLoading(false));
-  };
-
-  const saveFeesHistory = (historyPayload) => {
-    setFeesHistoryLoading(true);
-    setFeesHistoryError(null);
-    return axios
-      .put(`${API_PREFIX}/fees-history`, { history: historyPayload })
-      .then((res) => {
-        setFeesHistory(res.data.history || []);
-        return res.data.history || [];
-      })
-      .catch((err) => {
-        console.error("Error saving fees history:", err);
-        const detail = err?.response?.data?.detail;
-        setFeesHistoryError(detail ? String(detail) : "Nepodarilo se ulozit historii poplatku.");
-        throw err;
-      })
-      .finally(() => setFeesHistoryLoading(false));
-  };
-
-  const isTodayDateStr = (dateStr) => {
-    return dateStr === getTodayDateStr();
-  };
-
-  useEffect(() => {
-    if (!showConfig || !showFeesHistory) return;
-    fetchFeesHistory();
-  }, [showConfig, showFeesHistory]);
-
-  useEffect(() => {
-    if (!autoRefreshEnabled || !isPageVisible) return;
-    const refresh = () => {
-      fetchPrices();
-      fetchTodayKpiSummaries();
-      if (isTodayDateStr(selectedDate)) {
-        fetchCosts(selectedDate, { reset: false });
-        fetchExport(selectedDate, { reset: false });
-      }
-      fetchBattery({ silent: true });
-    };
-    refresh();
-    const intervalId = setInterval(refresh, 600000);
-    return () => clearInterval(intervalId);
-  }, [autoRefreshEnabled, isPageVisible, selectedDate, showBatteryPanel]);
-
-  useEffect(() => {
-    if (!autoRefreshEnabled || !isPageVisible) return;
-    const intervalId = setInterval(() => {
-      fetchBattery({ silent: true });
-    }, 60000);
-    return () => clearInterval(intervalId);
-  }, [showBatteryPanel, autoRefreshEnabled, isPageVisible]);
-
-  const normalizeDuration = (value) => {
-    if (value == null || value === "") return null;
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    if (parsed > 360) return "too-long";
-    return Math.round(parsed);
-  };
-
-  const loadPlanner = () => {
-    const rawValue = plannerDuration;
-    const durationValue = normalizeDuration(rawValue);
-    if (durationValue === "too-long") {
-      setPlannerError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
-      return;
-    }
-    if (!durationValue) {
-      setPlannerError("Zadej delku programu 1-360 minut.");
-      return;
-    }
-    localStorage.setItem("plannerDuration", String(durationValue));
-    setPlannerLoading(true);
-    setPlannerError(null);
-    setPlannerNote(null);
-    axios
-      .get(`${API_PREFIX}/schedule`, {
-        params: {
-          duration: durationValue,
-          count: 3,
-        },
-      })
-      .then((res) => {
-        setPlannerResults(res.data.recommendations || []);
-        setPlannerNote(res.data.note || null);
-      })
-      .catch((err) => {
-        console.error("Error fetching planner:", err);
-        if (err?.response?.status === 422) {
-          setPlannerError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
-          return;
-        }
-        setPlannerError("Planovac neni k dispozici.");
-      })
-      .finally(() => setPlannerLoading(false));
-  };
-
   const todayData = useMemo(() => {
-    if (!data.length) return [];
-    return data.slice(0, 96).map((p, i) => ({
+    if (!prices.length) return [];
+    return prices.slice(0, 96).map((p, i) => ({
       slot: i,
       time: formatSlotToTime(i),
       spot: p.spot,
       extra: p.final - p.spot,
       final: p.final,
     }));
-  }, [data]);
+  }, [prices]);
 
   const tomorrowData = useMemo(() => {
-    if (!data.length) return [];
-    return data.slice(96, 192).map((p, i) => ({
+    if (!prices.length) return [];
+    return prices.slice(96, 192).map((p, i) => ({
       slot: i,
       time: formatSlotToTime(i),
       spot: p.spot,
       extra: p.final - p.spot,
       final: p.final,
     }));
-  }, [data]);
+  }, [prices]);
 
   const kpiItems = useMemo(() => {
     const currentPriceItem =
@@ -765,8 +393,8 @@ function App() {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-
   const showDetailAnnotations = pageMode === "detail";
+  const finalPlannerError = plannerValidationError || plannerError;
 
   return (
     <div className={`app ${pageMode === "detail" ? "app--detail" : ""}`.trim()}>
@@ -949,7 +577,7 @@ function App() {
               batteryData={batteryData}
               batteryLoading={batteryLoading}
               batteryError={batteryError}
-              onRefresh={() => fetchBattery()}
+              onRefresh={refreshBattery}
             />
           )}
 
@@ -961,8 +589,8 @@ function App() {
             <PlannerCard
               plannerDuration={plannerDuration}
               setPlannerDuration={setPlannerDuration}
-              loadPlanner={loadPlanner}
-              plannerError={plannerError}
+              loadPlanner={handleLoadPlanner}
+              plannerError={finalPlannerError}
               plannerLoading={plannerLoading}
               plannerNote={plannerNote}
               plannerResults={plannerResults}
@@ -1066,7 +694,7 @@ function App() {
               batteryData={batteryData}
               batteryLoading={batteryLoading}
               batteryError={batteryError}
-              onRefresh={() => fetchBattery()}
+              onRefresh={refreshBattery}
             />
           </section>
         </>
