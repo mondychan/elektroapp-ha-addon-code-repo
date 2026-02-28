@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.64
+- Dokumentace add-onu aktualizovana podle aktualnich funkci (vice zdroju cen, baterie, bilance, heatmapa).
+- Nastaveny single source of truth pro metadata repo dokumentaci.
+- Release workflow nove synchronizuje i root `README.md` do metadata repa.
+
 ## 0.1.63
 - Backend: odstraneni deprecation warningu `datetime.utcnow()` (prechod na timezone-aware UTC timestamp v cache metadata).
 - Interni cleanup: sjednocene generovani UTC `fetched_at` hodnot do helperu.
