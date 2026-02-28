@@ -154,7 +154,7 @@ if (-not $NoTag) {
     if ($LASTEXITCODE -ne 0) {
         throw "Unable to check existing tags."
     }
-    if ($existingTag.Trim() -eq $tagName) {
+    if (($existingTag -as [string]).Trim() -eq $tagName) {
         throw "Tag already exists: $tagName"
     }
     Invoke-Git -Repo $repoRoot -Args @("tag", $tagName)

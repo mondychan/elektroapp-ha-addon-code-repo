@@ -105,9 +105,9 @@ class InfluxService:
             if used_entity_id:
                 break
         if used_entity_id and used_entity_id != entity_id:
-            self.logger.info("Entity fallback matched for series: %s -> %s", entity_id, used_entity_id)
+            self.logger.debug("Entity fallback matched for series: %s -> %s", entity_id, used_entity_id)
         if used_measurement and used_measurement != influx.get("measurement"):
-            self.logger.info("Measurement fallback matched for series: %s -> %s", entity_id, used_measurement)
+            self.logger.debug("Measurement fallback matched for series: %s -> %s", entity_id, used_measurement)
         tz = tzinfo or timezone.utc
         points = []
         for ts, raw_value in values:
@@ -166,9 +166,9 @@ class InfluxService:
         if not values:
             return None
         if used_entity_id and used_entity_id != entity_id:
-            self.logger.info("Entity fallback matched for last value: %s -> %s", entity_id, used_entity_id)
+            self.logger.debug("Entity fallback matched for last value: %s -> %s", entity_id, used_entity_id)
         if used_measurement and used_measurement != influx.get("measurement"):
-            self.logger.info("Measurement fallback matched for last value: %s -> %s", entity_id, used_measurement)
+            self.logger.debug("Measurement fallback matched for last value: %s -> %s", entity_id, used_measurement)
         ts, raw_value = values[0]
         value = raw_value
         if numeric and raw_value is not None:
