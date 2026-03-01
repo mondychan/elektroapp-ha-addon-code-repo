@@ -34,3 +34,21 @@ def is_date_cache_complete(date_str, meta, tzinfo):
     day_end_local = datetime.combine(date_obj + timedelta(days=1), datetime_time(0, 0), tzinfo)
     day_end_utc = day_end_local.astimezone(timezone.utc)
     return fetched_at_utc >= day_end_utc
+
+
+def is_future_date(date_str, tzinfo):
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return date_obj > datetime.now(tzinfo).date()
+
+
+def should_use_daily_cache(date_str, cache_path, cache_meta, tzinfo, ttl_seconds):
+    if not date_str:
+        return False
+    if is_future_date(date_str, tzinfo):
+        return False
+    if is_today_date(date_str, tzinfo):
+        return is_cache_fresh(cache_path, ttl_seconds)
+    return is_date_cache_complete(date_str, cache_meta, tzinfo)

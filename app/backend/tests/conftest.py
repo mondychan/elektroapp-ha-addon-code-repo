@@ -31,6 +31,10 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     monkeypatch.setattr(backend_main, "FEES_HISTORY_FILE", storage_dir / "fees-history.json")
     monkeypatch.setattr(backend_main, "PRICES_CACHE", {})
     monkeypatch.setattr(backend_main, "PRICES_CACHE_PROVIDER", {})
+    backend_main.RUNTIME_STATE.prefetch_thread = None
+    backend_main.RUNTIME_STATE.prefetch_lock_owned = False
+    backend_main.RUNTIME_STATE.prefetch_lock_path = None
+    backend_main.RUNTIME_STATE.ote_unavailable_until_ts = 0.0
 
     return {
         "storage_dir": storage_dir,

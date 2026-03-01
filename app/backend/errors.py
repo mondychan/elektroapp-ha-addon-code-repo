@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 
 class ApiError(Exception):
@@ -48,6 +49,25 @@ def _status_code_to_error_code(status_code: int) -> str:
 
 
 def register_error_handling(app: FastAPI, logger):
+    def _normalize_error_detail(detail: Any):
+        if isinstance(detail, list):
+            normalized = []
+            for item in detail:
+                if not isinstance(item, dict):
+                    normalized.append(item)
+                    continue
+                ctx = item.get("ctx")
+                if not isinstance(ctx, dict):
+                    normalized.append(item)
+                    continue
+                safe_ctx = {
+                    key: (str(value) if isinstance(value, BaseException) else value)
+                    for key, value in ctx.items()
+                }
+                normalized.append({**item, "ctx": safe_ctx})
+            return normalized
+        return detail
+
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or uuid4().hex[:12]
@@ -74,7 +94,21 @@ def register_error_handling(app: FastAPI, logger):
                 "VALIDATION_ERROR",
                 "Request validation failed.",
                 request_id,
-                detail=exc.errors(),
+                detail=_normalize_error_detail(exc.errors()),
+            ),
+            headers={"X-Request-ID": request_id} if request_id else None,
+        )
+
+    @app.exception_handler(ValidationError)
+    async def pydantic_validation_error_handler(request: Request, exc: ValidationError):
+        request_id = getattr(request.state, "request_id", None)
+        return JSONResponse(
+            status_code=422,
+            content=_error_body(
+                "VALIDATION_ERROR",
+                "Request validation failed.",
+                request_id,
+                detail=_normalize_error_detail(exc.errors()),
             ),
             headers={"X-Request-ID": request_id} if request_id else None,
         )

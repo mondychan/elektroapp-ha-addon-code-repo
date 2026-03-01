@@ -132,7 +132,7 @@ Skript:
 - vytvori commit `Release 0.1.61`
 - vytvori tag `v0.1.61`
 - pushne commit i tag na `origin`
-- toleruje necommitnuty `notes/X.Y.Z.md` soubor (do commitu ho nepridava)
+- po uspesnem release automaticky smaze `notes/X.Y.Z.md` (pokud je v `notes/`; zachovani lze vynutit pres `-KeepNotesFile`)
 
 ### 3) CI po tagu udela publish
 Workflow `release.yml` po pushi tagu:

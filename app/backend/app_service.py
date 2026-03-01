@@ -2,9 +2,17 @@ from fastapi import Body, HTTPException, Query
 from api import get_local_tz, parse_time_range, to_rfc3339
 from battery import average_recent_power, build_slot_avg_profile, get_slot_index_for_dt
 from billing import compute_fixed_breakdown_for_day
-from cache import is_cache_fresh, is_date_cache_complete, is_today_date
+from cache import is_cache_fresh, is_date_cache_complete, is_today_date, should_use_daily_cache
 from influx import parse_influx_interval_to_minutes
+from services.battery_service import BatteryService
+from services.billing_service import BillingService
+from services.costs_service import CostsService
+from services.export_service import ExportService
 from services.influx_service import InfluxService
+from services.insights_service import InsightsService
+from services.prices_service import PricesService
+from services.runtime_state import RuntimeState
+from services.schedule_service import ScheduleService
 from pricing import (
     DEFAULT_PRICE_PROVIDER,
     PRICE_PROVIDER_OTE,
@@ -27,7 +35,6 @@ import threading
 import atexit
 import time as time_module
 import re
-import calendar
 import xml.etree.ElementTree as ET
 from datetime import date as datetime_date, datetime, timedelta, timezone, time as datetime_time
 from zoneinfo import ZoneInfo
@@ -51,21 +58,19 @@ CACHE_DIR = (STORAGE_DIR / "prices-cache") if STORAGE_DIR else (Path(__file__).p
 CONSUMPTION_CACHE_DIR = (
     STORAGE_DIR / "consumption-cache" if STORAGE_DIR else (Path(__file__).parent / "consumption-cache")
 )
-CONSUMPTION_CACHE_TTL_SECONDS = 600
+SERIES_CACHE_TTL_SECONDS = 600
+CONSUMPTION_CACHE_TTL_SECONDS = SERIES_CACHE_TTL_SECONDS
 EXPORT_CACHE_DIR = (
     STORAGE_DIR / "export-cache" if STORAGE_DIR else (Path(__file__).parent / "export-cache")
 )
-EXPORT_CACHE_TTL_SECONDS = 600
+EXPORT_CACHE_TTL_SECONDS = SERIES_CACHE_TTL_SECONDS
 SERIES_CACHE_KEY_VERSION = 2
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 FEES_HISTORY_FILE = STORAGE_DIR / "fees-history.json"
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
 logger = logging.getLogger("uvicorn.error")
 INFLUX_SERVICE = InfluxService(logger=logger)
-_PREFETCH_THREAD = None
-_PREFETCH_THREAD_GUARD = threading.Lock()
-_PREFETCH_LOCK_OWNED = False
-_PREFETCH_LOCK_PATH = None
+RUNTIME_STATE = RuntimeState()
 PREFETCH_LOCK_STALE_SECONDS = 48 * 3600
 
 OTE_PUBLIC_URL = "https://www.ote-cr.cz/services/PublicDataService"
@@ -76,21 +81,18 @@ OTE_PUBLIC_NS = "{http://www.ote-cr.cz/schema/service/public}"
 SOAP_FAULT_NS = "{http://schemas.xmlsoap.org/soap/envelope/}"
 PRAGUE_TZ = ZoneInfo("Europe/Prague")
 OTE_FAILURE_RETRY_SECONDS = 600
-OTE_UNAVAILABLE_UNTIL_TS = 0.0
 
 # --- Konfigurace ---
 
 def mark_ote_unavailable(reason):
-    global OTE_UNAVAILABLE_UNTIL_TS
-    OTE_UNAVAILABLE_UNTIL_TS = max(OTE_UNAVAILABLE_UNTIL_TS, time_module.time() + OTE_FAILURE_RETRY_SECONDS)
+    RUNTIME_STATE.mark_ote_unavailable(OTE_FAILURE_RETRY_SECONDS)
     logger.warning("OTE marked unavailable for %ss: %s", OTE_FAILURE_RETRY_SECONDS, reason)
 
 def get_ote_backoff_remaining_seconds():
-    remaining = int(OTE_UNAVAILABLE_UNTIL_TS - time_module.time())
-    return max(0, remaining)
+    return RUNTIME_STATE.get_ote_backoff_remaining_seconds()
 
 def is_ote_unavailable():
-    return get_ote_backoff_remaining_seconds() > 0
+    return RUNTIME_STATE.is_ote_unavailable()
 
 def utc_now_iso_z():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -227,6 +229,12 @@ def load_config():
         if isinstance(poplatky, dict) and "oze" not in poplatky and "poze" in poplatky:
             poplatky["oze"] = poplatky.get("poze")
     return cfg
+
+
+def resolve_config_and_timezone(cfg=None, tzinfo=None):
+    cfg = cfg if isinstance(cfg, dict) else load_config()
+    tzinfo = tzinfo or get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    return cfg, tzinfo
 
 def get_influx_cfg(cfg):
     influx = cfg.get("influxdb", {})
@@ -1475,183 +1483,6 @@ def build_price_map_for_date(
         price_map_utc[key_utc] = {"spot": entry["spot"], "final": entry["final"]}
     return price_map, price_map_utc
 
-def calculate_daily_totals(cfg, date_str):
-    consumption = get_consumption_points(cfg, date=date_str)
-    tzinfo = consumption["tzinfo"]
-    has_series = consumption.get("has_series", False)
-    if not has_series:
-        return {"kwh_total": None, "cost_total": None, "has_series": has_series}
-    price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
-
-    total_kwh = 0.0
-    total_cost = 0.0
-    count = 0
-    for entry in consumption["points"]:
-        kwh = entry["kwh"]
-        time_local = datetime.fromisoformat(entry["time"])
-        key = time_local.strftime("%Y-%m-%d %H:%M")
-        price = price_map.get(key)
-        if price is None:
-            time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
-            key_utc = time_utc.strftime("%Y-%m-%d %H:%M")
-            price = price_map_utc.get(key_utc)
-        final_price = price["final"] if price else None
-        if kwh is not None and final_price is not None:
-            total_kwh += kwh
-            total_cost += kwh * final_price
-            count += 1
-
-    if count == 0:
-        return {"kwh_total": None, "cost_total": None, "has_series": has_series}
-    return {"kwh_total": round(total_kwh, 5), "cost_total": round(total_cost, 5), "has_series": has_series}
-
-def calculate_daily_export_totals(cfg, date_str):
-    export_entity_id = get_export_entity_id(cfg)
-    if not export_entity_id:
-        return {"export_kwh_total": None, "sell_total": None, "has_series": False}
-    export = get_export_points(cfg, date=date_str)
-    tzinfo = export["tzinfo"]
-    has_series = export.get("has_series", False)
-    if not has_series:
-        return {"export_kwh_total": None, "sell_total": None, "has_series": has_series}
-    price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
-    fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
-    coef_kwh = get_sell_coefficient_kwh(cfg, fee_snapshot)
-
-    total_kwh = 0.0
-    total_sell = 0.0
-    count = 0
-    for entry in export["points"]:
-        kwh = entry["kwh"]
-        time_local = datetime.fromisoformat(entry["time"])
-        key = time_local.strftime("%Y-%m-%d %H:%M")
-        price = price_map.get(key)
-        if price is None:
-            time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
-            key_utc = time_utc.strftime("%Y-%m-%d %H:%M")
-            price = price_map_utc.get(key_utc)
-        spot_price = price["spot"] if price else None
-        sell_price = spot_price - coef_kwh if spot_price is not None else None
-        if kwh is not None and sell_price is not None:
-            total_kwh += kwh
-            total_sell += kwh * sell_price
-            count += 1
-
-    if count == 0:
-        return {"export_kwh_total": None, "sell_total": None, "has_series": has_series}
-    return {
-        "export_kwh_total": round(total_kwh, 5),
-        "sell_total": round(total_sell, 5),
-        "has_series": has_series,
-    }
-
-def compute_monthly_billing(cfg, month_str, tzinfo, require_data=None):
-    if not re.match(r"^\d{4}-\d{2}$", month_str):
-        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
-    year, month_num = map(int, month_str.split("-"))
-    days_in_month = calendar.monthrange(year, month_num)[1]
-    start_date = datetime(year, month_num, 1).date()
-    today = datetime.now(tzinfo).date()
-    if require_data is None:
-        require_data = start_date.year == today.year and start_date.month == today.month
-
-    actual_variable = 0.0
-    actual_kwh = 0.0
-    actual_export_kwh = 0.0
-    actual_sell_total = 0.0
-    days_with_data = 0
-    export_days_with_data = 0
-    fixed_total = 0.0
-    fixed_breakdown = {"daily": {}, "monthly": {}}
-
-    for day_offset in range(days_in_month):
-        date_obj = start_date + timedelta(days=day_offset)
-        date_str = date_obj.strftime("%Y-%m-%d")
-
-        fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
-        daily_fixed, monthly_fixed = compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
-        for key, value in daily_fixed.items():
-            fixed_breakdown["daily"][key] = fixed_breakdown["daily"].get(key, 0.0) + value
-        for key, value in monthly_fixed.items():
-            fixed_breakdown["monthly"][key] = fixed_breakdown["monthly"].get(key, 0.0) + value
-        fixed_total += sum(daily_fixed.values()) + sum(monthly_fixed.values())
-
-        if date_obj <= today:
-            totals = calculate_daily_totals(cfg, date_str)
-            if totals["kwh_total"] is not None:
-                actual_kwh += totals["kwh_total"]
-                actual_variable += totals["cost_total"]
-                days_with_data += 1
-            export_totals = calculate_daily_export_totals(cfg, date_str)
-            if export_totals["export_kwh_total"] is not None:
-                actual_export_kwh += export_totals["export_kwh_total"]
-            if export_totals["sell_total"] is not None:
-                actual_sell_total += export_totals["sell_total"]
-                export_days_with_data += 1
-
-    if days_with_data == 0 and start_date <= today and require_data:
-        raise HTTPException(
-            status_code=500,
-            detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
-        )
-
-    if days_with_data == 0:
-        actual = {
-            "kwh_total": None,
-            "variable_cost": None,
-            "fixed_cost": None,
-            "total_cost": None,
-            "export_kwh_total": None,
-            "sell_total": None,
-            "net_total": None,
-        }
-        projected = {
-            "variable_cost": None,
-            "fixed_cost": None,
-            "total_cost": None,
-            "sell_total": None,
-            "net_total": None,
-        }
-    else:
-        projected_variable = (actual_variable / days_with_data) * days_in_month
-        projected_sell_total = None
-        if export_days_with_data > 0:
-            projected_sell_total = (actual_sell_total / export_days_with_data) * days_in_month
-        actual_sell_value = round(actual_sell_total, 5) if export_days_with_data > 0 else None
-        actual_export_value = round(actual_export_kwh, 5) if export_days_with_data > 0 else None
-        projected_sell_value = round(projected_sell_total, 5) if projected_sell_total is not None else None
-        actual_total_cost = actual_variable + fixed_total
-        projected_total_cost = projected_variable + fixed_total
-        actual_net_total = actual_total_cost - (actual_sell_value or 0.0)
-        projected_net_total = projected_total_cost - (projected_sell_value or 0.0)
-        actual = {
-            "kwh_total": round(actual_kwh, 5),
-            "variable_cost": round(actual_variable, 5),
-            "fixed_cost": round(fixed_total, 5),
-            "total_cost": round(actual_total_cost, 5),
-            "export_kwh_total": actual_export_value,
-            "sell_total": actual_sell_value,
-            "net_total": round(actual_net_total, 5),
-        }
-        projected = {
-            "variable_cost": round(projected_variable, 5),
-            "fixed_cost": round(fixed_total, 5),
-            "total_cost": round(projected_total_cost, 5),
-            "sell_total": projected_sell_value,
-            "net_total": round(projected_net_total, 5),
-        }
-    fixed_breakdown["daily"] = {k: round(v, 5) for k, v in fixed_breakdown["daily"].items()}
-    fixed_breakdown["monthly"] = {k: round(v, 5) for k, v in fixed_breakdown["monthly"].items()}
-
-    return {
-        "month": month_str,
-        "days_in_month": days_in_month,
-        "days_with_data": days_with_data,
-        "actual": actual,
-        "projected": projected,
-        "fixed_breakdown": fixed_breakdown,
-    }
-
 def get_consumption_points(cfg, date=None, start=None, end=None):
     influx = get_influx_cfg(cfg)
     tzinfo = get_local_tz(influx.get("timezone"))
@@ -1662,13 +1493,7 @@ def get_consumption_points(cfg, date=None, start=None, end=None):
     if date and not start and not end:
         cache_key = build_consumption_cache_key(influx)
         cached, cache_path, cache_meta = load_consumption_cache(date, cache_key)
-        use_cached = False
-        if cached:
-            if is_today_date(date, tzinfo):
-                use_cached = is_cache_fresh(cache_path, CONSUMPTION_CACHE_TTL_SECONDS)
-            else:
-                use_cached = is_date_cache_complete(date, cache_meta, tzinfo)
-        if use_cached:
+        if cached and should_use_daily_cache(date, cache_path, cache_meta, tzinfo, CONSUMPTION_CACHE_TTL_SECONDS):
             cached["tzinfo"] = tzinfo
             cached["from_cache"] = True
             cached["cache_fallback"] = False
@@ -1770,13 +1595,7 @@ def get_export_points(cfg, date=None, start=None, end=None):
     if date and not start and not end:
         cache_key = build_export_cache_key(influx, export_entity_id)
         cached, cache_path, cache_meta = load_export_cache(date, cache_key)
-        use_cached = False
-        if cached:
-            if is_today_date(date, tzinfo):
-                use_cached = is_cache_fresh(cache_path, EXPORT_CACHE_TTL_SECONDS)
-            else:
-                use_cached = is_date_cache_complete(date, cache_meta, tzinfo)
-        if use_cached:
+        if cached and should_use_daily_cache(date, cache_path, cache_meta, tzinfo, EXPORT_CACHE_TTL_SECONDS):
             cached["tzinfo"] = tzinfo
             cached["from_cache"] = True
             cached["cache_fallback"] = False
@@ -1862,6 +1681,69 @@ def get_export_points(cfg, date=None, start=None, end=None):
         save_export_cache(date, cache_key, cache_payload)
     return result
 
+
+PRICES_SERVICE = PricesService(
+    get_prices_for_date=get_prices_for_date,
+    get_price_provider=get_price_provider,
+    clear_prices_cache_for_date=clear_prices_cache_for_date,
+)
+COSTS_SERVICE = CostsService(
+    get_consumption_points=get_consumption_points,
+    build_price_map_for_date=build_price_map_for_date,
+)
+EXPORT_SERVICE = ExportService(
+    get_export_points=get_export_points,
+    build_price_map_for_date=build_price_map_for_date,
+    get_fee_snapshot_for_date=get_fee_snapshot_for_date,
+    get_sell_coefficient_kwh=get_sell_coefficient_kwh,
+)
+BILLING_SERVICE = BillingService(
+    get_consumption_points=get_consumption_points,
+    get_export_points=get_export_points,
+    build_price_map_for_date=build_price_map_for_date,
+    get_export_entity_id=get_export_entity_id,
+    get_fee_snapshot_for_date=get_fee_snapshot_for_date,
+    get_sell_coefficient_kwh=get_sell_coefficient_kwh,
+    compute_fixed_breakdown_for_day=compute_fixed_breakdown_for_day,
+)
+BATTERY_SERVICE = BatteryService(
+    get_influx_cfg=get_influx_cfg,
+    get_local_tz=get_local_tz,
+    get_battery_cfg=get_battery_cfg,
+    get_energy_entities_cfg=get_energy_entities_cfg,
+    get_forecast_solar_cfg=get_forecast_solar_cfg,
+    parse_time_range=parse_time_range,
+    has_battery_required_cfg=has_battery_required_cfg,
+    query_entity_series=query_entity_series,
+    build_battery_history_points=build_battery_history_points,
+    get_last_non_null_value=get_last_non_null_value,
+    average_recent_power=average_recent_power,
+    safe_query_entity_last_value=safe_query_entity_last_value,
+    parse_influx_interval_to_minutes=parse_influx_interval_to_minutes,
+    query_recent_slot_profile_by_day_type=query_recent_slot_profile_by_day_type,
+    build_hybrid_battery_projection=build_hybrid_battery_projection,
+    build_battery_projection=build_battery_projection,
+    iso_to_display_hhmm=iso_to_display_hhmm,
+    logger=logger,
+)
+INSIGHTS_SERVICE = InsightsService(
+    get_influx_cfg=get_influx_cfg,
+    get_energy_entities_cfg=get_energy_entities_cfg,
+    build_energy_balance_range=build_energy_balance_range,
+    parse_influx_interval_to_minutes=parse_influx_interval_to_minutes,
+    query_entity_series=query_entity_series,
+    aggregate_power_points=aggregate_power_points,
+    build_energy_balance_buckets=build_energy_balance_buckets,
+    get_prices_for_date=get_prices_for_date,
+    aggregate_hourly_from_price_entries=aggregate_hourly_from_price_entries,
+    get_consumption_points=get_consumption_points,
+    get_export_points=get_export_points,
+    aggregate_hourly_from_kwh_points=aggregate_hourly_from_kwh_points,
+    logger=logger,
+)
+SCHEDULE_SERVICE = ScheduleService(get_prices_for_date=get_prices_for_date)
+
+
 def get_config():
     return load_config()
 
@@ -1874,24 +1756,24 @@ def save_config(new_config: dict = Body(...)):
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         with open(OPTIONS_BACKUP_FILE, "w", encoding="utf-8") as f:
             json.dump(new_config, f)
-    return {"status": "ok", "message": "Konfigurace uloÄ‚â€žĂ„â€¦Ä‚â€žĂ„Äľena"}
+    return {"status": "ok", "message": "Konfigurace ulozena"}
 
-def get_fees_history():
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+
+def get_fees_history(cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
     history = ensure_fee_history(cfg, tzinfo)
     history.sort(key=lambda x: x.get("effective_from", ""))
     return {"history": history}
 
-def update_fees_history(payload: dict = Body(...)):
+
+def update_fees_history(payload: dict = Body(...), cfg=None, tzinfo=None):
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Invalid payload.")
     history = payload.get("history")
     if not isinstance(history, list):
         raise HTTPException(status_code=400, detail="Invalid history payload.")
 
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
     today = datetime.now(tzinfo).date()
 
     normalized_entries = []
@@ -1964,70 +1846,30 @@ def get_version():
     return {"version": APP_VERSION}
 
 
-# --- SpotovÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€šĂ‚Â© ceny ---
+# --- Spotove ceny ---
 def get_spot_prices():
-    # NovÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„ endpoint s Ă„â€šĂ˘â‚¬ĹľĂ„Ä…Ă‚Â¤tvrthodinovÄ‚â€žĂ˘â‚¬ĹˇÄ‚â€ąÄąÄ„mi daty
+    # Endpoint vraci ctvrt-hodinova data.
     url = "https://spotovaelektrina.cz/api/v1/price/get-prices-json-qh"
     logger.info("Fetching prices from API: %s", url)
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     return r.json()
 
-def get_prices(date: str = Query(default=None)):
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    if date:
-        return {"prices": get_prices_for_date(cfg, date, tzinfo)}
-    final_list = []
-    today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
-    final_list.extend(get_prices_for_date(cfg, today_str, tzinfo, include_neighbor_live=True))
-    tomorrow_str = (datetime.now(tzinfo) + timedelta(days=1)).strftime("%Y-%m-%d")
-    final_list.extend(get_prices_for_date(cfg, tomorrow_str, tzinfo))
-    return {"prices": final_list}
+def get_prices(date: str = Query(default=None), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return PRICES_SERVICE.get_prices(date=date, cfg=cfg, tzinfo=tzinfo)
 
-def refresh_prices(payload: dict = Body(default=None)):
-    payload = payload or {}
-    cfg = load_config()
-    provider = get_price_provider(cfg)
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-
-    dates_to_refresh = []
-    requested_date = payload.get("date")
-    if requested_date:
-        try:
-            datetime.strptime(str(requested_date), "%Y-%m-%d")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.") from exc
-        dates_to_refresh.append(str(requested_date))
-    else:
-        today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
-        tomorrow_str = (datetime.now(tzinfo) + timedelta(days=1)).strftime("%Y-%m-%d")
-        dates_to_refresh.extend([today_str, tomorrow_str])
-
-    refreshed = []
-    for date_str in dates_to_refresh:
-        clear_prices_cache_for_date(date_str, remove_files=False)
-        entries = get_prices_for_date(cfg, date_str, tzinfo, force_refresh=True)
-        refreshed.append(
-            {
-                "date": date_str,
-                "count": len(entries),
-                "has_data": bool(entries),
-            }
-        )
-
-    return {
-        "status": "ok",
-        "provider": provider,
-        "refreshed": refreshed,
-    }
+def refresh_prices(payload: dict = Body(default=None), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return PRICES_SERVICE.refresh_prices(payload=payload, cfg=cfg, tzinfo=tzinfo)
 
 def get_consumption(
     date: str = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
+    cfg=None,
 ):
-    cfg = load_config()
+    cfg, _ = resolve_config_and_timezone(cfg=cfg)
     result = get_consumption_points(cfg, date, start, end)
     return {
         "range": result["range"],
@@ -2042,791 +1884,77 @@ def get_costs(
     date: str = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
+    cfg=None,
+    tzinfo=None,
 ):
-    cfg = load_config()
-    consumption = get_consumption_points(cfg, date, start, end)
-    tzinfo = consumption["tzinfo"]
-    if not consumption.get("has_series", False):
-        if date:
-            try:
-                date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-                if date_obj <= datetime.now(tzinfo).date():
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
-                    )
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
-        else:
-            range_end = datetime.fromisoformat(consumption["range"]["end"].replace("Z", "+00:00"))
-            if range_end <= datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=500,
-                    detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
-                )
-    if date:
-        price_map, price_map_utc = build_price_map_for_date(cfg, date, tzinfo)
-    else:
-        start_dt = datetime.fromisoformat(consumption["range"]["start"].replace("Z", "+00:00"))
-        date_str = start_dt.astimezone(tzinfo).strftime("%Y-%m-%d")
-        price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
-
-    points = []
-    total_kwh = 0.0
-    total_cost = 0.0
-    for entry in consumption["points"]:
-        kwh = entry["kwh"]
-        time_local = datetime.fromisoformat(entry["time"])
-        key = time_local.strftime("%Y-%m-%d %H:%M")
-        price = price_map.get(key)
-        if price is None:
-            time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
-            key_utc = time_utc.strftime("%Y-%m-%d %H:%M")
-            price = price_map_utc.get(key_utc)
-        final_price = price["final"] if price else None
-        cost = None
-        if kwh is not None and final_price is not None:
-            cost = round(kwh * final_price, 5)
-            total_kwh += kwh
-            total_cost += cost
-
-        points.append(
-            {
-                "time": entry["time"],
-                "time_utc": entry["time_utc"],
-                "kwh": kwh,
-                "final_price": final_price,
-                "cost": cost,
-            }
-        )
-
-    return {
-        "range": consumption["range"],
-        "interval": consumption["interval"],
-        "entity_id": consumption["entity_id"],
-        "summary": {
-            "kwh_total": round(total_kwh, 5),
-            "cost_total": round(total_cost, 5),
-        },
-        "points": points,
-        "from_cache": consumption.get("from_cache", False),
-        "cache_fallback": consumption.get("cache_fallback", False),
-    }
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return COSTS_SERVICE.get_costs(
+        date=date,
+        start=start,
+        end=end,
+        cfg=cfg,
+        tzinfo=tzinfo,
+    )
 
 def get_export(
     date: str = Query(default=None),
     start: str = Query(default=None),
     end: str = Query(default=None),
+    cfg=None,
+    tzinfo=None,
 ):
-    cfg = load_config()
-    export = get_export_points(cfg, date, start, end)
-    tzinfo = export["tzinfo"]
-    if not export.get("has_series", False):
-        if date:
-            try:
-                date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-                if date_obj <= datetime.now(tzinfo).date():
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj export entity_id.",
-                    )
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
-        else:
-            range_end = datetime.fromisoformat(export["range"]["end"].replace("Z", "+00:00"))
-            if range_end <= datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=500,
-                    detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj export entity_id.",
-                )
-    if date:
-        price_map, price_map_utc = build_price_map_for_date(cfg, date, tzinfo)
-    else:
-        start_dt = datetime.fromisoformat(export["range"]["start"].replace("Z", "+00:00"))
-        date_str = start_dt.astimezone(tzinfo).strftime("%Y-%m-%d")
-        price_map, price_map_utc = build_price_map_for_date(cfg, date_str, tzinfo)
-
-    coef_by_date = {}
-    points = []
-    total_kwh = 0.0
-    total_sell = 0.0
-    for entry in export["points"]:
-        kwh = entry["kwh"]
-        time_local = datetime.fromisoformat(entry["time"])
-        key = time_local.strftime("%Y-%m-%d %H:%M")
-        price = price_map.get(key)
-        if price is None:
-            time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
-            key_utc = time_utc.strftime("%Y-%m-%d %H:%M")
-            price = price_map_utc.get(key_utc)
-        spot_price = price["spot"] if price else None
-        date_key = time_local.strftime("%Y-%m-%d")
-        coef_kwh = coef_by_date.get(date_key)
-        if coef_kwh is None:
-            fee_snapshot = get_fee_snapshot_for_date(cfg, date_key, tzinfo)
-            coef_kwh = get_sell_coefficient_kwh(cfg, fee_snapshot)
-            coef_by_date[date_key] = coef_kwh
-        sell_price = spot_price - coef_kwh if spot_price is not None else None
-        sell = None
-        if kwh is not None and sell_price is not None:
-            sell = round(kwh * sell_price, 5)
-            total_kwh += kwh
-            total_sell += sell
-
-        points.append(
-            {
-                "time": entry["time"],
-                "time_utc": entry["time_utc"],
-                "kwh": kwh,
-                "spot_price": spot_price,
-                "sell_price": round(sell_price, 5) if sell_price is not None else None,
-                "sell": sell,
-            }
-        )
-
-    return {
-        "range": export["range"],
-        "interval": export["interval"],
-        "entity_id": export["entity_id"],
-        "summary": {
-            "export_kwh_total": round(total_kwh, 5),
-            "sell_total": round(total_sell, 5),
-        },
-        "points": points,
-        "from_cache": export.get("from_cache", False),
-        "cache_fallback": export.get("cache_fallback", False),
-    }
-
-def get_battery(date: str = Query(default=None)):
-    cfg = load_config()
-    influx = get_influx_cfg(cfg)
-    tzinfo = get_local_tz(influx.get("timezone"))
-    battery_cfg = get_battery_cfg(cfg)
-    energy_cfg = get_energy_entities_cfg(cfg)
-    forecast_cfg = get_forecast_solar_cfg(cfg)
-
-    selected_date = date or datetime.now(tzinfo).strftime("%Y-%m-%d")
-    start_utc, end_utc = parse_time_range(selected_date, None, None, tzinfo)
-    is_today = selected_date == datetime.now(tzinfo).strftime("%Y-%m-%d")
-
-    if not battery_cfg.get("enabled"):
-        return {
-            "enabled": False,
-            "configured": False,
-            "date": selected_date,
-            "detail": "Battery feature is disabled in config.",
-        }
-    if not has_battery_required_cfg(battery_cfg):
-        return {
-            "enabled": True,
-            "configured": False,
-            "date": selected_date,
-            "detail": "Missing battery config (soc_entity_id, power_entity_id, usable_capacity_kwh).",
-        }
-
-    history_interval = influx.get("interval", "15m")
-    kwh_measurements = ["kWh", "Wh"]
-    power_measurements = ["W", "kW"]
-    soc_measurements = ["%", "percent"]
-    state_measurements = ["state"]
-    soc_series = query_entity_series(
-        influx,
-        battery_cfg["soc_entity_id"],
-        start_utc,
-        end_utc,
-        interval=history_interval,
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return EXPORT_SERVICE.get_export(
+        date=date,
+        start=start,
+        end=end,
+        cfg=cfg,
         tzinfo=tzinfo,
-        numeric=True,
-        measurement_candidates=soc_measurements,
-    )
-    power_series = query_entity_series(
-        influx,
-        battery_cfg["power_entity_id"],
-        start_utc,
-        end_utc,
-        interval=history_interval,
-        tzinfo=tzinfo,
-        numeric=True,
-        measurement_candidates=power_measurements,
-    )
-    history_points = build_battery_history_points(soc_series, power_series)
-    last_soc_point = get_last_non_null_value(soc_series)
-    last_power_point = get_last_non_null_value(power_series)
-
-    now_local = datetime.now(tzinfo)
-    avg_power_w = None
-    if is_today:
-        smoothing_start_utc = (now_local - timedelta(minutes=battery_cfg["eta_smoothing_minutes"])).astimezone(timezone.utc)
-        smoothing_end_utc = now_local.astimezone(timezone.utc) + timedelta(minutes=1)
-        trend_series = query_entity_series(
-            influx,
-            battery_cfg["power_entity_id"],
-            smoothing_start_utc,
-            smoothing_end_utc,
-            interval="1m",
-            tzinfo=tzinfo,
-            numeric=True,
-            measurement_candidates=power_measurements,
-        )
-        avg_power_w = average_recent_power(trend_series)
-
-    latest_soc = safe_query_entity_last_value(
-        influx,
-        battery_cfg["soc_entity_id"],
-        tzinfo=tzinfo,
-        numeric=True,
-        label="soc",
-        measurement_candidates=soc_measurements,
-    )
-    latest_power = safe_query_entity_last_value(
-        influx,
-        battery_cfg["power_entity_id"],
-        tzinfo=tzinfo,
-        numeric=True,
-        label="battery_power",
-        measurement_candidates=power_measurements,
-    )
-    if (latest_soc is None or latest_soc.get("value") is None) and last_soc_point:
-        latest_soc = {"time": last_soc_point["time"], "time_utc": last_soc_point["time_utc"], "value": last_soc_point["value"]}
-    if (latest_power is None or latest_power.get("value") is None) and last_power_point:
-        latest_power = {"time": last_power_point["time"], "time_utc": last_power_point["time_utc"], "value": last_power_point["value"]}
-
-    soc_percent = latest_soc.get("value") if latest_soc else None
-    battery_power_w = latest_power.get("value") if latest_power else None
-    usable_capacity_kwh = max(0.0, battery_cfg["usable_capacity_kwh"])
-    reserve_soc_percent = max(0.0, min(100.0, battery_cfg["reserve_soc_percent"]))
-    clamped_soc = None if soc_percent is None else max(0.0, min(100.0, soc_percent))
-    stored_kwh = round(usable_capacity_kwh * clamped_soc / 100.0, 4) if clamped_soc is not None else None
-    available_to_reserve_kwh = (
-        round(usable_capacity_kwh * max(0.0, clamped_soc - reserve_soc_percent) / 100.0, 4)
-        if clamped_soc is not None
-        else None
-    )
-    remaining_to_full_kwh = (
-        round(usable_capacity_kwh * max(0.0, 100.0 - clamped_soc) / 100.0, 4) if clamped_soc is not None else None
     )
 
-    threshold = battery_cfg["min_power_threshold_w"]
-    if battery_power_w is None:
-        battery_state = "unknown"
-    elif battery_power_w > threshold:
-        battery_state = "charging"
-    elif battery_power_w < -threshold:
-        battery_state = "discharging"
-    else:
-        battery_state = "idle"
-
-    def _latest_numeric(entity_id, label, measurements=None):
-        record = safe_query_entity_last_value(
-            influx,
-            entity_id,
-            tzinfo=tzinfo,
-            numeric=True,
-            label=label,
-            measurement_candidates=measurements,
-        )
-        return None if not record else record.get("value")
-
-    def _latest_raw(entity_id, label, measurements=None):
-        record = safe_query_entity_last_value(
-            influx,
-            entity_id,
-            tzinfo=tzinfo,
-            numeric=False,
-            label=label,
-            measurement_candidates=measurements,
-        )
-        return None if not record else record.get("raw_value")
-
-    current_energy = {
-        "house_load_w": _latest_numeric(energy_cfg.get("house_load_power_entity_id"), "house_load", power_measurements),
-        "grid_import_w": _latest_numeric(energy_cfg.get("grid_import_power_entity_id"), "grid_import", power_measurements),
-        "grid_export_w": _latest_numeric(energy_cfg.get("grid_export_power_entity_id"), "grid_export", power_measurements),
-        "pv_power_total_w": _latest_numeric(energy_cfg.get("pv_power_total_entity_id"), "pv_total", power_measurements),
-        "pv_power_1_w": _latest_numeric(energy_cfg.get("pv_power_1_entity_id"), "pv_1", power_measurements),
-        "pv_power_2_w": _latest_numeric(energy_cfg.get("pv_power_2_entity_id"), "pv_2", power_measurements),
-        "battery_input_today_kwh": _latest_numeric(
-            battery_cfg.get("input_energy_today_entity_id"), "battery_input_today", kwh_measurements
-        ),
-        "battery_output_today_kwh": _latest_numeric(
-            battery_cfg.get("output_energy_today_entity_id"), "battery_output_today", kwh_measurements
-        ),
-    }
-
-    forecast_payload = {"enabled": bool(forecast_cfg.get("enabled")), "available": False}
-    if forecast_cfg.get("enabled"):
-        forecast_payload.update(
-            {
-                "power_now_w": _latest_numeric(
-                    forecast_cfg.get("power_now_entity_id"), "forecast_power_now", power_measurements
-                ),
-                "energy_current_hour_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_current_hour_entity_id"), "forecast_energy_current_hour", kwh_measurements
-                ),
-                "energy_next_hour_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_next_hour_entity_id"), "forecast_energy_next_hour", kwh_measurements
-                ),
-                "energy_production_today_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_today_entity_id"), "forecast_energy_today", kwh_measurements
-                ),
-                "energy_production_today_remaining_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_today_remaining_entity_id"),
-                    "forecast_energy_today_remaining",
-                    kwh_measurements,
-                ),
-                "energy_production_tomorrow_kwh": _latest_numeric(
-                    forecast_cfg.get("energy_production_tomorrow_entity_id"), "forecast_energy_tomorrow", kwh_measurements
-                ),
-                "peak_time_today": _latest_raw(
-                    forecast_cfg.get("power_highest_peak_time_today_entity_id"),
-                    "forecast_peak_time_today",
-                    state_measurements,
-                ),
-                "peak_time_tomorrow": _latest_raw(
-                    forecast_cfg.get("power_highest_peak_time_tomorrow_entity_id"),
-                    "forecast_peak_time_tomorrow",
-                    state_measurements,
-                ),
-            }
-        )
-        forecast_payload["peak_time_today_hhmm"] = iso_to_display_hhmm(forecast_payload.get("peak_time_today"))
-        forecast_payload["peak_time_tomorrow_hhmm"] = iso_to_display_hhmm(forecast_payload.get("peak_time_tomorrow"))
-        forecast_payload["available"] = any(
-            forecast_payload.get(key) is not None
-            for key in (
-                "power_now_w",
-                "energy_current_hour_kwh",
-                "energy_next_hour_kwh",
-                "energy_production_today_kwh",
-                "energy_production_today_remaining_kwh",
-                "energy_production_tomorrow_kwh",
-                "peak_time_today",
-                "peak_time_tomorrow",
-            )
-        )
-
-    projection = None
-    if is_today:
-        interval_minutes = parse_influx_interval_to_minutes(history_interval, default_minutes=15)
-        load_profile = {}
-        pv_profile = {}
-        if energy_cfg.get("house_load_power_entity_id"):
-            try:
-                load_profile = query_recent_slot_profile_by_day_type(
-                    influx,
-                    energy_cfg.get("house_load_power_entity_id"),
-                    tzinfo,
-                    target_date=now_local.date(),
-                    days=28,
-                    interval=history_interval,
-                    measurement_candidates=power_measurements,
-                )
-            except (HTTPException, RequestException, ValueError, TypeError) as exc:
-                logger.warning("Battery projection load profile query failed: %s", exc)
-        if energy_cfg.get("pv_power_total_entity_id"):
-            try:
-                pv_profile = query_recent_slot_profile_by_day_type(
-                    influx,
-                    energy_cfg.get("pv_power_total_entity_id"),
-                    tzinfo,
-                    target_date=now_local.date(),
-                    days=28,
-                    interval=history_interval,
-                    measurement_candidates=power_measurements,
-                )
-            except (HTTPException, RequestException, ValueError, TypeError) as exc:
-                logger.warning("Battery projection PV profile query failed: %s", exc)
-
-        projection = build_hybrid_battery_projection(
-            now_local=now_local,
-            soc_percent=clamped_soc,
-            avg_power_w=avg_power_w,
-            battery_cfg=battery_cfg,
-            tzinfo=tzinfo,
-            interval_minutes=interval_minutes,
-            current_energy=current_energy,
-            forecast_payload=forecast_payload,
-            load_profile=load_profile,
-            pv_profile=pv_profile,
-        )
-        if projection is None:
-            projection = build_battery_projection(now_local, clamped_soc, avg_power_w, battery_cfg, tzinfo)
-    else:
-        projection = {
-            "method": "none",
-            "confidence": "low",
-            "state": "historical",
-            "eta_to_full_minutes": None,
-            "eta_to_reserve_minutes": None,
-            "eta_to_full_at": None,
-            "eta_to_reserve_at": None,
-            "points": [],
-        }
-
-    return {
-        "enabled": True,
-        "configured": True,
-        "date": selected_date,
-        "is_today": is_today,
-        "timezone": str(tzinfo),
-        "history": {
-            "interval": history_interval,
-            "soc_entity_id": battery_cfg["soc_entity_id"],
-            "power_entity_id": battery_cfg["power_entity_id"],
-            "points": history_points,
-        },
-        "status": {
-            "soc_percent": clamped_soc,
-            "battery_power_w": battery_power_w,
-            "battery_state": battery_state,
-            "avg_battery_power_w": round(avg_power_w, 3) if avg_power_w is not None else None,
-            "eta_smoothing_minutes": battery_cfg["eta_smoothing_minutes"],
-            "min_power_threshold_w": battery_cfg["min_power_threshold_w"],
-            "usable_capacity_kwh": usable_capacity_kwh,
-            "reserve_soc_percent": reserve_soc_percent,
-            "stored_kwh": stored_kwh,
-            "available_to_reserve_kwh": available_to_reserve_kwh,
-            "remaining_to_full_kwh": remaining_to_full_kwh,
-            "last_soc_time": latest_soc.get("time") if latest_soc else None,
-            "last_power_time": latest_power.get("time") if latest_power else None,
-        },
-        "projection": projection,
-        "current_energy": current_energy,
-        "forecast_solar": forecast_payload,
-    }
+def get_battery(date: str = Query(default=None), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return BATTERY_SERVICE.get_battery(date=date, cfg=cfg, tzinfo=tzinfo)
 
 def get_energy_balance(
     period: str = Query(default="week"),
     anchor: str = Query(default=None),
+    cfg=None,
+    tzinfo=None,
 ):
-    cfg = load_config()
-    influx = get_influx_cfg(cfg)
-    tzinfo = get_local_tz(influx.get("timezone"))
-    energy_cfg = get_energy_entities_cfg(cfg)
-    range_info = build_energy_balance_range(period, anchor, tzinfo)
-    interval = influx.get("interval", "15m")
-    interval_minutes = parse_influx_interval_to_minutes(interval, default_minutes=15)
-    power_measurements = ["W", "kW"]
-
-    entity_map = {
-        "pv_kwh": energy_cfg.get("pv_power_total_entity_id"),
-        "house_load_kwh": energy_cfg.get("house_load_power_entity_id"),
-        "grid_import_kwh": energy_cfg.get("grid_import_power_entity_id"),
-        "grid_export_kwh": energy_cfg.get("grid_export_power_entity_id"),
-    }
-
-    aggregated = {}
-    for key, entity_id in entity_map.items():
-        if not entity_id:
-            aggregated[key] = {}
-            continue
-        points = query_entity_series(
-            influx,
-            entity_id,
-            range_info["start_utc"],
-            range_info["end_utc"],
-            interval=interval,
-            tzinfo=tzinfo,
-            numeric=True,
-            measurement_candidates=power_measurements,
-        )
-        aggregated[key] = aggregate_power_points(points, interval_minutes, bucket=range_info["bucket"], tzinfo=tzinfo)
-
-    buckets = build_energy_balance_buckets(range_info, tzinfo)
-    rows = []
-    totals = {
-        "pv_kwh": 0.0,
-        "house_load_kwh": 0.0,
-        "grid_import_kwh": 0.0,
-        "grid_export_kwh": 0.0,
-    }
-    for bucket in buckets:
-        row = {
-            "key": bucket["key"],
-            "label": bucket["label"],
-            "start": bucket["start"],
-        }
-        for metric_key in totals.keys():
-            value = aggregated.get(metric_key, {}).get(bucket["key"])
-            row[metric_key] = value if value is not None else 0.0
-            totals[metric_key] += row[metric_key]
-        rows.append(row)
-
-    return {
-        "period": range_info["period"],
-        "anchor": range_info["anchor"],
-        "bucket": range_info["bucket"],
-        "range": {
-            "start": range_info["start_local"].isoformat(),
-            "end": range_info["end_local"].isoformat(),
-        },
-        "interval": interval,
-        "entities": entity_map,
-        "points": rows,
-        "totals": {k: round(v, 5) for k, v in totals.items()},
-    }
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return INSIGHTS_SERVICE.get_energy_balance(period=period, anchor=anchor, cfg=cfg, tzinfo=tzinfo)
 
 def get_history_heatmap(
     month: str = Query(...),
     metric: str = Query(default="buy"),
+    cfg=None,
+    tzinfo=None,
 ):
-    if not re.match(r"^\d{4}-\d{2}$", month):
-        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
-    metric_norm = (metric or "buy").strip().lower()
-    if metric_norm not in {"price", "buy", "export"}:
-        raise HTTPException(status_code=400, detail="Invalid metric. Use price|buy|export.")
-
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    year, month_num = map(int, month.split("-"))
-    days_in_month = calendar.monthrange(year, month_num)[1]
-    today_local = datetime.now(tzinfo).date()
-    month_rows = []
-    min_value = None
-    max_value = None
-
-    for day in range(1, days_in_month + 1):
-        date_obj = datetime(year, month_num, day).date()
-        date_str = date_obj.strftime("%Y-%m-%d")
-        if date_obj > today_local:
-            values = [None] * 24
-        else:
-            try:
-                if metric_norm == "price":
-                    entries = get_prices_for_date(cfg, date_str, tzinfo)
-                    values = aggregate_hourly_from_price_entries(entries)
-                elif metric_norm == "buy":
-                    consumption = get_consumption_points(cfg, date=date_str)
-                    values = aggregate_hourly_from_kwh_points(consumption.get("points", []))
-                else:
-                    export = get_export_points(cfg, date=date_str)
-                    values = aggregate_hourly_from_kwh_points(export.get("points", []))
-            except (HTTPException, RequestException, ValueError, TypeError) as exc:
-                logger.warning("Heatmap load failed (%s %s): %s", metric_norm, date_str, exc)
-                values = [None] * 24
-
-        for val in values:
-            if val is None:
-                continue
-            min_value = val if min_value is None else min(min_value, val)
-            max_value = val if max_value is None else max(max_value, val)
-
-        month_rows.append(
-            {
-                "date": date_str,
-                "day": day,
-                "weekday": date_obj.weekday(),
-                "values": values,
-            }
-        )
-
-    return {
-        "month": month,
-        "metric": metric_norm,
-        "hours": list(range(24)),
-        "days": month_rows,
-        "stats": {
-            "min": round(min_value, 5) if min_value is not None else None,
-            "max": round(max_value, 5) if max_value is not None else None,
-        },
-    }
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return INSIGHTS_SERVICE.get_history_heatmap(month=month, metric=metric, cfg=cfg, tzinfo=tzinfo)
 
 
 def get_schedule(
     duration: int = Query(default=120, ge=1, le=360),
     count: int = Query(default=3, ge=1, le=3),
+    cfg=None,
+    tzinfo=None,
 ):
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    now = datetime.now(tzinfo)
-    today = now.date()
-    tomorrow = today + timedelta(days=1)
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return SCHEDULE_SERVICE.get_schedule(duration=duration, count=count, cfg=cfg, tzinfo=tzinfo)
 
-    duration = max(1, min(360, duration))
+def get_daily_summary(month: str = Query(...), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return BILLING_SERVICE.get_daily_summary(month=month, cfg=cfg, tzinfo=tzinfo)
 
-    def next_slot(dt):
-        minute = (dt.minute // 15 + (1 if dt.minute % 15 else 0)) * 15
-        if minute == 60:
-            return dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        return dt.replace(minute=minute, second=0, microsecond=0)
+def get_billing_month(month: str = Query(...), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return BILLING_SERVICE.get_billing_month(month=month, cfg=cfg, tzinfo=tzinfo)
 
-    min_start = next_slot(now)
-    slots = int((duration + 14) // 15)
-    candidates = []
-
-    for date_obj in (today, tomorrow):
-        date_str = date_obj.strftime("%Y-%m-%d")
-        entries = get_prices_for_date(cfg, date_str, tzinfo)
-        if not entries:
-            continue
-        entries_sorted = sorted(entries, key=lambda x: x["time"])
-        if len(entries_sorted) < slots:
-            continue
-        for i in range(0, len(entries_sorted) - slots + 1):
-            window = entries_sorted[i:i + slots]
-            window_start = datetime.strptime(window[0]["time"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)
-            if date_obj == today and window_start < min_start:
-                continue
-            avg_price = sum(p["final"] for p in window) / slots
-            energy_kwh = duration / 60.0
-            total_cost = avg_price * energy_kwh
-            end_dt = window_start + timedelta(minutes=duration)
-            candidates.append({
-                "start": window[0]["time"],
-                "end": end_dt.strftime("%Y-%m-%d %H:%M"),
-                "avg_price": round(avg_price, 5),
-                "energy_kwh": round(energy_kwh, 3),
-                "total_cost": round(total_cost, 5),
-            })
-
-    if not candidates:
-        return {"duration": duration, "recommendations": [], "note": "Data nejsou k dispozici."}
-
-    candidates.sort(key=lambda x: (x["avg_price"], x["start"]))
-    results = []
-    for item in candidates:
-        start_dt = datetime.strptime(item["start"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)
-        if all(abs((start_dt - datetime.strptime(r["start"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)).total_seconds()) >= duration * 60 for r in results):
-            results.append(item)
-        if len(results) >= count:
-            break
-
-    return {
-        "duration": duration,
-        "recommendations": results,
-        "note": None,
-    }
-
-def get_daily_summary(month: str = Query(...)):
-    if not re.match(r"^\d{4}-\d{2}$", month):
-        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    year, month_num = map(int, month.split("-"))
-    start = datetime(year, month_num, 1)
-    if month_num == 12:
-        next_month = datetime(year + 1, 1, 1)
-    else:
-        next_month = datetime(year, month_num + 1, 1)
-    today = datetime.now(tzinfo).date()
-
-    days = []
-    current = start
-    total_kwh = 0.0
-    total_cost = 0.0
-    total_export_kwh = 0.0
-    total_sell = 0.0
-    any_series = False
-    any_export_series = False
-    while current < next_month and current.date() <= today:
-        date_str = current.strftime("%Y-%m-%d")
-        totals = calculate_daily_totals(cfg, date_str)
-        export_totals = calculate_daily_export_totals(cfg, date_str)
-        if totals.get("has_series"):
-            any_series = True
-        if export_totals.get("has_series"):
-            any_export_series = True
-        days.append(
-            {
-                "date": date_str,
-                "kwh_total": totals["kwh_total"],
-                "cost_total": totals["cost_total"],
-                "export_kwh_total": export_totals["export_kwh_total"],
-                "sell_total": export_totals["sell_total"],
-            }
-        )
-        if totals["kwh_total"] is not None:
-            total_kwh += totals["kwh_total"]
-        if totals["cost_total"] is not None:
-            total_cost += totals["cost_total"]
-        if export_totals["export_kwh_total"] is not None:
-            total_export_kwh += export_totals["export_kwh_total"]
-        if export_totals["sell_total"] is not None:
-            total_sell += export_totals["sell_total"]
-        current += timedelta(days=1)
-
-    if not any_series and start.date() <= today:
-        raise HTTPException(
-            status_code=500,
-            detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
-        )
-
-    return {
-        "month": month,
-        "days": days,
-        "summary": {
-            "kwh_total": round(total_kwh, 5),
-            "cost_total": round(total_cost, 5),
-            "export_kwh_total": round(total_export_kwh, 5) if any_export_series else None,
-            "sell_total": round(total_sell, 5) if any_export_series else None,
-        },
-    }
-
-def get_billing_month(month: str = Query(...)):
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    return compute_monthly_billing(cfg, month, tzinfo)
-
-def get_billing_year(year: int = Query(..., ge=2000, le=2100)):
-    cfg = load_config()
-    tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
-    now = datetime.now(tzinfo)
-    current_year = now.year
-    current_month = now.month
-    if year > current_year:
-        return {"year": year, "months": [], "totals": {"actual": {}, "projected": {}}}
-
-    end_month = 12 if year < current_year else current_month
-    months = []
-    totals_actual_var = 0.0
-    totals_actual_fixed = 0.0
-    totals_actual_total = 0.0
-    totals_actual_net = 0.0
-    totals_projected_var = 0.0
-    totals_projected_fixed = 0.0
-    totals_projected_total = 0.0
-    totals_projected_net = 0.0
-
-    for month_num in range(1, end_month + 1):
-        month_str = f"{year}-{month_num:02d}"
-        data = compute_monthly_billing(cfg, month_str, tzinfo, require_data=False)
-        months.append(
-            {
-                "month": data["month"],
-                "days_in_month": data["days_in_month"],
-                "days_with_data": data["days_with_data"],
-                "actual": data["actual"],
-                "projected": data["projected"],
-            }
-        )
-        if data["days_with_data"] > 0:
-            totals_actual_var += data["actual"]["variable_cost"]
-            totals_actual_fixed += data["actual"]["fixed_cost"]
-            totals_actual_total += data["actual"]["total_cost"]
-            if data["actual"].get("net_total") is not None:
-                totals_actual_net += data["actual"]["net_total"]
-            totals_projected_var += data["projected"]["variable_cost"]
-            totals_projected_fixed += data["projected"]["fixed_cost"]
-            totals_projected_total += data["projected"]["total_cost"]
-            if data["projected"].get("net_total") is not None:
-                totals_projected_net += data["projected"]["net_total"]
-
-    totals = {
-        "actual": {
-            "variable_cost": round(totals_actual_var, 5),
-            "fixed_cost": round(totals_actual_fixed, 5),
-            "total_cost": round(totals_actual_total, 5),
-            "net_total": round(totals_actual_net, 5),
-        },
-        "projected": {
-            "variable_cost": round(totals_projected_var, 5),
-            "fixed_cost": round(totals_projected_fixed, 5),
-            "total_cost": round(totals_projected_total, 5),
-            "net_total": round(totals_projected_net, 5),
-        },
-    }
-
-    return {"year": year, "months": months, "totals": totals}
+def get_billing_year(year: int = Query(..., ge=2000, le=2100), cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
+    return BILLING_SERVICE.get_billing_year(year=year, cfg=cfg, tzinfo=tzinfo)
 
 
 def get_prefetch_lock_path():
@@ -2848,7 +1976,6 @@ def _clear_stale_prefetch_lock(lock_path):
 
 
 def acquire_prefetch_process_lock():
-    global _PREFETCH_LOCK_OWNED, _PREFETCH_LOCK_PATH
     lock_path = get_prefetch_lock_path()
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2877,40 +2004,38 @@ def acquire_prefetch_process_lock():
             )
         )
 
-    _PREFETCH_LOCK_OWNED = True
-    _PREFETCH_LOCK_PATH = lock_path
+    RUNTIME_STATE.prefetch_lock_owned = True
+    RUNTIME_STATE.prefetch_lock_path = lock_path
     return True
 
 
 def release_prefetch_process_lock():
-    global _PREFETCH_LOCK_OWNED, _PREFETCH_LOCK_PATH
-    if not _PREFETCH_LOCK_OWNED or not _PREFETCH_LOCK_PATH:
+    if not RUNTIME_STATE.prefetch_lock_owned or not RUNTIME_STATE.prefetch_lock_path:
         return
     try:
-        _PREFETCH_LOCK_PATH.unlink(missing_ok=True)
+        RUNTIME_STATE.prefetch_lock_path.unlink(missing_ok=True)
     except OSError as exc:
-        logger.warning("Unable to remove prefetch scheduler lock %s: %s", _PREFETCH_LOCK_PATH, exc)
+        logger.warning("Unable to remove prefetch scheduler lock %s: %s", RUNTIME_STATE.prefetch_lock_path, exc)
     finally:
-        _PREFETCH_LOCK_OWNED = False
-        _PREFETCH_LOCK_PATH = None
+        RUNTIME_STATE.prefetch_lock_owned = False
+        RUNTIME_STATE.prefetch_lock_path = None
 
 
 def start_prefetch_scheduler():
-    global _PREFETCH_THREAD
-    with _PREFETCH_THREAD_GUARD:
-        if _PREFETCH_THREAD and _PREFETCH_THREAD.is_alive():
+    with RUNTIME_STATE.prefetch_thread_guard:
+        if RUNTIME_STATE.prefetch_thread and RUNTIME_STATE.prefetch_thread.is_alive():
             logger.info("Prefetch scheduler already running in current process.")
             return False
 
         if not acquire_prefetch_process_lock():
             return False
 
-        _PREFETCH_THREAD = threading.Thread(
+        RUNTIME_STATE.prefetch_thread = threading.Thread(
             target=schedule_prefetch_loop,
             daemon=True,
             name="prefetch-scheduler",
         )
-        _PREFETCH_THREAD.start()
+        RUNTIME_STATE.prefetch_thread.start()
         logger.info("Prefetch scheduler started in process %s", os.getpid())
         return True
 
@@ -2920,7 +2045,7 @@ def schedule_prefetch_loop():
         try:
             cfg = load_config()
             provider = get_price_provider(cfg)
-            tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+            _, tzinfo = resolve_config_and_timezone(cfg=cfg)
             now = datetime.now(tzinfo)
             tomorrow = now.date() + timedelta(days=1)
             tomorrow_str = tomorrow.strftime("%Y-%m-%d")

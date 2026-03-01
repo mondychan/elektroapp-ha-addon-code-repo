@@ -245,18 +245,12 @@ def parse_price_html(html_text):
         price_text = row[1]
         # Historical HTML may contain locale formatting and unicode minus.
         normalized_price = str(price_text).replace("\xa0", " ")
-        m = re.search(r"([\-â’â€“â€”ďąŁďĽŤ]?\s*\d[\d\s]*(?:[.,]\d+)?)", normalized_price)
+        for minus_variant in ("\u2212", "\u2013", "\u2014", "\ufe63", "\uff0d"):
+            normalized_price = normalized_price.replace(minus_variant, "-")
+        m = re.search(r"(-?\s*\d[\d\s]*(?:[.,]\d+)?)", normalized_price)
         if not m:
             continue
-        raw_number = (
-            m.group(1)
-            .replace(" ", "")
-            .replace("â’", "-")
-            .replace("â€“", "-")
-            .replace("â€”", "-")
-            .replace("ďąŁ", "-")
-            .replace("ďĽŤ", "-")
-        )
+        raw_number = m.group(1).replace(" ", "")
         if not raw_number:
             continue
         # Support both 1 234,56 and 1,234.56 formats.

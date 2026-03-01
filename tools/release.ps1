@@ -8,7 +8,8 @@ param(
     [string]$Remote = "origin",
 
     [switch]$NoTag,
-    [switch]$NoPush
+    [switch]$NoPush,
+    [switch]$KeepNotesFile
 )
 
 Set-StrictMode -Version Latest
@@ -57,6 +58,8 @@ $addonConfigPath = Join-Path $repoRoot $addonConfigRel
 $changelogPath = Join-Path $repoRoot $changelogRel
 $notesText = ""
 $allowedDirtyPaths = @{}
+$resolvedNotesPath = $null
+$notesRelative = $null
 
 if (-not (Test-Path $addonConfigPath)) {
     throw "Missing file: $addonConfigPath"
@@ -167,6 +170,16 @@ if (-not $NoPush) {
     }
 }
 
+if ($NotesFile -and -not $KeepNotesFile -and $resolvedNotesPath -and (Test-Path $resolvedNotesPath)) {
+    $shouldDeleteNotes = $false
+    if ($notesRelative -and $notesRelative -match '^notes/.+\.md$') {
+        $shouldDeleteNotes = $true
+    }
+    if ($shouldDeleteNotes) {
+        Remove-Item -Path $resolvedNotesPath -Force
+    }
+}
+
 Write-Host "Release prepared successfully."
 Write-Host "Version: $Version"
 if ($NoTag) {
@@ -180,4 +193,15 @@ if ($NoPush) {
 }
 else {
     Write-Host "Push: done"
+}
+if ($NotesFile) {
+    if ($KeepNotesFile) {
+        Write-Host "Notes file: kept (--KeepNotesFile)"
+    }
+    elseif ($notesRelative -and -not (Test-Path $resolvedNotesPath)) {
+        Write-Host "Notes file: deleted ($notesRelative)"
+    }
+    else {
+        Write-Host "Notes file: kept (outside notes/ or not deletable)"
+    }
 }

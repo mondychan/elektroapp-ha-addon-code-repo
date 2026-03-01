@@ -21,7 +21,7 @@ def test_start_prefetch_scheduler_starts_only_once_per_process(monkeypatch, back
 
     monkeypatch.setattr(backend_main.threading, "Thread", FakeThread)
     monkeypatch.setattr(backend_main, "acquire_prefetch_process_lock", lambda: True)
-    monkeypatch.setattr(backend_main, "_PREFETCH_THREAD", None)
+    backend_main.RUNTIME_STATE.prefetch_thread = None
 
     started_first = backend_main.start_prefetch_scheduler()
     started_second = backend_main.start_prefetch_scheduler()
@@ -35,16 +35,16 @@ def test_acquire_prefetch_process_lock_is_exclusive(backend_main, isolated_stora
     lock_path = backend_main.get_prefetch_lock_path()
     lock_path.unlink(missing_ok=True)
 
-    backend_main._PREFETCH_LOCK_OWNED = False
-    backend_main._PREFETCH_LOCK_PATH = None
+    backend_main.RUNTIME_STATE.prefetch_lock_owned = False
+    backend_main.RUNTIME_STATE.prefetch_lock_path = None
 
     first = backend_main.acquire_prefetch_process_lock()
     assert first is True
     assert lock_path.exists() is True
 
     # Simulate a second process trying to acquire the same file lock.
-    backend_main._PREFETCH_LOCK_OWNED = False
-    backend_main._PREFETCH_LOCK_PATH = None
+    backend_main.RUNTIME_STATE.prefetch_lock_owned = False
+    backend_main.RUNTIME_STATE.prefetch_lock_path = None
     second = backend_main.acquire_prefetch_process_lock()
     assert second is False
 
@@ -58,8 +58,8 @@ def test_acquire_prefetch_process_lock_removes_stale_lock(backend_main, isolated
     stale_mtime = time.time() - (backend_main.PREFETCH_LOCK_STALE_SECONDS + 10)
     os.utime(lock_path, (stale_mtime, stale_mtime))
 
-    backend_main._PREFETCH_LOCK_OWNED = False
-    backend_main._PREFETCH_LOCK_PATH = None
+    backend_main.RUNTIME_STATE.prefetch_lock_owned = False
+    backend_main.RUNTIME_STATE.prefetch_lock_path = None
 
     acquired = backend_main.acquire_prefetch_process_lock()
     assert acquired is True
