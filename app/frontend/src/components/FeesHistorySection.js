@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import InfoTable from "./InfoTable";
+import DateNavigator from "./DateNavigator";
 
 const formatDateLocal = (dateObj) => {
   const y = dateObj.getFullYear();
@@ -531,11 +532,12 @@ const FeesHistorySection = ({
                 <div>
                   Platne od:{" "}
                   {isEditing ? (
-                    <input
-                      type="date"
+                    <DateNavigator
                       value={entry.effective_from}
-                      max={dateMax}
-                      onChange={(e) => updateDraft(entry.id, () => ({ effective_from: e.target.value }))}
+                      onChange={(nextValue) => updateDraft(entry.id, () => ({ effective_from: nextValue }))}
+                      compact
+                      maxDate={dateMax}
+                      className="fees-history-date-nav"
                     />
                   ) : (
                     entry.effective_from
@@ -544,11 +546,12 @@ const FeesHistorySection = ({
                 <div>
                   Platne do:{" "}
                   {isEditing && canManage ? (
-                    <input
-                      type="date"
+                    <DateNavigator
                       value={effectiveToValue}
-                      max={dateMax}
-                      onChange={(e) => updateDraft(entry.id, () => ({ effective_to: e.target.value }))}
+                      onChange={(nextValue) => updateDraft(entry.id, () => ({ effective_to: nextValue }))}
+                      compact
+                      maxDate={dateMax}
+                      className="fees-history-date-nav"
                     />
                   ) : (
                     validTo

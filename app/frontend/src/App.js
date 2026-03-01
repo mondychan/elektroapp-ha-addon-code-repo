@@ -9,6 +9,7 @@ import ConfigCard from "./components/ConfigCard";
 import BatteryProjectionCard from "./components/BatteryProjectionCard";
 import EnergyBalanceCard from "./components/EnergyBalanceCard";
 import HistoryHeatmapCard from "./components/HistoryHeatmapCard";
+import DateNavigator from "./components/DateNavigator";
 import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { usePageVisibility } from "./hooks/usePageVisibility";
@@ -533,13 +534,8 @@ function App() {
             <div className="gesture-hint">Swipe v grafech meni den, stazeni shora obnovi ceny, dlouhy stisk sloupce pripne hodinu.</div>
             <PriceChartCard
               className="card-spaced"
-              chartData={selectedDatePriceData}
-              title={`Cena elektriny - ${formatDate(selectedDateObj)}`}
-              fallbackMessage={
-                selectedDatePricesLoading
-                  ? "Nacitam ceny pro vybrany den..."
-                  : selectedDatePricesError || "Data cen pro vybrany den nejsou k dispozici."
-              }
+              chartData={todayData}
+              title={`Dnes (${formatDate(today)})`}
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
               pinnedSlot={pinnedSlot}
@@ -681,10 +677,16 @@ function App() {
               Detail zobrazuje stejna denni data jako prehled, ale s anotacemi prechodu nakup/export a navazujicimi
               panely energeticke bilance + heatmapy.
             </div>
+            <DateNavigator value={selectedDate} onChange={setSelectedDate} />
             <PriceChartCard
               className="card-spaced"
-              chartData={todayData}
-              title={`Dnes (${formatDate(today)})`}
+              chartData={selectedDatePriceData}
+              title={`Cena elektriny - ${formatDate(selectedDateObj)}`}
+              fallbackMessage={
+                selectedDatePricesLoading
+                  ? "Nacitam ceny pro vybrany den..."
+                  : selectedDatePricesError || "Data cen pro vybrany den nejsou k dispozici."
+              }
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
               pinnedSlot={pinnedSlot}

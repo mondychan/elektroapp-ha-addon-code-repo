@@ -11,7 +11,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { formatDate, toDateInputValue } from "../utils/formatters";
+import DateNavigator from "./DateNavigator";
+import { formatDate } from "../utils/formatters";
 
 const CostChartCard = ({
   selectedDate,
@@ -58,36 +59,7 @@ const CostChartCard = ({
       <div className="card-header">
         <h3>Naklady a nakup - {formatDate(selectedDateObj)}</h3>
       </div>
-      <div className="toolbar">
-        <button
-          onClick={() => {
-            const prev = new Date(`${selectedDate}T00:00:00`);
-            prev.setDate(prev.getDate() - 1);
-            setSelectedDate(toDateInputValue(prev));
-          }}
-        >
-          Prev
-        </button>
-        <div className="toolbar-label">{formatDate(selectedDateObj)}</div>
-        <button
-          onClick={() => {
-            const next = new Date(`${selectedDate}T00:00:00`);
-            next.setDate(next.getDate() + 1);
-            setSelectedDate(toDateInputValue(next));
-          }}
-        >
-          Next
-        </button>
-        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-        <button
-          onClick={() => {
-            const today = new Date();
-            setSelectedDate(toDateInputValue(today));
-          }}
-        >
-          Dnes
-        </button>
-      </div>
+      <DateNavigator value={selectedDate} onChange={setSelectedDate} />
       {showAnnotations && (
         <div className="muted-note">Detail: vertikalni cary oznacuji start/stop nakupu v jednotlivych usecich dne.</div>
       )}

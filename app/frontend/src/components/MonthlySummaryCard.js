@@ -1,4 +1,5 @@
 import React from "react";
+import MonthNavigator from "./MonthNavigator";
 import { formatDate, formatMonthLabel } from "../utils/formatters";
 
 const MonthlySummaryCard = ({
@@ -62,19 +63,7 @@ const MonthlySummaryCard = ({
       <div className="card-header">
         <h3>Souhrn za mesic - {formatMonthLabel(selectedMonth)}</h3>
       </div>
-      <div className="toolbar">
-        <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
-        <button
-          onClick={() => {
-            const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, "0");
-            setSelectedMonth(`${y}-${m}`);
-          }}
-        >
-          Tento mesic
-        </button>
-      </div>
+      <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} />
       {content}
     </div>
   );

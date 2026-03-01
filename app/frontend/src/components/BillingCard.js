@@ -1,4 +1,6 @@
 import React from "react";
+import MonthNavigator from "./MonthNavigator";
+import YearNavigator from "./YearNavigator";
 import { formatCurrency, formatMonthLabel } from "../utils/formatters";
 
 const BillingCard = ({
@@ -137,30 +139,9 @@ const BillingCard = ({
           <option value="year">Rok</option>
         </select>
         {billingMode === "month" ? (
-          <>
-            <input type="month" value={billingMonth} onChange={(e) => setBillingMonth(e.target.value)} />
-            <button
-              onClick={() => {
-                const today = new Date();
-                const y = today.getFullYear();
-                const m = String(today.getMonth() + 1).padStart(2, "0");
-                setBillingMonth(`${y}-${m}`);
-              }}
-            >
-              Tento mesic
-            </button>
-          </>
+          <MonthNavigator value={billingMonth} onChange={setBillingMonth} />
         ) : (
-          <>
-            <input
-              type="number"
-              min="2000"
-              max="2100"
-              value={billingYear}
-              onChange={(e) => setBillingYear(e.target.value)}
-            />
-            <button onClick={() => setBillingYear(String(new Date().getFullYear()))}>Tento rok</button>
-          </>
+          <YearNavigator value={billingYear} onChange={setBillingYear} />
         )}
       </div>
       {billingError && <div className="alert error">{billingError}</div>}

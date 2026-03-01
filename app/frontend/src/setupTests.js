@@ -24,3 +24,11 @@ if (!global.ResizeObserver) {
     disconnect() {}
   };
 }
+
+jest.mock("react-day-picker", () => ({
+  DayPicker: () => null,
+}));
+
+jest.mock("react-day-picker/locale", () => ({
+  cs: {},
+}));

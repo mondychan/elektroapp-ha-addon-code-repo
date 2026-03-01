@@ -1,17 +1,5 @@
 import React from "react";
-
-const toMonthInput = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-};
-
-const shiftMonth = (month, delta) => {
-  const [y, m] = String(month).split("-").map(Number);
-  if (!y || !m) return month;
-  const dt = new Date(y, m - 1 + delta, 1);
-  return toMonthInput(dt);
-};
+import MonthNavigator from "./MonthNavigator";
 
 const interpolateColor = (ratio, metric) => {
   const r = Math.max(0, Math.min(1, ratio));
@@ -54,9 +42,7 @@ const HistoryHeatmapCard = ({
         <h3>Heatmapa historie</h3>
       </div>
       <div className="toolbar">
-        <button onClick={() => setMonth((prev) => shiftMonth(prev, -1))}>Prev</button>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-        <button onClick={() => setMonth((prev) => shiftMonth(prev, 1))}>Next</button>
+        <MonthNavigator value={month} onChange={setMonth} />
         <select value={metric} onChange={(e) => setMetric(e.target.value)}>
           <option value="buy">Nakup</option>
           <option value="export">Export</option>

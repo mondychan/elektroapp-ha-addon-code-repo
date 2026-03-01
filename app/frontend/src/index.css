@@ -368,6 +368,148 @@ code {
   color: var(--text-muted);
 }
 
+.date-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+
+.date-nav-compact {
+  margin: 0;
+}
+
+.date-nav-btn {
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.date-nav-btn-today {
+  border-color: rgba(77, 121, 255, 0.45);
+}
+
+.date-nav-trigger {
+  min-width: 190px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.date-nav-trigger-compact {
+  min-width: 150px;
+  border-radius: 10px;
+  padding: 5px 9px;
+}
+
+.date-nav-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.date-nav-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.date-nav-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+}
+
+.date-nav-popover .rdp {
+  --rdp-accent-color: var(--accent);
+  --rdp-accent-background-color: rgba(77, 121, 255, 0.18);
+  margin: 0;
+}
+
+.date-nav-popover .rdp-caption_label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.date-nav-popover .rdp-day_button {
+  border-radius: 10px;
+}
+
+.date-nav-shortcuts {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.date-nav-shortcuts button {
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.date-nav-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.date-nav-popover-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.date-nav-mini-btn {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.date-nav-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.date-nav-grid-months {
+  grid-template-columns: repeat(3, minmax(64px, 1fr));
+}
+
+.date-nav-grid-years {
+  grid-template-columns: repeat(3, minmax(64px, 1fr));
+}
+
+.date-nav-grid-btn {
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.date-nav-grid-btn.is-active {
+  border-color: var(--accent);
+  background: rgba(77, 121, 255, 0.15);
+}
+
+.fees-history-date-nav {
+  display: inline-flex;
+  margin-left: 6px;
+}
+
 .summary {
   margin-bottom: 8px;
   color: var(--text-muted);
