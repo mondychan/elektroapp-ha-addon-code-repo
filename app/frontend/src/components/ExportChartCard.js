@@ -88,6 +88,9 @@ const ExportChartCard = ({
           Dnes
         </button>
       </div>
+      {showAnnotations && (
+        <div className="muted-note">Detail: vertikalni cary oznacuji start/stop exportu v jednotlivych usecich dne.</div>
+      )}
       {exportError ? (
         <div className="alert error">{exportError}</div>
       ) : !exportChartData.length ? (

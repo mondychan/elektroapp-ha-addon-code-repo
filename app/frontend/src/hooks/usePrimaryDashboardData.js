@@ -4,6 +4,9 @@ import { getTodayDateStr } from "./dashboardUtils";
 
 export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshEnabled, isPageVisible }) => {
   const [prices, setPrices] = useState([]);
+  const [selectedDatePrices, setSelectedDatePrices] = useState([]);
+  const [selectedDatePricesLoading, setSelectedDatePricesLoading] = useState(false);
+  const [selectedDatePricesError, setSelectedDatePricesError] = useState(null);
   const [config, setConfig] = useState(null);
   const [cacheStatus, setCacheStatus] = useState(null);
   const [version, setVersion] = useState(null);
@@ -41,6 +44,27 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       console.error("Error fetching prices:", err);
     }
   }, []);
+
+  const fetchSelectedDatePrices = useCallback(
+    async (dateValue, options = {}) => {
+      const { reset = true } = options;
+      if (reset) {
+        setSelectedDatePrices([]);
+        setSelectedDatePricesError(null);
+      }
+      setSelectedDatePricesLoading(true);
+      try {
+        const data = await elektroappApi.getPrices(dateValue);
+        setSelectedDatePrices(data?.prices || []);
+      } catch (err) {
+        console.error("Error fetching selected-date prices:", err);
+        setSelectedDatePricesError(formatApiError(err, "Nepodarilo se nacist ceny pro vybrany den."));
+      } finally {
+        setSelectedDatePricesLoading(false);
+      }
+    },
+    []
+  );
 
   const fetchCosts = useCallback(async (dateValue, options = {}) => {
     const { reset = true } = options;
@@ -134,6 +158,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       const summary = refreshed.map((item) => `${item.date}: ${item.count} zaznamu`).join(" | ");
       setPricesRefreshMessage(summary || "Ceny byly obnoveny.");
       await fetchPrices();
+      await fetchSelectedDatePrices(selectedDate, { reset: false });
       await fetchTodayKpiSummaries();
       if (selectedDate === todayDate) {
         await fetchCosts(selectedDate, { reset: false });
@@ -153,7 +178,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     } finally {
       setPricesRefreshLoading(false);
     }
-  }, [fetchCosts, fetchExport, fetchPrices, fetchTodayKpiSummaries, selectedDate, showConfig, todayDate]);
+  }, [fetchCosts, fetchExport, fetchPrices, fetchSelectedDatePrices, fetchTodayKpiSummaries, selectedDate, showConfig, todayDate]);
 
   useEffect(() => {
     fetchPrices();
@@ -192,9 +217,14 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   }, [fetchExport, selectedDate]);
 
   useEffect(() => {
+    fetchSelectedDatePrices(selectedDate, { reset: true });
+  }, [fetchSelectedDatePrices, selectedDate]);
+
+  useEffect(() => {
     if (!autoRefreshEnabled || !isPageVisible) return;
     const refresh = () => {
       fetchPrices();
+      fetchSelectedDatePrices(selectedDate, { reset: false });
       fetchTodayKpiSummaries();
       if (selectedDate === getTodayDateStr()) {
         fetchCosts(selectedDate, { reset: false });
@@ -205,7 +235,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     refresh();
     const intervalId = setInterval(refresh, 600000);
     return () => clearInterval(intervalId);
-  }, [autoRefreshEnabled, isPageVisible, selectedDate, fetchCosts, fetchExport, fetchPrices, fetchTodayKpiSummaries, refreshBattery]);
+  }, [autoRefreshEnabled, isPageVisible, selectedDate, fetchCosts, fetchExport, fetchPrices, fetchSelectedDatePrices, fetchTodayKpiSummaries, refreshBattery]);
 
   useEffect(() => {
     if (!autoRefreshEnabled || !isPageVisible) return;
@@ -217,6 +247,9 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
 
   return {
     prices,
+    selectedDatePrices,
+    selectedDatePricesLoading,
+    selectedDatePricesError,
     config,
     cacheStatus,
     version,

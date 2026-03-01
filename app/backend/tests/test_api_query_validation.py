@@ -54,3 +54,30 @@ def test_energy_balance_rejects_invalid_period():
     assert resp.status_code == 422
     payload = resp.json()["error"]
     assert payload["code"] == "VALIDATION_ERROR"
+
+
+def test_energy_balance_accepts_month_anchor(monkeypatch):
+    monkeypatch.setattr("app_service.get_energy_balance", lambda **kwargs: {"ok": True})
+    client = TestClient(build_test_app())
+    resp = client.get("/api/energy-balance", params={"period": "month", "anchor": "2026-03"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_energy_balance_accepts_year_anchor(monkeypatch):
+    monkeypatch.setattr("app_service.get_energy_balance", lambda **kwargs: {"ok": True})
+    client = TestClient(build_test_app())
+    resp = client.get("/api/energy-balance", params={"period": "year", "anchor": "2026"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_energy_balance_rejects_invalid_month_anchor():
+    client = TestClient(build_test_app())
+    resp = client.get("/api/energy-balance", params={"period": "month", "anchor": "2026-13"})
+
+    assert resp.status_code == 422
+    payload = resp.json()["error"]
+    assert payload["code"] == "VALIDATION_ERROR"

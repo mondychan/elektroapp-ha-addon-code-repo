@@ -66,7 +66,6 @@ function App() {
   const [theme, setTheme] = useLocalStorageState("theme", "light");
   const [plannerDuration, setPlannerDuration] = useLocalStorageState("plannerDuration", "120");
 
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => localStorage.getItem("autoRefreshEnabled") !== "false");
   const [plannerValidationError, setPlannerValidationError] = useState(null);
   const [pinnedSlot, setPinnedSlot] = useState(null);
 
@@ -114,12 +113,11 @@ function App() {
     document.body.dataset.theme = theme;
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem("autoRefreshEnabled", autoRefreshEnabled ? "true" : "false");
-  }, [autoRefreshEnabled]);
-
   const {
     prices,
+    selectedDatePrices,
+    selectedDatePricesLoading,
+    selectedDatePricesError,
     config,
     cacheStatus,
     version,
@@ -178,7 +176,7 @@ function App() {
     energyBalanceAnchor,
     heatmapMonth,
     heatmapMetric,
-    autoRefreshEnabled,
+    autoRefreshEnabled: true,
     isPageVisible,
   });
 
@@ -342,6 +340,17 @@ function App() {
     }));
   }, [prices]);
 
+  const selectedDatePriceData = useMemo(() => {
+    if (!selectedDatePrices.length) return [];
+    return selectedDatePrices.map((p, i) => ({
+      slot: i,
+      time: formatSlotToTime(i),
+      spot: p.spot,
+      extra: p.final - p.spot,
+      final: p.final,
+    }));
+  }, [selectedDatePrices]);
+
   const kpiItems = useMemo(() => {
     const currentPriceItem =
       Number.isInteger(currentSlot) && currentSlot >= 0 && currentSlot < todayData.length ? todayData[currentSlot] : null;
@@ -430,6 +439,7 @@ function App() {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
+  const selectedDateObj = new Date(`${selectedDate}T00:00:00`);
   const showDetailAnnotations = pageMode === "detail";
   const finalPlannerError = plannerValidationError || plannerError;
 
@@ -496,31 +506,6 @@ function App() {
               </span>
             </label>
           </div>
-          <div className="theme-toggle refresh-toggle">
-            <input
-              type="checkbox"
-              id="refresh-toggle"
-              checked={autoRefreshEnabled}
-              onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
-            />
-            <label htmlFor="refresh-toggle" aria-label="Auto refresh" title="Auto refresh">
-              <span className="theme-toggle-track">
-                <span className="theme-toggle-scenery">
-                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-on" aria-hidden="true">
-                    <path d="M21 12a9 9 0 00-15.3-6.3" />
-                    <path d="M3 4v6h6" />
-                    <path d="M3 12a9 9 0 0015.3 6.3" />
-                    <path d="M21 20v-6h-6" />
-                  </svg>
-                  <svg viewBox="0 0 24 24" className="toggle-icon toggle-icon-off" aria-hidden="true">
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                  </svg>
-                </span>
-                <span className="theme-toggle-ball" />
-              </span>
-            </label>
-          </div>
         </div>
       </header>
 
@@ -548,8 +533,13 @@ function App() {
             <div className="gesture-hint">Swipe v grafech meni den, stazeni shora obnovi ceny, dlouhy stisk sloupce pripne hodinu.</div>
             <PriceChartCard
               className="card-spaced"
-              chartData={todayData}
-              title={`Dnes (${formatDate(today)})`}
+              chartData={selectedDatePriceData}
+              title={`Cena elektriny - ${formatDate(selectedDateObj)}`}
+              fallbackMessage={
+                selectedDatePricesLoading
+                  ? "Nacitam ceny pro vybrany den..."
+                  : selectedDatePricesError || "Data cen pro vybrany den nejsou k dispozici."
+              }
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
               pinnedSlot={pinnedSlot}
@@ -687,7 +677,10 @@ function App() {
                 </button>
               )}
             </div>
-            <div className="gesture-hint">Swipe v nakladu/exportu meni den. Dlouhy stisk sloupce ceny pripne hodinu.</div>
+            <div className="gesture-hint">
+              Detail zobrazuje stejna denni data jako prehled, ale s anotacemi prechodu nakup/export a navazujicimi
+              panely energeticke bilance + heatmapy.
+            </div>
             <PriceChartCard
               className="card-spaced"
               chartData={todayData}

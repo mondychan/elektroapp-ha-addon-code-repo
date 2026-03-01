@@ -222,48 +222,6 @@ code {
   color: #cfd6e1;
 }
 
-.theme-toggle.refresh-toggle .toggle-icon {
-  width: var(--toggle-icon);
-  height: var(--toggle-icon);
-  display: block;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-  opacity: 0.35;
-  transition: opacity 0.2s ease;
-}
-
-.theme-toggle.refresh-toggle .toggle-icon-off {
-  color: #d46a6a;
-}
-
-.theme-toggle.refresh-toggle .toggle-icon-on {
-  color: #2d7ff9;
-}
-
-.theme-toggle.refresh-toggle .theme-toggle-scenery {
-  justify-content: space-between;
-  padding: 0 12px;
-}
-
-.theme-toggle.refresh-toggle input:checked + label .toggle-icon-on {
-  opacity: 1;
-}
-
-.theme-toggle.refresh-toggle input:checked + label .toggle-icon-off {
-  opacity: 0.2;
-}
-
-.theme-toggle.refresh-toggle input:not(:checked) + label .toggle-icon-on {
-  opacity: 0.2;
-}
-
-.theme-toggle.refresh-toggle input:not(:checked) + label .toggle-icon-off {
-  opacity: 1;
-}
-
 .section h2 {
   margin-top: 20px;
 }

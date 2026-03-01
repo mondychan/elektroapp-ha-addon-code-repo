@@ -80,10 +80,16 @@ class EnergyBalanceQuery(QueryModel):
     period: Literal["week", "month", "year"] = "week"
     anchor: str | None = None
 
-    @field_validator("anchor")
-    @classmethod
-    def validate_anchor(cls, value: str | None):
-        if value is None:
-            return value
-        datetime.strptime(value, "%Y-%m-%d")
-        return value
+    @model_validator(mode="after")
+    def validate_anchor_for_period(self):
+        if self.anchor is None:
+            return self
+        if self.period == "week":
+            datetime.strptime(self.anchor, "%Y-%m-%d")
+        elif self.period == "month":
+            datetime.strptime(self.anchor, "%Y-%m")
+        else:
+            if len(self.anchor) != 4:
+                raise ValueError("Invalid anchor for year. Use YYYY.")
+            int(self.anchor)
+        return self

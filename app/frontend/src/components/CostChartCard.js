@@ -88,6 +88,9 @@ const CostChartCard = ({
           Dnes
         </button>
       </div>
+      {showAnnotations && (
+        <div className="muted-note">Detail: vertikalni cary oznacuji start/stop nakupu v jednotlivych usecich dne.</div>
+      )}
       {costsError ? (
         <div className="alert error">{costsError}</div>
       ) : !costChartData.length ? (

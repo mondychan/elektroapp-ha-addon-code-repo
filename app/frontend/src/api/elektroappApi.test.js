@@ -57,3 +57,19 @@ test("buildInfluxError contains auth code in UI message", () => {
     "Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo. [UNAUTHORIZED]"
   );
 });
+
+test("buildInfluxError formats validation detail array without object-object output", () => {
+  const err = {
+    response: {
+      status: 422,
+      data: {
+        error: {
+          code: "VALIDATION_ERROR",
+          detail: [{ loc: ["query", "anchor"], msg: "Input should be in YYYY-MM format" }],
+        },
+      },
+    },
+  };
+
+  expect(buildInfluxError(err)).toBe("query.anchor: Input should be in YYYY-MM format [VALIDATION_ERROR]");
+});
