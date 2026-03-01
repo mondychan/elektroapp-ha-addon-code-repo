@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.65
+- UI: pridana mobilni gesta (swipe pro zmenu dne/mesice, pull-to-refresh, long-press pin hodiny v cenovem grafu).
+- Frontend: refaktor dashboard dat do mensich hooku (`usePrimaryDashboardData`, `useInsightsData`, `usePlannerData`) a pridany `ErrorBoundary` fallback.
+- Backend/Docker: novy `/health` endpoint, Docker `HEALTHCHECK` a `npm ci` ve frontend builder stage.
+- Kvalita: aktualizovana browser data (`caniuse-lite`, `baseline-browser-mapping`) a pridane testy pro gesta (swipe/pull/long-press).
+- Build tooling: odstranen Node deprecation warning `fs.F_OK` pomoci postinstall patchu `react-dev-utils`.
+
 ## 0.1.64
 - Dokumentace add-onu aktualizovana podle aktualnich funkci (vice zdroju cen, baterie, bilance, heatmapa).
 - Nastaveny single source of truth pro metadata repo dokumentaci.
