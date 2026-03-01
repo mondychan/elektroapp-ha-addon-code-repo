@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   BarChart,
   Bar,
@@ -14,10 +14,19 @@ import {
 import * as d3 from "d3-scale";
 import { formatSlotToTime } from "../utils/formatters";
 
-const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, className, highlightSlot }) => {
-  if (!chartData.length && !fallbackMessage) {
-    return null;
-  }
+const LONG_PRESS_MS = 550;
+
+const PriceChartCard = ({
+  chartData,
+  title,
+  fallbackMessage,
+  vtPeriods,
+  className,
+  highlightSlot,
+  pinnedSlot,
+  onPinSlot,
+}) => {
+  const longPressTimeoutRef = useRef(null);
 
   const minPrice = chartData.length ? Math.min(...chartData.map((d) => d.final)) : 0;
   const maxPrice = chartData.length ? Math.max(...chartData.map((d) => d.final)) : 0;
@@ -28,13 +37,42 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
     return vtPeriodsSafe.some(([start, end]) => slot >= start * 4 && slot < end * 4) ? "VT" : "NT";
   };
 
-  const shouldHighlight = Number.isInteger(highlightSlot) && highlightSlot >= 0 && highlightSlot < 96;
+  const activeSlot = Number.isInteger(pinnedSlot) ? pinnedSlot : highlightSlot;
+  const shouldHighlight = Number.isInteger(activeSlot) && activeSlot >= 0 && activeSlot < 96;
   const highlightDash = "4 3";
+
+  const clearLongPress = () => {
+    if (!longPressTimeoutRef.current) return;
+    clearTimeout(longPressTimeoutRef.current);
+    longPressTimeoutRef.current = null;
+  };
+
+  const startLongPress = (entry) => {
+    if (typeof onPinSlot !== "function") return;
+    const slot = entry?.payload?.slot ?? entry?.slot;
+    if (!Number.isInteger(slot) || slot < 0 || slot > 95) return;
+    clearLongPress();
+    longPressTimeoutRef.current = setTimeout(() => {
+      onPinSlot(slot);
+      longPressTimeoutRef.current = null;
+    }, LONG_PRESS_MS);
+  };
+
+  useEffect(() => () => clearLongPress(), []);
+
+  if (!chartData.length && !fallbackMessage) {
+    return null;
+  }
 
   return (
     <div className={`card ${className || ""}`.trim()}>
       <div className="card-header">
         <h3>{title}</h3>
+        {Number.isInteger(pinnedSlot) && (
+          <div className="chart-pin-note">
+            Pin: {formatSlotToTime(pinnedSlot)}
+          </div>
+        )}
       </div>
       {!chartData.length ? (
         <div className="config-muted">{fallbackMessage}</div>
@@ -54,7 +92,7 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
             ))}
             {shouldHighlight && (
               <ReferenceLine
-                x={highlightSlot}
+                x={activeSlot}
                 stroke="rgba(77, 121, 255, 0.85)"
                 strokeWidth={2}
                 strokeDasharray={highlightDash}
@@ -106,12 +144,30 @@ const PriceChartCard = ({ chartData, title, fallbackMessage, vtPeriods, classNam
                 return `Cas: ${time} (${vtStatus})`;
               }}
             />
-            <Bar dataKey="spot" stackId="a">
+            <Bar
+              dataKey="spot"
+              stackId="a"
+              onMouseDown={startLongPress}
+              onMouseUp={clearLongPress}
+              onMouseLeave={clearLongPress}
+              onTouchStart={startLongPress}
+              onTouchEnd={clearLongPress}
+              onTouchMove={clearLongPress}
+            >
               {chartData.map((entry, index) => (
                 <Cell key={`cell-spot-${index}`} fill="#4D79FF" />
               ))}
             </Bar>
-            <Bar dataKey="extra" stackId="a">
+            <Bar
+              dataKey="extra"
+              stackId="a"
+              onMouseDown={startLongPress}
+              onMouseUp={clearLongPress}
+              onMouseLeave={clearLongPress}
+              onTouchStart={startLongPress}
+              onTouchEnd={clearLongPress}
+              onTouchMove={clearLongPress}
+            >
               {chartData.map((entry, index) => (
                 <Cell key={`cell-extra-${index}`} fill={colorScale(entry.final)} />
               ))}

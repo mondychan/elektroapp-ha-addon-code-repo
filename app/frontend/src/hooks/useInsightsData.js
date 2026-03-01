@@ -1,0 +1,163 @@
+import { useCallback, useEffect, useState } from "react";
+import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
+import { normalizeEnergyBalanceAnchor } from "./dashboardUtils";
+
+export const useInsightsData = ({
+  selectedMonth,
+  showConfig,
+  showFeesHistory,
+  showBilling,
+  billingMode,
+  billingMonth,
+  billingYear,
+  pageMode,
+  energyBalancePeriod,
+  energyBalanceAnchor,
+  heatmapMonth,
+  heatmapMetric,
+}) => {
+  const [monthlySummary, setMonthlySummary] = useState([]);
+  const [monthlyTotals, setMonthlyTotals] = useState(null);
+  const [monthlyError, setMonthlyError] = useState(null);
+
+  const [billingData, setBillingData] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState(null);
+
+  const [energyBalanceData, setEnergyBalanceData] = useState(null);
+  const [energyBalanceLoading, setEnergyBalanceLoading] = useState(false);
+  const [energyBalanceError, setEnergyBalanceError] = useState(null);
+
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapError, setHeatmapError] = useState(null);
+
+  const [feesHistory, setFeesHistory] = useState([]);
+  const [feesHistoryLoading, setFeesHistoryLoading] = useState(false);
+  const [feesHistoryError, setFeesHistoryError] = useState(null);
+
+  const fetchEnergyBalance = useCallback(async () => {
+    setEnergyBalanceLoading(true);
+    setEnergyBalanceError(null);
+    const anchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
+    try {
+      const data = await elektroappApi.getEnergyBalance(energyBalancePeriod, anchor);
+      setEnergyBalanceData(data);
+    } catch (err) {
+      console.error("Error fetching energy balance:", err);
+      setEnergyBalanceError(buildInfluxError(err));
+    } finally {
+      setEnergyBalanceLoading(false);
+    }
+  }, [energyBalancePeriod, energyBalanceAnchor]);
+
+  const fetchHeatmap = useCallback(async () => {
+    setHeatmapLoading(true);
+    setHeatmapError(null);
+    try {
+      const data = await elektroappApi.getHistoryHeatmap(heatmapMonth, heatmapMetric);
+      setHeatmapData(data);
+    } catch (err) {
+      console.error("Error fetching heatmap:", err);
+      setHeatmapError(buildInfluxError(err));
+    } finally {
+      setHeatmapLoading(false);
+    }
+  }, [heatmapMonth, heatmapMetric]);
+
+  const fetchFeesHistory = useCallback(async () => {
+    setFeesHistoryLoading(true);
+    setFeesHistoryError(null);
+    try {
+      const data = await elektroappApi.getFeesHistory();
+      setFeesHistory(data?.history || []);
+    } catch (err) {
+      console.error("Error fetching fees history:", err);
+      setFeesHistoryError(formatApiError(err, "Nepodarilo se nacist historii poplatku."));
+    } finally {
+      setFeesHistoryLoading(false);
+    }
+  }, []);
+
+  const saveFeesHistory = useCallback(async (historyPayload) => {
+    setFeesHistoryLoading(true);
+    setFeesHistoryError(null);
+    try {
+      const data = await elektroappApi.saveFeesHistory(historyPayload);
+      const history = data?.history || [];
+      setFeesHistory(history);
+      return history;
+    } catch (err) {
+      console.error("Error saving fees history:", err);
+      setFeesHistoryError(formatApiError(err, "Nepodarilo se ulozit historii poplatku."));
+      throw err;
+    } finally {
+      setFeesHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setMonthlySummary([]);
+    setMonthlyTotals(null);
+    setMonthlyError(null);
+    elektroappApi
+      .getDailySummary(selectedMonth)
+      .then((data) => {
+        setMonthlySummary(data?.days || []);
+        setMonthlyTotals(data?.summary || null);
+      })
+      .catch((err) => {
+        console.error("Error fetching monthly summary:", err);
+        setMonthlyError(buildInfluxError(err));
+      });
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    if (!showBilling) return;
+    setBillingLoading(true);
+    setBillingError(null);
+    setBillingData(null);
+    const request = billingMode === "year" ? elektroappApi.getBillingYear(billingYear) : elektroappApi.getBillingMonth(billingMonth);
+    request
+      .then((data) => setBillingData(data))
+      .catch((err) => {
+        console.error("Error fetching billing summary:", err);
+        setBillingError(buildInfluxError(err));
+      })
+      .finally(() => setBillingLoading(false));
+  }, [showBilling, billingMode, billingMonth, billingYear]);
+
+  useEffect(() => {
+    if (!showConfig || !showFeesHistory) return;
+    fetchFeesHistory();
+  }, [showConfig, showFeesHistory, fetchFeesHistory]);
+
+  useEffect(() => {
+    if (pageMode !== "detail") return;
+    fetchEnergyBalance();
+  }, [pageMode, fetchEnergyBalance]);
+
+  useEffect(() => {
+    if (pageMode !== "detail") return;
+    fetchHeatmap();
+  }, [pageMode, fetchHeatmap]);
+
+  return {
+    monthlySummary,
+    monthlyTotals,
+    monthlyError,
+    billingData,
+    billingLoading,
+    billingError,
+    energyBalanceData,
+    energyBalanceLoading,
+    energyBalanceError,
+    heatmapData,
+    heatmapLoading,
+    heatmapError,
+    feesHistory,
+    feesHistoryLoading,
+    feesHistoryError,
+    saveFeesHistory,
+  };
+};

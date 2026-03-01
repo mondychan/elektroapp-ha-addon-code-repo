@@ -5,6 +5,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg);
   color: var(--text);
+  overscroll-behavior-y: contain;
 }
 
 body[data-theme="light"] {
@@ -49,6 +50,7 @@ code {
   margin: 0 auto;
   padding: 20px 16px 40px;
   box-sizing: border-box;
+  touch-action: pan-y;
 }
 
 .app--detail {
@@ -269,6 +271,24 @@ code {
   margin-top: 16px;
 }
 
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gesture-hint {
+  margin: 6px 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.swipe-zone {
+  touch-action: pan-y;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -367,6 +387,15 @@ code {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.chart-pin-note {
+  color: var(--accent-2);
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--panel-2);
 }
 
 .toolbar {
@@ -660,6 +689,38 @@ input {
   gap: 6px;
 }
 
+.pull-indicator {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  transition: height 0.2s ease;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pull-indicator > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  padding: 4px 10px;
+  margin-bottom: 4px;
+}
+
+.pull-indicator.is-armed > span {
+  color: var(--accent-2);
+}
+
+.pull-indicator.is-refreshing > span {
+  color: var(--accent);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -824,4 +885,13 @@ a {
 a:hover {
   color: var(--accent);
   text-decoration: underline;
+}
+
+.error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  padding: 24px;
+  text-align: center;
+  gap: 10px;
 }

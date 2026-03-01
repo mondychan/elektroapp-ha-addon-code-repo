@@ -29,11 +29,12 @@ import time as time_module
 import re
 import calendar
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone, time as datetime_time
+from datetime import date as datetime_date, datetime, timedelta, timezone, time as datetime_time
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import logging
 from requests import RequestException
+from typing import Any
 
 CONFIG_FILE = "config.yaml"
 HA_OPTIONS_FILE = Path("/data/options.json")
@@ -1084,7 +1085,13 @@ def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
         )
     return entries
 
-def build_entries_from_ote(cfg, date_str, items, fee_snapshot, eur_to_czk_rate):
+def build_entries_from_ote(
+    cfg: dict[str, Any],
+    date_str: str,
+    items: list[dict[str, Any]],
+    fee_snapshot: dict[str, Any],
+    eur_to_czk_rate: float,
+) -> list[dict[str, Any]]:
     entries = []
     for item in items:
         hour = item["hour"]
@@ -1102,7 +1109,11 @@ def build_entries_from_ote(cfg, date_str, items, fee_snapshot, eur_to_czk_rate):
         )
     return entries
 
-def build_entries_from_spot_html(cfg, date_str, fee_snapshot):
+def build_entries_from_spot_html(
+    cfg: dict[str, Any],
+    date_str: str,
+    fee_snapshot: dict[str, Any],
+) -> list[dict[str, Any]]:
     logger.info("Fetching historical prices from HTML for %s", date_str)
     url = f"https://spotovaelektrina.cz/denni-ceny/{date_str}"
     r = requests.get(url, timeout=10)
@@ -1124,7 +1135,7 @@ def build_entries_from_spot_html(cfg, date_str, fee_snapshot):
         )
     return entries
 
-def build_ote_query(start_date, end_date):
+def build_ote_query(start_date: str, end_date: str) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8" ?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://www.ote-cr.cz/schema/service/public">
   <soapenv:Header/>
@@ -1137,7 +1148,7 @@ def build_ote_query(start_date, end_date):
   </soapenv:Body>
 </soapenv:Envelope>"""
 
-def fetch_ote_prices_xml(start_date, end_date):
+def fetch_ote_prices_xml(start_date: datetime_date, end_date: datetime_date) -> str:
     query = build_ote_query(start_date.isoformat(), end_date.isoformat())
     headers = {
         "Content-Type": "text/xml; charset=utf-8",
@@ -1159,7 +1170,7 @@ def fetch_ote_prices_xml(start_date, end_date):
         raise last_exc
     raise HTTPException(status_code=502, detail="OTE request failed.")
 
-def parse_ote_prices_xml(xml_text):
+def parse_ote_prices_xml(xml_text: str) -> dict[str, list[dict[str, Any]]]:
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as exc:
@@ -1203,7 +1214,7 @@ def parse_ote_prices_xml(xml_text):
         rows_by_date[date_str].sort(key=lambda item: (item["hour"], item["minute"]))
     return rows_by_date
 
-def extract_eur_czk_from_cnb_payload(payload):
+def extract_eur_czk_from_cnb_payload(payload: Any) -> float | None:
     if not isinstance(payload, dict):
         return None
     rates = payload.get("rates")
@@ -1221,7 +1232,7 @@ def extract_eur_czk_from_cnb_payload(payload):
             return value / amount
     return None
 
-def get_eur_czk_rate_for_date(day):
+def get_eur_czk_rate_for_date(day: datetime_date) -> float:
     for offset in range(7):
         query_day = day - timedelta(days=offset)
         try:
@@ -1239,7 +1250,11 @@ def get_eur_czk_rate_for_date(day):
             return eur_czk
     raise HTTPException(status_code=502, detail="CNB FX rate EUR/CZK is not available.")
 
-def get_ote_entries_for_dates(cfg, dates, tzinfo):
+def get_ote_entries_for_dates(
+    cfg: dict[str, Any],
+    dates: list[str],
+    tzinfo,
+) -> dict[str, list[dict[str, Any]]]:
     if not dates:
         return {}
     date_objects = sorted({datetime.strptime(date_str, "%Y-%m-%d").date() for date_str in dates})
@@ -1262,7 +1277,11 @@ def get_ote_entries_for_dates(cfg, dates, tzinfo):
         )
     return entries_by_date
 
-def apply_fee_snapshot(entries, cfg, fee_snapshot):
+def apply_fee_snapshot(
+    entries: list[dict[str, Any]],
+    cfg: dict[str, Any],
+    fee_snapshot: dict[str, Any],
+) -> list[dict[str, Any]]:
     if not entries:
         return []
     adjusted = []
@@ -1273,7 +1292,13 @@ def apply_fee_snapshot(entries, cfg, fee_snapshot):
         adjusted.append({**entry, "final": final})
     return adjusted
 
-def get_prices_for_date(cfg, date_str, tzinfo, force_refresh=False, include_neighbor_live=False):
+def get_prices_for_date(
+    cfg: dict[str, Any],
+    date_str: str,
+    tzinfo,
+    force_refresh: bool = False,
+    include_neighbor_live: bool = False,
+) -> list[dict[str, Any]]:
     provider = get_price_provider(cfg)
     effective_provider = provider
     fee_snapshot = get_fee_snapshot_for_date(cfg, date_str, tzinfo)
@@ -1432,7 +1457,11 @@ def get_prices_for_date(cfg, date_str, tzinfo, force_refresh=False, include_neig
         save_prices_cache(date_str, entries, provider=effective_provider)
     return apply_fee_snapshot(entries, cfg, fee_snapshot)
 
-def build_price_map_for_date(cfg, date_str, tzinfo):
+def build_price_map_for_date(
+    cfg: dict[str, Any],
+    date_str: str,
+    tzinfo,
+) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]:
     entries = get_prices_for_date(cfg, date_str, tzinfo)
     price_map = {}
     price_map_utc = {}

@@ -46,6 +46,11 @@ def startup_hook():
     app_service.log_cache_status()
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": app_service.APP_VERSION}
+
+
 build_path = Path(__file__).parent / "frontend_build"
 if build_path.exists():
     app.mount("/static", StaticFiles(directory=build_path / "static"), name="static")

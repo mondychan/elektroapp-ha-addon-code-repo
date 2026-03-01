@@ -4,7 +4,8 @@ ARG TARGETPLATFORM
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 WORKDIR /app
 COPY app/frontend/package*.json ./
-RUN npm install
+COPY app/frontend/scripts ./scripts
+RUN npm ci
 COPY app/frontend/ ./
 RUN npm run build
 
@@ -22,6 +23,9 @@ COPY app/backend/ ./
 
 # Expose port
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import json,sys,urllib.request; resp=urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4); data=json.loads(resp.read().decode()); sys.exit(0 if data.get('status') == 'ok' else 1)" || exit 1
 
 # Start backend
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

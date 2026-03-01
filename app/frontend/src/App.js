@@ -13,6 +13,8 @@ import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./uti
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { usePageVisibility } from "./hooks/usePageVisibility";
 import { useCurrentSlot } from "./hooks/useCurrentSlot";
+import { usePullToRefresh } from "./hooks/usePullToRefresh";
+import { useSwipeGesture } from "./hooks/useSwipeGesture";
 import {
   normalizeEnergyBalanceAnchor,
   shiftEnergyBalanceAnchor,
@@ -35,6 +37,23 @@ const formatEtaDuration = (minutes) => {
   return `${h} h ${m} min`;
 };
 
+const shiftDateValue = (value, dayDelta) => {
+  const dt = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return value;
+  dt.setDate(dt.getDate() + dayDelta);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const shiftMonthValue = (value, monthDelta) => {
+  const [year, month] = (value || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return value;
+  const dt = new Date(year, month - 1 + monthDelta, 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+};
+
 function App() {
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
@@ -49,6 +68,7 @@ function App() {
 
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => localStorage.getItem("autoRefreshEnabled") !== "false");
   const [plannerValidationError, setPlannerValidationError] = useState(null);
+  const [pinnedSlot, setPinnedSlot] = useState(null);
 
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -165,6 +185,23 @@ function App() {
   const activePriceProvider = config?.price_provider === "ote" ? "ote" : "spotovaelektrina";
   const priceProviderLabel = activePriceProvider === "ote" ? "OTE (ote-cr.cz + CNB)" : "spotovaelektrina.cz";
   const priceProviderUrl = activePriceProvider === "ote" ? "https://www.ote-cr.cz/" : "https://spotovaelektrina.cz/";
+  const effectiveHighlightSlot = Number.isInteger(pinnedSlot) ? pinnedSlot : currentSlot;
+
+  const dateSwipeHandlers = useSwipeGesture({
+    onSwipeLeft: () => setSelectedDate((prev) => shiftDateValue(prev, 1)),
+    onSwipeRight: () => setSelectedDate((prev) => shiftDateValue(prev, -1)),
+  });
+
+  const monthSwipeHandlers = useSwipeGesture({
+    enabled: showMonthlySummary,
+    onSwipeLeft: () => setSelectedMonth((prev) => shiftMonthValue(prev, 1)),
+    onSwipeRight: () => setSelectedMonth((prev) => shiftMonthValue(prev, -1)),
+  });
+
+  const { pullDistance, isRefreshing: pullRefreshing, isArmed: pullArmed, gestureHandlers: pullHandlers } = usePullToRefresh({
+    enabled: true,
+    onRefresh: refreshPrices,
+  });
 
   const normalizeDuration = (value) => {
     if (value == null || value === "") return null;
@@ -397,7 +434,13 @@ function App() {
   const finalPlannerError = plannerValidationError || plannerError;
 
   return (
-    <div className={`app ${pageMode === "detail" ? "app--detail" : ""}`.trim()}>
+    <div className={`app ${pageMode === "detail" ? "app--detail" : ""}`.trim()} {...pullHandlers}>
+      <div
+        className={`pull-indicator ${pullArmed ? "is-armed" : ""} ${pullRefreshing ? "is-refreshing" : ""}`}
+        style={{ height: `${pullRefreshing ? 42 : Math.min(42, pullDistance)}px` }}
+      >
+        <span>{pullRefreshing ? "Obnovuji ceny..." : pullArmed ? "Uvolni pro obnoveni cen" : "Stahni dolu pro obnoveni"}</span>
+      </div>
       <header className="app-header">
         <div>
           <h1>Elektroapp</h1>
@@ -494,13 +537,23 @@ function App() {
       {pageMode === "overview" ? (
         <>
           <section className="section">
-            <h2>Cena elektriny (Kc/kWh)</h2>
+            <div className="section-heading">
+              <h2>Cena elektriny (Kc/kWh)</h2>
+              {Number.isInteger(pinnedSlot) && (
+                <button onClick={() => setPinnedSlot(null)} className="ghost-button">
+                  Zrusit pin ({formatSlotToTime(pinnedSlot)})
+                </button>
+              )}
+            </div>
+            <div className="gesture-hint">Swipe v grafech meni den, stazeni shora obnovi ceny, dlouhy stisk sloupce pripne hodinu.</div>
             <PriceChartCard
               className="card-spaced"
               chartData={todayData}
               title={`Dnes (${formatDate(today)})`}
               vtPeriods={config?.tarif?.vt_periods}
-              highlightSlot={currentSlot}
+              highlightSlot={effectiveHighlightSlot}
+              pinnedSlot={pinnedSlot}
+              onPinSlot={setPinnedSlot}
             />
             <PriceChartCard
               className="card-spaced"
@@ -511,7 +564,7 @@ function App() {
             />
           </section>
 
-          <section className="section">
+          <section className="section swipe-zone" {...dateSwipeHandlers}>
             <CostChartCard
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
@@ -539,7 +592,7 @@ function App() {
           </button>
 
           {showMonthlySummary && (
-            <section className="section">
+            <section className="section swipe-zone" {...monthSwipeHandlers}>
               <MonthlySummaryCard
                 selectedMonth={selectedMonth}
                 setSelectedMonth={setSelectedMonth}
@@ -626,17 +679,27 @@ function App() {
       ) : (
         <>
           <section className="section">
-            <h2>Detail grafu cen a toku energie</h2>
+            <div className="section-heading">
+              <h2>Detail grafu cen a toku energie</h2>
+              {Number.isInteger(pinnedSlot) && (
+                <button onClick={() => setPinnedSlot(null)} className="ghost-button">
+                  Zrusit pin ({formatSlotToTime(pinnedSlot)})
+                </button>
+              )}
+            </div>
+            <div className="gesture-hint">Swipe v nakladu/exportu meni den. Dlouhy stisk sloupce ceny pripne hodinu.</div>
             <PriceChartCard
               className="card-spaced"
               chartData={todayData}
               title={`Dnes (${formatDate(today)})`}
               vtPeriods={config?.tarif?.vt_periods}
-              highlightSlot={currentSlot}
+              highlightSlot={effectiveHighlightSlot}
+              pinnedSlot={pinnedSlot}
+              onPinSlot={setPinnedSlot}
             />
           </section>
 
-          <section className="section detail-grid">
+          <section className="section detail-grid swipe-zone" {...dateSwipeHandlers}>
             <CostChartCard
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
