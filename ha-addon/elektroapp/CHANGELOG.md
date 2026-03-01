@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.67
+- Frontend: odstraneny prepinac auto-refresh z hlavicky; automaticke obnovovani je napevno zapnute.
+- Detail rezim: horni graf cen je navazan na vybrany den (`selectedDate`), takze je mozne pohodlne prochazet historicka data.
+- API validace: opravena period-aware validace `energy-balance` anchoru (week/month/year), aby Mesic/Rok nepadaly na VALIDATION_ERROR.
+- Chyby v UI: zlepsene formatovani API detailu, aby se nezobrazovalo `[object Object]`.
+- UX detailu: doplneny vysvetlujici texty/anotace pro prechody nakupu a exportu.
+- Testy: pridane regresni testy pro month/year anchor a formatovani validation detailu.
+
 ## 0.1.66
 - Backend: pokracovani refaktoru monolitu (`app_service.py`) do samostatnych service modulu (`prices`, `costs`, `export`, `billing`, `battery`, `insights`, `schedule`).
 - API: zavedene konzistentni Pydantic query modely (`date`, `month`, `range`) a centralni request context/dependencies vrstva.
