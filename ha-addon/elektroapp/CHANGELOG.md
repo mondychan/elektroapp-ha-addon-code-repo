@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.68
+- Frontend: sjednocene date navigatory napric aplikaci (den/mesic/rok) s jednotnym modernim popover stylem.
+- Nove sdilene komponenty `DateNavigator`, `MonthNavigator`, `YearNavigator` pouzite ve vsech dosavadnich date selector pozicich.
+- Detail, naklady, export, mesicni souhrn, heatmapa, billing i historie poplatku ted pouzivaji jednotny UX pattern.
+- UI: odstranene rozdilne nativni date/month/number pickery; sjednocene ovladani `Prev/Next/Dnes` a vyber z kalendare.
+- Testy: doplnene test setup mocky pro `react-day-picker`, aby test suite zustal stabilni.
+
 ## 0.1.67
 - Frontend: odstraneny prepinac auto-refresh z hlavicky; automaticke obnovovani je napevno zapnute.
 - Detail rezim: horni graf cen je navazan na vybrany den (`selectedDate`), takze je mozne pohodlne prochazet historicka data.
