@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.66
+- Backend: pokracovani refaktoru monolitu (`app_service.py`) do samostatnych service modulu (`prices`, `costs`, `export`, `billing`, `battery`, `insights`, `schedule`).
+- API: zavedene konzistentni Pydantic query modely (`date`, `month`, `range`) a centralni request context/dependencies vrstva.
+- Cache: sjednocena strategie TTL + validace hranic (dnesek vs historicka data vs budouci datum) pres `should_use_daily_cache`.
+- Performance: optimalizovane datove pruchody v `/costs` a `/export` (mene opakovaneho parsovani datetime/mapovani v jednom requestu).
+- Stabilita: izolace runtime stavu prefetch/OTE backoff mimo globalni promene + doplnene testy (validation, cache fallback, cache strategy, performance guardrails).
+- Parsing: opravena robustnost parsovani zapornych cen v historickem HTML (vcetne unicode variant minus znaku).
+
 ## 0.1.65
 - UI: pridana mobilni gesta (swipe pro zmenu dne/mesice, pull-to-refresh, long-press pin hodiny v cenovem grafu).
 - Frontend: refaktor dashboard dat do mensich hooku (`usePrimaryDashboardData`, `useInsightsData`, `usePlannerData`) a pridany `ErrorBoundary` fallback.
