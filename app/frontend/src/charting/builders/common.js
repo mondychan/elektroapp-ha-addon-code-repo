@@ -3,6 +3,14 @@ import { createExternalTooltip } from "../plugins/externalTooltipPlugin";
 
 export const STATIC_SLOT_TICK_STEP = 8;
 
+export const getResponsiveTickStep = ({ chart, labelCount = 0, baseStep = 1, minLabelWidth = 56 }) => {
+  const safeLabelCount = Math.max(labelCount, 1);
+  const chartWidth = chart?.chartArea?.width || chart?.width || 0;
+  const maxVisibleLabels = Math.max(2, Math.floor(chartWidth / minLabelWidth));
+  const rawStep = Math.max(baseStep, Math.ceil(safeLabelCount / maxVisibleLabels));
+  return Math.max(baseStep, Math.ceil(rawStep / baseStep) * baseStep);
+};
+
 export const quarterHourTickFormatter = (value) => {
   if (!Number.isFinite(value)) {
     return "";
@@ -23,6 +31,7 @@ export const buildCategoryTimeAxis = ({
   stepSize = STATIC_SLOT_TICK_STEP,
   labelFormatter = (index) => staticSlotTickFormatter(index),
   tickColor,
+  minLabelWidth = 56,
 } = {}) => ({
   type: "category",
   offset: false,
@@ -34,7 +43,13 @@ export const buildCategoryTimeAxis = ({
     maxRotation: 0,
     minRotation: 0,
     callback(value) {
-      if (!Number.isFinite(value) || value % stepSize !== 0) {
+      const responsiveStep = getResponsiveTickStep({
+        chart: this.chart,
+        labelCount: this.chart?.data?.labels?.length || 0,
+        baseStep: stepSize,
+        minLabelWidth,
+      });
+      if (!Number.isFinite(value) || value % responsiveStep !== 0) {
         return "";
       }
       return labelFormatter(value, this.getLabelForValue(value));

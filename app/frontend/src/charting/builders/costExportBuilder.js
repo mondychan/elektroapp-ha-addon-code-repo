@@ -4,7 +4,7 @@ import { buildCategoryTimeAxis, buildLinearAxis, buildStaticTimeLabels, buildToo
 
 export const buildCostChartData = (costs) => {
   if (!costs?.length) return [];
-  return buildQuarterHourSeries(
+  const rows = buildQuarterHourSeries(
     costs,
     (point) => ({
       kwh: Number.isFinite(point?.kwh) ? point.kwh : 0,
@@ -12,6 +12,14 @@ export const buildCostChartData = (costs) => {
     }),
     { kwh: 0, cost: 0 }
   );
+  let costCumulative = 0;
+  return rows.map((row) => {
+    costCumulative += row.cost;
+    return {
+      ...row,
+      costCumulative,
+    };
+  });
 };
 
 export const buildExportChartData = (exportPoints) => {
@@ -32,21 +40,6 @@ export const buildExportChartData = (exportPoints) => {
       sellCumulative,
     };
   });
-};
-
-const buildTransitions = (chartData, predicate) => {
-  const events = [];
-  let wasActive = false;
-  chartData.forEach((row) => {
-    const isActive = predicate(row);
-    if (isActive && !wasActive) {
-      events.push({ slot: row.slot, kind: "start" });
-    } else if (!isActive && wasActive) {
-      events.push({ slot: row.slot, kind: "stop" });
-    }
-    wasActive = isActive;
-  });
-  return events;
 };
 
 const buildComboConfig = ({
@@ -138,10 +131,10 @@ export const buildCostChartConfig = (chartData, showAnnotations = false) =>
   buildComboConfig({
     chartData,
     barKey: "kwh",
-    lineKey: "cost",
+    lineKey: "costCumulative",
     barLabel: "Nakup kWh",
-    lineLabel: "Naklad",
-    transitions: showAnnotations ? buildTransitions(chartData, (row) => row.kwh > 0) : [],
+    lineLabel: "Kumulativni naklad",
+    transitions: [],
     lineColor: "rgba(45, 127, 249, 0.94)",
     barColor: "rgba(231, 165, 42, 0.82)",
   });
@@ -153,7 +146,7 @@ export const buildExportChartConfig = (chartData, showAnnotations = false) =>
     lineKey: "sellCumulative",
     barLabel: "Export kWh",
     lineLabel: "Kumulativni trzby",
-    transitions: showAnnotations ? buildTransitions(chartData, (row) => row.kwh > 0) : [],
+    transitions: [],
     lineColor: "rgba(57, 181, 106, 0.96)",
     barColor: "rgba(77, 121, 255, 0.78)",
   });

@@ -25,10 +25,6 @@ const EnergyBalanceCard = ({
 
   const lineConfig = useMemo(() => buildEnergyBalanceLineConfig(points), [points]);
   const barConfig = useMemo(() => buildEnergyBalanceBarConfig(points), [points]);
-  const barChartMinWidth = useMemo(() => {
-    const pointCount = Math.max(points.length, 1);
-    return Math.max(680, pointCount * 34);
-  }, [points.length]);
 
   return (
     <div className="card">
@@ -80,11 +76,7 @@ const EnergyBalanceCard = ({
           {chartType === "line" ? (
             <LineTimeChart height={320} animationProfile="soft" {...lineConfig} />
           ) : (
-            <div className="energy-balance-chart-scroll">
-              <div className="energy-balance-chart-inner" style={{ minWidth: `${barChartMinWidth}px` }}>
-                <BarTimeChart height={320} animationProfile="soft" {...barConfig} />
-              </div>
-            </div>
+            <BarTimeChart height={320} animationProfile="soft" {...barConfig} />
           )}
         </>
       )}

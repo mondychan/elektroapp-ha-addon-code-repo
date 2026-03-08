@@ -359,18 +359,24 @@ code {
 .chart-host {
   position: relative;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chart-host canvas {
+  width: 100% !important;
+  max-width: 100%;
 }
 
 .chartjs-html-tooltip {
   position: absolute;
-  transform: translate(0, -50%);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
   color: var(--text);
-  min-width: 170px;
-  max-width: 260px;
+  min-width: 0;
+  max-width: min(260px, calc(100% - 12px), calc(100vw - 24px));
   z-index: 10;
   transition: opacity 0.12s ease;
 }
@@ -998,18 +1004,8 @@ input {
   margin-bottom: 8px;
 }
 
-.energy-balance-chart-scroll {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-}
-
-.energy-balance-chart-inner {
-  width: 100%;
-}
-
 .heatmap-wrap {
+  width: 100%;
   overflow-x: auto;
   padding-bottom: 4px;
 }
@@ -1073,6 +1069,16 @@ select {
 @media (max-width: 1100px) {
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .chartjs-html-tooltip {
+    max-width: calc(100vw - 16px);
+  }
+
+  .heatmap-wrap {
+    margin-inline: -4px;
   }
 }
 

@@ -49,6 +49,12 @@ export const buildEnergyBalanceLineConfig = (points) => ({
     scales: {
       x: {
         type: "category",
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 7,
+          maxRotation: 0,
+          minRotation: 0,
+        },
       },
       y: {
         beginAtZero: true,
@@ -88,6 +94,12 @@ export const buildEnergyBalanceBarConfig = (points) => ({
       x: {
         type: "category",
         stacked: false,
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 7,
+          maxRotation: 0,
+          minRotation: 0,
+        },
       },
       y: {
         beginAtZero: true,
@@ -102,4 +114,3 @@ export const buildEnergyBalanceBarConfig = (points) => ({
     },
   },
 });
-

@@ -17,6 +17,8 @@ const hideTooltip = (tooltipEl) => {
   tooltipEl.style.pointerEvents = "none";
 };
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), Math.max(min, max));
+
 const renderSections = (container, sections) => {
   const fragment = document.createDocumentFragment();
   sections.forEach((section) => {
@@ -78,10 +80,22 @@ export const createExternalTooltip = ({ renderTooltip }) => ({
     }
 
     const { offsetLeft, offsetTop } = chart.canvas;
+    const host = chart.canvas.parentNode;
     tooltipEl.style.opacity = "1";
     tooltipEl.style.pointerEvents = "none";
-    tooltipEl.style.left = `${offsetLeft + tooltip.caretX + 16}px`;
-    tooltipEl.style.top = `${offsetTop + tooltip.caretY}px`;
+    tooltipEl.style.left = "0px";
+    tooltipEl.style.top = "0px";
+
+    const margin = 8;
+    const tooltipWidth = tooltipEl.offsetWidth;
+    const tooltipHeight = tooltipEl.offsetHeight;
+    const hostWidth = host?.clientWidth || chart.width || tooltipWidth;
+    const hostHeight = host?.clientHeight || chart.height || tooltipHeight;
+
+    const left = clamp(offsetLeft + tooltip.caretX + 16, margin, hostWidth - tooltipWidth - margin);
+    const top = clamp(offsetTop + tooltip.caretY - tooltipHeight / 2, margin, hostHeight - tooltipHeight - margin);
+
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
   },
 });
-

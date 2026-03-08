@@ -24,9 +24,6 @@ const ExportChartCard = ({
         <h3>Prodej a export - {formatDate(selectedDateObj)}</h3>
       </div>
       <DateNavigator value={selectedDate} onChange={setSelectedDate} />
-      {showAnnotations && (
-        <div className="muted-note">Detail: vertikalni cary oznacuji start/stop exportu v jednotlivych usecich dne.</div>
-      )}
       {exportError ? (
         <div className="alert error">{exportError}</div>
       ) : !exportChartData.length ? (
@@ -40,7 +37,7 @@ const ExportChartCard = ({
               Celkem: {exportSummary.export_kwh_total?.toFixed(2)} kWh / {exportSummary.sell_total?.toFixed(2)},-Kc
             </div>
           )}
-          <ComboTimeChart height={340} animationProfile={showAnnotations ? "soft" : "realtime"} {...chartConfig} />
+          <ComboTimeChart height={340} animationProfile="realtime" {...chartConfig} />
         </>
       )}
     </div>

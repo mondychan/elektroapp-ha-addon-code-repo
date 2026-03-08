@@ -24,9 +24,6 @@ const CostChartCard = ({
         <h3>Naklady a nakup - {formatDate(selectedDateObj)}</h3>
       </div>
       <DateNavigator value={selectedDate} onChange={setSelectedDate} />
-      {showAnnotations && (
-        <div className="muted-note">Detail: vertikalni cary oznacuji start/stop nakupu v jednotlivych usecich dne.</div>
-      )}
       {costsError ? (
         <div className="alert error">{costsError}</div>
       ) : !costChartData.length ? (
@@ -40,7 +37,7 @@ const CostChartCard = ({
               Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc
             </div>
           )}
-          <ComboTimeChart height={340} animationProfile={showAnnotations ? "soft" : "realtime"} {...chartConfig} />
+          <ComboTimeChart height={340} animationProfile="realtime" {...chartConfig} />
         </>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { getChartTheme, getHeatmapColor } from "../chartTheme";
-import { buildTooltip } from "./common";
+import { buildTooltip, getResponsiveTickStep } from "./common";
 
 const formatCellValue = (value, metric) => {
   if (value == null) return "-";
@@ -73,7 +73,20 @@ export const buildHeatmapChartConfig = ({ heatmapData, metric }) => {
           },
           ticks: {
             stepSize: 1,
-            callback: (value) => String(value).padStart(2, "0"),
+            callback(value) {
+              const responsiveStep = getResponsiveTickStep({
+                chart: this.chart,
+                labelCount: hours.length,
+                baseStep: 1,
+                minLabelWidth: 34,
+              });
+              if (!Number.isFinite(value) || value % responsiveStep !== 0) {
+                return "";
+              }
+              return String(value).padStart(2, "0");
+            },
+            maxRotation: 0,
+            minRotation: 0,
           },
         },
         y: {
