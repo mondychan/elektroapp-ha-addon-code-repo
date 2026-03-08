@@ -95,6 +95,13 @@ describe("App API states", () => {
     render(<App />);
 
     await userEvent.click(screen.getByRole("button", { name: "Zobrazit planovac" }));
+
+    await waitFor(() => {
+      expect(elektroappApi.getSchedule).toHaveBeenCalledWith(120, 3);
+    });
+
+    expect(screen.getByText("Vybrano: 120 min")).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole("button", { name: "60" }));
 
     await waitFor(() => {

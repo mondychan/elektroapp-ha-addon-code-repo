@@ -30,39 +30,42 @@ const PlannerCard = ({
       <div className="card-header">
         <h3>Planovac spotrebicu</h3>
       </div>
-      <div className="planner-grid">
+      <div className="planner-controls">
         <div className="planner-field">
           <label>Delka programu (min)</label>
-          <div className="planner-presets" role="group" aria-label="Vyber delky programu">
-            {PLANNER_PRESETS.map((preset) => {
-              const isActive = !showCustomInput && String(plannerDuration) === preset;
-              return (
-                <button
-                  key={preset}
-                  type="button"
-                  className={`planner-preset${isActive ? " is-active" : ""}`}
-                  onClick={() => {
-                    setShowCustomInput(false);
-                    setPlannerDuration(preset);
-                    loadPlanner(preset);
-                  }}
-                >
-                  {preset}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              className={`planner-preset${showCustomInput ? " is-active" : ""}`}
-              onClick={() => setShowCustomInput(true)}
-            >
-              Vlastni
-            </button>
+          <div className="planner-toolbar-row">
+            <div className="planner-presets" role="group" aria-label="Vyber delky programu">
+              {PLANNER_PRESETS.map((preset) => {
+                const isActive = !showCustomInput && String(plannerDuration) === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`planner-preset${isActive ? " is-active" : ""}`}
+                    onClick={() => {
+                      setShowCustomInput(false);
+                      setPlannerDuration(preset);
+                      loadPlanner(preset);
+                    }}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className={`planner-preset${showCustomInput ? " is-active" : ""}`}
+                onClick={() => setShowCustomInput(true)}
+              >
+                Vlastni
+              </button>
+            </div>
+            {!showCustomInput && <div className="planner-selected-duration">Vybrano: {plannerDuration || "-"} min</div>}
           </div>
         </div>
         {showCustomInput && (
-          <>
-            <div className="planner-field">
+          <div className="planner-custom-row">
+            <div className="planner-field planner-custom-field">
               <label htmlFor="planner-custom-duration">Vlastni delka (min)</label>
               <input
                 id="planner-custom-duration"
@@ -84,14 +87,13 @@ const PlannerCard = ({
                 placeholder="120"
               />
             </div>
-            <div className="planner-actions">
+            <div className="planner-actions planner-actions-inline">
               <button type="button" onClick={() => loadPlanner()}>
                 Najit okna
               </button>
             </div>
-          </>
+          </div>
         )}
-        {!showCustomInput && <div className="planner-selected-duration">Vybrano: {plannerDuration || "-"} min</div>}
       </div>
       <div className="config-muted">Okna hledame v dostupnych datech (dnes + zitra, pokud jsou).</div>
       {plannerError && <div className="alert error">{plannerError}</div>}

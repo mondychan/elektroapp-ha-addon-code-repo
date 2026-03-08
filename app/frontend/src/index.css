@@ -756,9 +756,9 @@ input {
   opacity: 0.55;
 }
 
-.planner-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.planner-controls {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -770,6 +770,13 @@ input {
   text-align: left;
 }
 
+.planner-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
 .planner-presets {
   display: flex;
   flex-wrap: wrap;
@@ -778,6 +785,7 @@ input {
 
 .planner-preset {
   min-width: 56px;
+  white-space: nowrap;
 }
 
 .planner-preset.is-active {
@@ -785,15 +793,36 @@ input {
   background: rgba(77, 121, 255, 0.15);
 }
 
+.planner-custom-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.planner-custom-field {
+  flex: 0 1 220px;
+}
+
 .planner-actions {
   display: flex;
   align-items: flex-end;
 }
 
+.planner-actions-inline {
+  flex: 0 0 auto;
+}
+
 .planner-selected-duration {
-  align-self: end;
   color: var(--text-muted);
   font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .planner-custom-field {
+    flex-basis: 100%;
+  }
 }
 
 .planner-note {

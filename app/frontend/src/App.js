@@ -229,6 +229,15 @@ function App() {
     }
   };
 
+  const handlePlannerToggle = () => {
+    if (showPlanner) {
+      setShowPlanner(false);
+      return;
+    }
+    setShowPlanner(true);
+    handleLoadPlanner("120");
+  };
+
   const formatFeeValue = (value) => (value == null ? "-" : value);
   const configRows = useMemo(() => {
     if (!config) return [];
@@ -621,7 +630,7 @@ function App() {
             />
           )}
 
-          <button onClick={() => setShowPlanner(!showPlanner)} className="ghost-button">
+          <button onClick={handlePlannerToggle} className="ghost-button">
             {showPlanner ? "Skryt planovac" : "Zobrazit planovac"}
           </button>
 
