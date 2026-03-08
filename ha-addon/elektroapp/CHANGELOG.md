@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.70
+- Planovac spotrebicu po kliknuti na `Zobrazit planovac` rovnou nacte a zobrazi doporucena okna pro 120 minut.
+- Desktop layout planneru je srovnany: tlacitko `Vlastni`, stav `Vybrano` i akce `Najit okna` uz nejsou zbytecne rozsypane do dalsich radku.
+- Frontend testy overuji automaticke nacteni planneru pro 120 minut pri otevreni panelu.
+
 ## 0.1.69
 - Planovac spotrebicu ma misto volneho inputu rychle volby delky programu (30-300 min) s okamzitym hledanim oken.
 - Tlacitko `Vlastni` zachovava puvodni rucni zadani delky a validaci pro rozsah 1-360 minut.
