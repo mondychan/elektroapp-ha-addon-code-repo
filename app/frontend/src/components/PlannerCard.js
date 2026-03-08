@@ -1,6 +1,8 @@
 import React from "react";
 import { formatDate } from "../utils/formatters";
 
+const PLANNER_PRESETS = ["30", "60", "90", "120", "180", "200", "240", "300"];
+
 const PlannerCard = ({
   plannerDuration,
   setPlannerDuration,
@@ -10,6 +12,8 @@ const PlannerCard = ({
   plannerNote,
   plannerResults,
 }) => {
+  const [showCustomInput, setShowCustomInput] = React.useState(() => !PLANNER_PRESETS.includes(String(plannerDuration || "")));
+
   const formatOffset = (startStr) => {
     const start = new Date(startStr.replace(" ", "T"));
     const now = new Date();
@@ -29,28 +33,65 @@ const PlannerCard = ({
       <div className="planner-grid">
         <div className="planner-field">
           <label>Delka programu (min)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="\\d*"
-            autoComplete="off"
-            maxLength={3}
-            value={plannerDuration}
-            onChange={(e) => {
-              const cleaned = e.target.value.replace(/[^0-9]/g, "");
-              setPlannerDuration(cleaned);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                loadPlanner();
-              }
-            }}
-            placeholder="120"
-          />
+          <div className="planner-presets" role="group" aria-label="Vyber delky programu">
+            {PLANNER_PRESETS.map((preset) => {
+              const isActive = !showCustomInput && String(plannerDuration) === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`planner-preset${isActive ? " is-active" : ""}`}
+                  onClick={() => {
+                    setShowCustomInput(false);
+                    setPlannerDuration(preset);
+                    loadPlanner(preset);
+                  }}
+                >
+                  {preset}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`planner-preset${showCustomInput ? " is-active" : ""}`}
+              onClick={() => setShowCustomInput(true)}
+            >
+              Vlastni
+            </button>
+          </div>
         </div>
-        <div className="planner-actions">
-          <button onClick={loadPlanner}>Najit okna</button>
-        </div>
+        {showCustomInput && (
+          <>
+            <div className="planner-field">
+              <label htmlFor="planner-custom-duration">Vlastni delka (min)</label>
+              <input
+                id="planner-custom-duration"
+                type="text"
+                inputMode="numeric"
+                pattern="\\d*"
+                autoComplete="off"
+                maxLength={3}
+                value={plannerDuration}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                  setPlannerDuration(cleaned);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    loadPlanner();
+                  }
+                }}
+                placeholder="120"
+              />
+            </div>
+            <div className="planner-actions">
+              <button type="button" onClick={() => loadPlanner()}>
+                Najit okna
+              </button>
+            </div>
+          </>
+        )}
+        {!showCustomInput && <div className="planner-selected-duration">Vybrano: {plannerDuration || "-"} min</div>}
       </div>
       <div className="config-muted">Okna hledame v dostupnych datech (dnes + zitra, pokud jsou).</div>
       {plannerError && <div className="alert error">{plannerError}</div>}

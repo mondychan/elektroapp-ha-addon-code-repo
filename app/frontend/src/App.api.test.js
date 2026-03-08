@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { elektroappApi } from "./api/elektroappApi";
 
@@ -88,5 +89,18 @@ describe("App API states", () => {
     expect(
       await screen.findByText("Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo. [HTTP_401]")
     ).toBeInTheDocument();
+  });
+
+  test("planner preset button immediately loads matching duration", async () => {
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Zobrazit planovac" }));
+    await userEvent.click(screen.getByRole("button", { name: "60" }));
+
+    await waitFor(() => {
+      expect(elektroappApi.getSchedule).toHaveBeenCalledWith(60, 3);
+    });
+
+    expect(screen.getByText("Vybrano: 60 min")).toBeInTheDocument();
   });
 });

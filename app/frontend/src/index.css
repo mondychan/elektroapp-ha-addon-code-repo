@@ -770,9 +770,30 @@ input {
   text-align: left;
 }
 
+.planner-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-preset {
+  min-width: 56px;
+}
+
+.planner-preset.is-active {
+  border-color: var(--accent);
+  background: rgba(77, 121, 255, 0.15);
+}
+
 .planner-actions {
   display: flex;
   align-items: flex-end;
+}
+
+.planner-selected-duration {
+  align-self: end;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .planner-note {

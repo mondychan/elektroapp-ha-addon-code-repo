@@ -210,8 +210,8 @@ function App() {
     return Math.round(parsed);
   };
 
-  const handleLoadPlanner = async () => {
-    const durationValue = normalizeDuration(plannerDuration);
+  const handleLoadPlanner = async (durationOverride = plannerDuration) => {
+    const durationValue = normalizeDuration(durationOverride);
     if (durationValue === "too-long") {
       setPlannerValidationError("Okno je prilis dlouhe. Zadej delku 1-360 minut.");
       return;
@@ -220,6 +220,7 @@ function App() {
       setPlannerValidationError("Zadej delku programu 1-360 minut.");
       return;
     }
+    setPlannerDuration(String(durationValue));
     setPlannerValidationError(null);
     try {
       await loadPlanner(durationValue);
