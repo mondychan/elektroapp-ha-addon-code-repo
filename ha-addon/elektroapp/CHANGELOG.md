@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.71
+- Frontend grafy migrovany z `recharts` na centralni Chart.js vrstvu s internimi builders, wrappery, tooltipy a anotacemi.
+- `Cena`, `Naklady a nakup`, `Prodej a export`, `Baterie a projekce`, `Vyroba vs spotreba` i `Heatmapa historie` ted pouzivaji sjednoceny charting stack.
+- Combo grafy pro naklad/export sjednocuji linku a sloupce do jednoho zobrazeni, heatmapa bezi pres matrix chart a interakce typu pin slotu zustaly zachovane.
+- Testy byly prepojene na novou charting vrstvu a frontend build i test suite prosly bez chyby.
+
 ## 0.1.70
 - Planovac spotrebicu po kliknuti na `Zobrazit planovac` rovnou nacte a zobrazi doporucena okna pro 120 minut.
 - Desktop layout planneru je srovnany: tlacitko `Vlastni`, stav `Vybrano` i akce `Najit okna` uz nejsou zbytecne rozsypane do dalsich radku.
