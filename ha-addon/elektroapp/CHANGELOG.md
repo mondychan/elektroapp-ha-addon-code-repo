@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.73
+- fix redraw of Chart.js visuals after light/dark theme switch
+- stabilize chart time axes to fixed whole-hour labels instead of drifting from current time
+- correct price chart legend semantics, remove in-chart pin/start-stop labels, and make export revenue cumulative
+- repair battery timeline rendering and heatmap theme colors in overview and detail views
+
 ## 0.1.72
 - Oprava CI releasu po Chart.js migraci: timezone-agnosticke parsovani slotu a casovych labelu uz nevychazi z runtime timezone procesu.
 - Testy pro `BatteryProjectionCard` a `Cost/Export` builders jsou stabilni i v GitHub Actions prostredi bezícim v UTC.
