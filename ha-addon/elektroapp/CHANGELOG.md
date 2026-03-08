@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.75
+- fix battery projection chart so the historical SoC line ends at the last real point and only the forecast continues into the future
+
 ## 0.1.74
 - improve mobile chart readability with responsive time-axis labels
 - clamp chart tooltips to the visible viewport on small screens
