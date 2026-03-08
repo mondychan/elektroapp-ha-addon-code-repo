@@ -54,8 +54,8 @@ describe("Cost and Export cards", () => {
       { time: "2026-03-08T11:15:00+01:00", kwh: null, sell: null },
     ]);
 
-    expect(chartData[44]).toEqual({ slot: 44, time: "11:00", kwh: 0.25, sell: 0.41 });
-    expect(chartData[45]).toEqual({ slot: 45, time: "11:15", kwh: 0, sell: 0 });
-    expect(chartData[46]).toEqual({ slot: 46, time: "11:30", kwh: 0, sell: 0 });
+    expect(chartData[44]).toEqual({ slot: 44, time: "11:00", kwh: 0.25, sell: 0.41, sellCumulative: 0.41 });
+    expect(chartData[45]).toEqual({ slot: 45, time: "11:15", kwh: 0, sell: 0, sellCumulative: 0.41 });
+    expect(chartData[46]).toEqual({ slot: 46, time: "11:30", kwh: 0, sell: 0, sellCumulative: 0.41 });
   });
 });

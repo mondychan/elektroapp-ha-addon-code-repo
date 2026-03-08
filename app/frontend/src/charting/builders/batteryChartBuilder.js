@@ -1,5 +1,5 @@
-import { parseIsoLocalTimeParts } from "../../utils/timeSeries";
-import { buildTooltip } from "./common";
+import { getQuarterHourSlotFromIso, parseIsoLocalTimeParts } from "../../utils/timeSeries";
+import { buildCategoryTimeAxis, buildTooltip } from "./common";
 
 const formatIsoToTime = (iso) => {
   const parts = parseIsoLocalTimeParts(iso);
@@ -13,14 +13,22 @@ export const buildBatteryChartData = (batteryData) => {
   const projectionPoints = batteryData?.projection?.points || [];
 
   historyPoints.forEach((point) => {
-    const row = map.get(point.time) || { time: point.time, timeLabel: formatIsoToTime(point.time) };
+    const row = map.get(point.time) || {
+      time: point.time,
+      timeLabel: formatIsoToTime(point.time),
+      slot: getQuarterHourSlotFromIso(point.time),
+    };
     row.soc = point.soc_percent ?? null;
     row.batteryPower = point.battery_power_w ?? null;
     map.set(point.time, row);
   });
 
   projectionPoints.forEach((point, index) => {
-    const row = map.get(point.time) || { time: point.time, timeLabel: formatIsoToTime(point.time) };
+    const row = map.get(point.time) || {
+      time: point.time,
+      timeLabel: formatIsoToTime(point.time),
+      slot: getQuarterHourSlotFromIso(point.time),
+    };
     row.socProjected = point.soc_percent ?? null;
     if (index === 0 && row.soc == null) {
       row.soc = point.soc_percent ?? null;
@@ -33,6 +41,7 @@ export const buildBatteryChartData = (batteryData) => {
     const row = map.get(lastHistoryPoint.time) || {
       time: lastHistoryPoint.time,
       timeLabel: formatIsoToTime(lastHistoryPoint.time),
+      slot: getQuarterHourSlotFromIso(lastHistoryPoint.time),
     };
     if (row.socProjected == null) {
       row.socProjected = row.soc ?? lastHistoryPoint.soc_percent ?? null;
@@ -45,7 +54,12 @@ export const buildBatteryChartData = (batteryData) => {
   let lastProjectedSoc = null;
 
   return [...map.values()]
-    .sort((a, b) => new Date(a.time) - new Date(b.time))
+    .sort((a, b) => {
+      if (Number.isInteger(a.slot) && Number.isInteger(b.slot)) {
+        return a.slot - b.slot;
+      }
+      return a.time.localeCompare(b.time);
+    })
     .map((row) => {
       const normalizedRow = { ...row };
       if (Number.isFinite(normalizedRow.soc)) {
@@ -66,14 +80,20 @@ export const buildBatteryChartData = (batteryData) => {
     });
 };
 
+const buildBatteryTimeAxis = () =>
+  buildCategoryTimeAxis({
+    stepSize: 4,
+    labelFormatter: (_, label) => (typeof label === "string" && label.endsWith(":00") ? label : ""),
+  });
+
 export const buildBatterySocChartConfig = (chartData) => ({
   pointPayloads: chartData,
   data: {
+    labels: chartData.map((item) => item.timeLabel),
     datasets: [
       {
         label: "SoC",
-        data: chartData.map((item) => ({ x: item.timeLabel, y: item.soc })),
-        parsing: false,
+        data: chartData.map((item) => item.soc),
         borderColor: "rgba(45, 127, 249, 0.92)",
         backgroundColor: "rgba(45, 127, 249, 0.12)",
         borderWidth: 2.5,
@@ -83,8 +103,7 @@ export const buildBatterySocChartConfig = (chartData) => ({
       },
       {
         label: "Projekce SoC",
-        data: chartData.map((item) => ({ x: item.timeLabel, y: item.socProjected ?? null })),
-        parsing: false,
+        data: chartData.map((item) => item.socProjected ?? null),
         borderColor: "rgba(255, 122, 89, 0.98)",
         backgroundColor: "rgba(255, 122, 89, 0.14)",
         borderWidth: 3,
@@ -97,18 +116,12 @@ export const buildBatterySocChartConfig = (chartData) => ({
     ],
   },
   options: {
-    parsing: false,
     interaction: {
       mode: "index",
       intersect: false,
     },
     scales: {
-      x: {
-        type: "category",
-        grid: {
-          display: false,
-        },
-      },
+      x: buildBatteryTimeAxis(),
       y: {
         min: 0,
         max: 100,
@@ -142,12 +155,12 @@ export const buildBatterySocChartConfig = (chartData) => ({
 export const buildBatteryPowerChartConfig = (chartData) => ({
   pointPayloads: chartData,
   data: {
+    labels: chartData.map((item) => item.timeLabel),
     datasets: [
       {
         type: "bar",
         label: "Vykon baterie",
-        data: chartData.map((item) => ({ x: item.timeLabel, y: item.batteryPower })),
-        parsing: false,
+        data: chartData.map((item) => item.batteryPower),
         backgroundColor: chartData.map((item) =>
           item.batteryPower >= 0 ? "rgba(255, 122, 89, 0.82)" : "rgba(45, 127, 249, 0.82)"
         ),
@@ -157,14 +170,8 @@ export const buildBatteryPowerChartConfig = (chartData) => ({
     ],
   },
   options: {
-    parsing: false,
     scales: {
-      x: {
-        type: "category",
-        grid: {
-          display: false,
-        },
-      },
+      x: buildBatteryTimeAxis(),
       y: {
         title: {
           display: true,

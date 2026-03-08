@@ -1,4 +1,4 @@
-import { getHeatmapColor } from "../chartTheme";
+import { getChartTheme, getHeatmapColor } from "../chartTheme";
 import { buildTooltip } from "./common";
 
 const formatCellValue = (value, metric) => {
@@ -8,6 +8,7 @@ const formatCellValue = (value, metric) => {
 };
 
 export const buildHeatmapChartConfig = ({ heatmapData, metric }) => {
+  const theme = getChartTheme();
   const days = heatmapData?.days || [];
   const hours = heatmapData?.hours || Array.from({ length: 24 }, (_, i) => i);
   const min = heatmapData?.stats?.min;
@@ -33,7 +34,7 @@ export const buildHeatmapChartConfig = ({ heatmapData, metric }) => {
         y: dayIndex,
         v: value,
         payload,
-        backgroundColor: getHeatmapColor(metric, denominator == null ? 1 : ratio, value != null),
+        backgroundColor: getHeatmapColor(metric, denominator == null ? 1 : ratio, value != null, theme),
       });
     });
   });
@@ -46,7 +47,7 @@ export const buildHeatmapChartConfig = ({ heatmapData, metric }) => {
           label: "Heatmap",
           data: matrixData,
           backgroundColor: (ctx) => ctx.raw?.backgroundColor || "rgba(255,255,255,0.08)",
-          borderColor: "rgba(255,255,255,0.06)",
+          borderColor: theme.border,
           borderWidth: 1,
           width: ({ chart }) => {
             const xScale = chart.scales.x;

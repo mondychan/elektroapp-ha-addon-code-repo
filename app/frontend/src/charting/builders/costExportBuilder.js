@@ -1,6 +1,6 @@
 import { buildQuarterHourSeries } from "../../utils/timeSeries";
 import { buildTransitionAnnotations } from "../plugins/transitionAnnotationPlugin";
-import { buildLinearAxis, buildSlotAxis, buildTooltip } from "./common";
+import { buildCategoryTimeAxis, buildLinearAxis, buildStaticTimeLabels, buildTooltip } from "./common";
 
 export const buildCostChartData = (costs) => {
   if (!costs?.length) return [];
@@ -16,25 +16,33 @@ export const buildCostChartData = (costs) => {
 
 export const buildExportChartData = (exportPoints) => {
   if (!exportPoints?.length) return [];
-  return buildQuarterHourSeries(
+  const rows = buildQuarterHourSeries(
     exportPoints,
     (point) => ({
       kwh: Number.isFinite(point?.kwh) ? point.kwh : 0,
       sell: Number.isFinite(point?.sell) ? point.sell : 0,
     }),
-    { kwh: 0, sell: 0 }
+    { kwh: 0, sell: 0, sellCumulative: 0 }
   );
+  let sellCumulative = 0;
+  return rows.map((row) => {
+    sellCumulative += row.sell;
+    return {
+      ...row,
+      sellCumulative,
+    };
+  });
 };
 
-const buildTransitions = (chartData, predicate, labels) => {
+const buildTransitions = (chartData, predicate) => {
   const events = [];
   let wasActive = false;
   chartData.forEach((row) => {
     const isActive = predicate(row);
     if (isActive && !wasActive) {
-      events.push({ slot: row.slot, kind: "start", label: labels.start });
+      events.push({ slot: row.slot, kind: "start" });
     } else if (!isActive && wasActive) {
-      events.push({ slot: row.slot, kind: "stop", label: labels.stop });
+      events.push({ slot: row.slot, kind: "stop" });
     }
     wasActive = isActive;
   });
@@ -53,12 +61,12 @@ const buildComboConfig = ({
 }) => ({
   pointPayloads: chartData,
   data: {
+    labels: buildStaticTimeLabels(chartData),
     datasets: [
       {
         type: "bar",
         label: barLabel,
-        data: chartData.map((item) => ({ x: item.slot, y: item[barKey] })),
-        parsing: false,
+        data: chartData.map((item) => item[barKey]),
         yAxisID: "yVolume",
         backgroundColor: barColor,
         borderRadius: 8,
@@ -69,8 +77,7 @@ const buildComboConfig = ({
       {
         type: "line",
         label: lineLabel,
-        data: chartData.map((item) => ({ x: item.slot, y: item[lineKey] })),
-        parsing: false,
+        data: chartData.map((item) => item[lineKey]),
         yAxisID: "yValue",
         borderColor: lineColor,
         backgroundColor: lineColor,
@@ -82,13 +89,12 @@ const buildComboConfig = ({
     ],
   },
   options: {
-    parsing: false,
     interaction: {
       mode: "index",
       intersect: false,
     },
     scales: {
-      x: buildSlotAxis({ includeBandPadding: true }),
+      x: buildCategoryTimeAxis(),
       yVolume: {
         ...buildLinearAxis({ title: "kWh", position: "left", grace: "8%" }),
         beginAtZero: true,
@@ -135,9 +141,7 @@ export const buildCostChartConfig = (chartData, showAnnotations = false) =>
     lineKey: "cost",
     barLabel: "Nakup kWh",
     lineLabel: "Naklad",
-    transitions: showAnnotations
-      ? buildTransitions(chartData, (row) => row.kwh > 0, { start: "Nakup start", stop: "Nakup stop" })
-      : [],
+    transitions: showAnnotations ? buildTransitions(chartData, (row) => row.kwh > 0) : [],
     lineColor: "rgba(45, 127, 249, 0.94)",
     barColor: "rgba(231, 165, 42, 0.82)",
   });
@@ -146,13 +150,10 @@ export const buildExportChartConfig = (chartData, showAnnotations = false) =>
   buildComboConfig({
     chartData,
     barKey: "kwh",
-    lineKey: "sell",
+    lineKey: "sellCumulative",
     barLabel: "Export kWh",
-    lineLabel: "Trzby",
-    transitions: showAnnotations
-      ? buildTransitions(chartData, (row) => row.kwh > 0, { start: "Export start", stop: "Export stop" })
-      : [],
+    lineLabel: "Kumulativni trzby",
+    transitions: showAnnotations ? buildTransitions(chartData, (row) => row.kwh > 0) : [],
     lineColor: "rgba(57, 181, 106, 0.96)",
     barColor: "rgba(77, 121, 255, 0.78)",
   });
-

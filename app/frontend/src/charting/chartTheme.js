@@ -46,9 +46,9 @@ export const getChartTheme = () => {
   };
 };
 
-export const getHeatmapColor = (metric, ratio, hasValue = true) => {
+export const getHeatmapColor = (metric, ratio, hasValue = true, theme = getChartTheme()) => {
   if (!hasValue) {
-    return DEFAULT_THEME.panel2;
+    return theme.panel2;
   }
 
   const clamped = Math.max(0, Math.min(1, ratio));
@@ -83,5 +83,5 @@ export const applyChartDefaults = (theme) => {
   ChartJS.defaults.plugins.tooltip.enabled = false;
   ChartJS.defaults.maintainAspectRatio = false;
   ChartJS.defaults.responsive = true;
+  ChartJS.defaults.animation = false;
 };
-

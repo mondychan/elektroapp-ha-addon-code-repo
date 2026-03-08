@@ -1,12 +1,47 @@
 import { formatSlotToTime } from "../../utils/formatters";
 import { createExternalTooltip } from "../plugins/externalTooltipPlugin";
 
+export const STATIC_SLOT_TICK_STEP = 8;
+
 export const quarterHourTickFormatter = (value) => {
   if (!Number.isFinite(value)) {
     return "";
   }
   return formatSlotToTime(value);
 };
+
+export const staticSlotTickFormatter = (value) => {
+  if (!Number.isFinite(value) || value % STATIC_SLOT_TICK_STEP !== 0) {
+    return "";
+  }
+  return formatSlotToTime(value);
+};
+
+export const buildStaticTimeLabels = (rows = []) => rows.map((row) => row.time || formatSlotToTime(row.slot));
+
+export const buildCategoryTimeAxis = ({
+  stepSize = STATIC_SLOT_TICK_STEP,
+  labelFormatter = (index) => staticSlotTickFormatter(index),
+  tickColor,
+} = {}) => ({
+  type: "category",
+  offset: false,
+  grid: {
+    display: false,
+  },
+  ticks: {
+    autoSkip: false,
+    maxRotation: 0,
+    minRotation: 0,
+    callback(value) {
+      if (!Number.isFinite(value) || value % stepSize !== 0) {
+        return "";
+      }
+      return labelFormatter(value, this.getLabelForValue(value));
+    },
+    color: tickColor,
+  },
+});
 
 export const buildSlotAxis = ({
   max = 95,
@@ -58,4 +93,3 @@ export const colorScale = (value, min, max) => {
   const b = Math.round(start.b + (end.b - start.b) * ratio);
   return `rgba(${r}, ${g}, ${b}, 0.84)`;
 };
-

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chart } from "react-chartjs-2";
 import { resolveAnimationProfile } from "../animationProfiles";
 import { ensureChartJsRegistered } from "../chartjs/register";
@@ -41,10 +41,27 @@ const ChartHost = ({
 }) => {
   ensureChartJsRegistered();
 
-  const theme = getChartTheme();
-  const themeSignature = Object.values(theme).join("|");
+  const [theme, setTheme] = useState(() => getChartTheme());
+  const themeSignature = useMemo(() => Object.values(theme).join("|"), [theme]);
   const chartRef = useRef(null);
   const longPressTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined" || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const refreshTheme = () => setTheme(getChartTheme());
+    refreshTheme();
+
+    const observer = new MutationObserver(refreshTheme);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class", "style"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     applyChartDefaults(theme);
@@ -105,6 +122,7 @@ const ChartHost = ({
   return (
     <div className={`chart-host ${className || ""}`.trim()} style={{ height }} data-testid={testId}>
       <Chart
+        key={`${type}-${themeSignature}`}
         ref={chartRef}
         type={type}
         data={data}
@@ -123,4 +141,3 @@ const ChartHost = ({
 };
 
 export default ChartHost;
-

@@ -16,17 +16,6 @@ export const buildTransitionAnnotations = (markers = []) =>
       borderColor: color,
       borderWidth: 1.5,
       borderDash: [3, 4],
-      label: marker.label
-        ? {
-            display: true,
-            content: marker.label,
-            position: "start",
-            backgroundColor: color,
-            color: "#ffffff",
-            padding: 4,
-          }
-        : undefined,
     };
     return acc;
   }, {});
-

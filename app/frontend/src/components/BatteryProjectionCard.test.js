@@ -23,12 +23,14 @@ describe("buildBatteryChartData", () => {
       {
         time: "2026-03-08T10:00:00+01:00",
         timeLabel: "10:00",
+        slot: 40,
         soc: 72,
         batteryPower: 800,
       },
       {
         time: "2026-03-08T10:15:00+01:00",
         timeLabel: "10:15",
+        slot: 41,
         soc: 73,
         batteryPower: 900,
         socProjected: 73,
@@ -36,6 +38,7 @@ describe("buildBatteryChartData", () => {
       {
         time: "2026-03-08T10:30:00+01:00",
         timeLabel: "10:30",
+        slot: 42,
         soc: 74,
         batteryPower: 0,
         socProjected: 74,
@@ -43,6 +46,7 @@ describe("buildBatteryChartData", () => {
       {
         time: "2026-03-08T10:45:00+01:00",
         timeLabel: "10:45",
+        slot: 43,
         soc: 74,
         batteryPower: 0,
         socProjected: 76,

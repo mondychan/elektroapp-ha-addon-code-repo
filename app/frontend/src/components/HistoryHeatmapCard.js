@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import MonthNavigator from "./MonthNavigator";
 import MatrixHeatmapChart from "../charting/components/MatrixHeatmapChart";
 import { buildHeatmapChartConfig } from "../charting/builders/heatmapBuilder";
@@ -13,7 +13,7 @@ const HistoryHeatmapCard = ({
   error,
   onSelectDate,
 }) => {
-  const chartConfig = useMemo(() => buildHeatmapChartConfig({ heatmapData, metric }), [heatmapData, metric]);
+  const chartConfig = buildHeatmapChartConfig({ heatmapData, metric });
   const min = heatmapData?.stats?.min;
   const max = heatmapData?.stats?.max;
 
