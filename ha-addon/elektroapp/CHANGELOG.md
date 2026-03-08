@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.69
+- Planovac spotrebicu ma misto volneho inputu rychle volby delky programu (30-300 min) s okamzitym hledanim oken.
+- Tlacitko `Vlastni` zachovava puvodni rucni zadani delky a validaci pro rozsah 1-360 minut.
+- Frontend testy nove kontroluji, ze klik na preset rovnou vola planner API se spravnou delkou.
+
 ## 0.1.68
 - Frontend: sjednocene date navigatory napric aplikaci (den/mesic/rok) s jednotnym modernim popover stylem.
 - Nove sdilene komponenty `DateNavigator`, `MonthNavigator`, `YearNavigator` pouzite ve vsech dosavadnich date selector pozicich.
