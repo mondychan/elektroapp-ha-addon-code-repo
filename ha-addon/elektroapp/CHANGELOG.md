@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.72
+- Oprava CI releasu po Chart.js migraci: timezone-agnosticke parsovani slotu a casovych labelu uz nevychazi z runtime timezone procesu.
+- Testy pro `BatteryProjectionCard` a `Cost/Export` builders jsou stabilni i v GitHub Actions prostredi bezícim v UTC.
+- Frontend test suite i produkcni build po oprave znovu prosly uspesne.
+
 ## 0.1.71
 - Frontend grafy migrovany z `recharts` na centralni Chart.js vrstvu s internimi builders, wrappery, tooltipy a anotacemi.
 - `Cena`, `Naklady a nakup`, `Prodej a export`, `Baterie a projekce`, `Vyroba vs spotreba` i `Heatmapa historie` ted pouzivaji sjednoceny charting stack.
