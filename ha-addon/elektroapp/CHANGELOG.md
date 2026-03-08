@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.74
+- improve mobile chart readability with responsive time-axis labels
+- clamp chart tooltips to the visible viewport on small screens
+- make cost chart CZK line cumulative and remove detail start/stop markers
+- fix mobile responsiveness of energy balance and history heatmap charts
+
 ## 0.1.73
 - fix redraw of Chart.js visuals after light/dark theme switch
 - stabilize chart time axes to fixed whole-hour labels instead of drifting from current time
