@@ -3,7 +3,12 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ensureChartJsRegistered } from "./charting/chartjs/register";
+import { applyChartDefaults, getChartTheme } from "./charting/chartTheme";
 import reportWebVitals from './reportWebVitals';
+
+ensureChartJsRegistered();
+applyChartDefaults(getChartTheme());
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

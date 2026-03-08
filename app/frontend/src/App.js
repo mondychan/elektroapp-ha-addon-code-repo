@@ -10,7 +10,7 @@ import BatteryProjectionCard from "./components/BatteryProjectionCard";
 import EnergyBalanceCard from "./components/EnergyBalanceCard";
 import HistoryHeatmapCard from "./components/HistoryHeatmapCard";
 import DateNavigator from "./components/DateNavigator";
-import { formatDate, formatBytes, formatSlotToTime, formatCurrency } from "./utils/formatters";
+import { formatDate, formatBytes, formatSlotToTime, formatSlotRange, formatCurrency } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { usePageVisibility } from "./hooks/usePageVisibility";
 import { useCurrentSlot } from "./hooks/useCurrentSlot";
@@ -367,6 +367,8 @@ function App() {
       Number.isInteger(currentSlot) && currentSlot >= 0 && currentSlot < todayData.length ? todayData[currentSlot] : null;
     const minFinal = todayData.length ? Math.min(...todayData.map((item) => item.final)) : null;
     const maxFinal = todayData.length ? Math.max(...todayData.map((item) => item.final)) : null;
+    const minPriceItem = minFinal != null ? todayData.find((item) => item.final === minFinal) || null : null;
+    const maxPriceItem = maxFinal != null ? todayData.find((item) => item.final === maxFinal) || null : null;
     const todayCost = todayCostsKpi?.cost_total ?? null;
     const todayExport = todayExportKpi?.sell_total ?? null;
     const netTotal = todayCost != null || todayExport != null ? (todayCost || 0) - (todayExport || 0) : null;
@@ -409,12 +411,14 @@ function App() {
         key: "price-min",
         label: "Dnes min",
         value: minFinal != null ? formatCurrency(minFinal) : "-",
+        detail: minPriceItem ? formatSlotRange(minPriceItem.slot) : null,
         tone: "neutral",
       },
       {
         key: "price-max",
         label: "Dnes max",
         value: maxFinal != null ? formatCurrency(maxFinal) : "-",
+        detail: maxPriceItem ? formatSlotRange(maxPriceItem.slot) : null,
         tone: "neutral",
       },
       {

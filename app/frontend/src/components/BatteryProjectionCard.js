@@ -1,23 +1,11 @@
 import React, { useMemo } from "react";
+import ForecastLineChart from "../charting/components/ForecastLineChart";
+import BarTimeChart from "../charting/components/BarTimeChart";
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  BarChart,
-  Bar,
-  ReferenceLine,
-} from "recharts";
-
-const formatIsoToTime = (iso) => {
-  if (!iso) return "-";
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return "-";
-  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-};
+  buildBatteryChartData,
+  buildBatteryPowerChartConfig,
+  buildBatterySocChartConfig,
+} from "../charting/builders/batteryChartBuilder";
 
 const formatNumber = (value, digits = 1) => {
   if (value == null || Number.isNaN(value)) return "-";
@@ -53,31 +41,9 @@ const formatDurationMins = (minutes) => {
 };
 
 const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRefresh }) => {
-  const chartData = useMemo(() => {
-    const map = new Map();
-    const historyPoints = batteryData?.history?.points || [];
-    const projectionPoints = batteryData?.projection?.points || [];
-
-    historyPoints.forEach((p) => {
-      const key = p.time;
-      const row = map.get(key) || { time: p.time, timeLabel: formatIsoToTime(p.time) };
-      row.soc = p.soc_percent ?? null;
-      row.batteryPower = p.battery_power_w ?? null;
-      map.set(key, row);
-    });
-
-    projectionPoints.forEach((p, idx) => {
-      const key = p.time;
-      const row = map.get(key) || { time: p.time, timeLabel: formatIsoToTime(p.time) };
-      row.socProjected = p.soc_percent ?? null;
-      if (idx === 0 && row.soc == null) {
-        row.soc = p.soc_percent ?? null;
-      }
-      map.set(key, row);
-    });
-
-    return [...map.values()].sort((a, b) => new Date(a.time) - new Date(b.time));
-  }, [batteryData]);
+  const chartData = useMemo(() => buildBatteryChartData(batteryData), [batteryData]);
+  const socChartConfig = useMemo(() => buildBatterySocChartConfig(chartData), [chartData]);
+  const powerChartConfig = useMemo(() => buildBatteryPowerChartConfig(chartData), [chartData]);
 
   const status = batteryData?.status || null;
   const currentEnergy = batteryData?.current_energy || {};
@@ -182,8 +148,7 @@ const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRe
 
       <div className="summary">{etaMessage}</div>
       <div className="muted-note">
-        Model: {projection?.method || "-"} / confidence: {projection?.confidence || "-"}.
-        {" "}
+        Model: {projection?.method || "-"} / confidence: {projection?.confidence || "-"}{" "}
         {projection?.method === "hybrid_forecast_load_profile"
           ? "Projekce kombinuje Forecast.Solar a historicky profil spotreby/PV."
           : `Odhad podle trendu baterioveho vykonu za poslednich ${status?.eta_smoothing_minutes ?? "-"} minut.`}
@@ -193,59 +158,8 @@ const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRe
         <div className="muted-note">Historie baterie neni k dispozici.</div>
       ) : (
         <div className="cost-stack">
-          <ResponsiveContainer width="100%" height={230}>
-            <LineChart data={chartData} margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timeLabel" tick={false} />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fill: "var(--text-muted)" }}
-                label={{ value: "SoC %", angle: -90, position: "insideLeft" }}
-              />
-              <Tooltip
-                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                itemStyle={{ color: "var(--text)" }}
-                labelStyle={{ color: "var(--text)" }}
-                labelFormatter={(_, payload) => (payload?.[0]?.payload?.timeLabel ? `Cas: ${payload[0].payload.timeLabel}` : "Cas: -")}
-                formatter={(value, name) => {
-                  if (name === "SoC") return [`${Number(value).toFixed(1)} %`, "SoC"];
-                  if (name === "Projekce SoC") return [`${Number(value).toFixed(1)} %`, "Projekce SoC"];
-                  return [value, name];
-                }}
-              />
-              <Line type="monotone" dataKey="soc" name="SoC" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
-              <Line
-                type="monotone"
-                dataKey="socProjected"
-                name="Projekce SoC"
-                stroke="var(--accent)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-
-          <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={chartData} margin={{ top: 0, right: 20, left: 30, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timeLabel" tick={{ fill: "var(--text-muted)" }} />
-              <YAxis
-                tick={{ fill: "var(--text-muted)" }}
-                label={{ value: "W", angle: -90, position: "insideLeft" }}
-              />
-              <Tooltip
-                contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                itemStyle={{ color: "var(--text)" }}
-                labelStyle={{ color: "var(--text)" }}
-                labelFormatter={(_, payload) => (payload?.[0]?.payload?.timeLabel ? `Cas: ${payload[0].payload.timeLabel}` : "Cas: -")}
-                formatter={(value) => [formatW(value), "Vykon baterie"]}
-              />
-              <ReferenceLine y={0} stroke="var(--border)" />
-              <Bar dataKey="batteryPower" fill="var(--accent-2)" barSize={5} />
-            </BarChart>
-          </ResponsiveContainer>
+          <ForecastLineChart height={240} animationProfile="progressive" {...socChartConfig} />
+          <BarTimeChart height={180} animationProfile="soft" {...powerChartConfig} />
         </div>
       )}
 

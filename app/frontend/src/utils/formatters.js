@@ -36,3 +36,16 @@ export const formatSlotToTime = (slot) => {
   const minute = (slot % 4) * 15;
   return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
 };
+
+export const formatSlotRange = (slot, slotSizeMinutes = 15) => {
+  if (!Number.isInteger(slot) || slot < 0) return "-";
+  const startMinutes = slot * slotSizeMinutes;
+  const endMinutes = startMinutes + slotSizeMinutes;
+  const formatMinutes = (totalMinutes) => {
+    const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+    const hour = Math.floor(normalizedMinutes / 60);
+    const minute = normalizedMinutes % 60;
+    return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+  };
+  return `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)}`;
+};

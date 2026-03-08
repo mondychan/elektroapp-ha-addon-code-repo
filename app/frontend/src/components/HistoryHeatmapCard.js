@@ -1,23 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import MonthNavigator from "./MonthNavigator";
-
-const interpolateColor = (ratio, metric) => {
-  const r = Math.max(0, Math.min(1, ratio));
-  if (metric === "price") {
-    const hue = 120 - (120 * r); // green -> red
-    return `hsla(${hue}, 75%, 52%, 0.68)`;
-  }
-  if (metric === "export") {
-    return `hsla(145, 70%, ${35 + r * 25}%, ${0.18 + r * 0.55})`;
-  }
-  return `hsla(28, 88%, ${38 + r * 20}%, ${0.16 + r * 0.64})`; // buy
-};
-
-const formatCellValue = (value, metric) => {
-  if (value == null) return "-";
-  if (metric === "price") return `${Number(value).toFixed(2)} Kc/kWh`;
-  return `${Number(value).toFixed(3)} kWh`;
-};
+import MatrixHeatmapChart from "../charting/components/MatrixHeatmapChart";
+import { buildHeatmapChartConfig } from "../charting/builders/heatmapBuilder";
 
 const HistoryHeatmapCard = ({
   month,
@@ -29,12 +13,9 @@ const HistoryHeatmapCard = ({
   error,
   onSelectDate,
 }) => {
+  const chartConfig = useMemo(() => buildHeatmapChartConfig({ heatmapData, metric }), [heatmapData, metric]);
   const min = heatmapData?.stats?.min;
   const max = heatmapData?.stats?.max;
-  const denominator = max != null && min != null && max > min ? max - min : null;
-
-  const days = heatmapData?.days || [];
-  const hours = heatmapData?.hours || Array.from({ length: 24 }, (_, i) => i);
 
   return (
     <div className="card">
@@ -57,43 +38,12 @@ const HistoryHeatmapCard = ({
       ) : (
         <>
           <div className="heatmap-wrap">
-            <div className="heatmap-grid">
-              <div className="heatmap-corner" />
-              {hours.map((hour) => (
-                <div key={`h-${hour}`} className="heatmap-hour">
-                  {String(hour).padStart(2, "0")}
-                </div>
-              ))}
-              {days.map((dayRow) => (
-                <React.Fragment key={dayRow.date}>
-                  <button
-                    type="button"
-                    className="heatmap-day-label"
-                    onClick={() => onSelectDate?.(dayRow.date)}
-                    title={`Otevrit den ${dayRow.date}`}
-                  >
-                    {dayRow.day}
-                  </button>
-                  {dayRow.values.map((value, hourIdx) => {
-                    const ratio = value == null || denominator == null ? 0 : (value - min) / denominator;
-                    const bg =
-                      value == null
-                        ? "var(--panel-2)"
-                        : interpolateColor(denominator == null ? 1 : ratio, metric);
-                    return (
-                      <button
-                        type="button"
-                        key={`${dayRow.date}-${hourIdx}`}
-                        className="heatmap-cell"
-                        style={{ background: bg }}
-                        title={`${dayRow.date} ${String(hourIdx).padStart(2, "0")}:00 - ${formatCellValue(value, metric)}`}
-                        onClick={() => onSelectDate?.(dayRow.date)}
-                      />
-                    );
-                  })}
-                </React.Fragment>
-              ))}
-            </div>
+            <MatrixHeatmapChart
+              height={420}
+              animationProfile="progressive"
+              {...chartConfig}
+              onPointClick={(payload) => onSelectDate?.(payload?.date)}
+            />
           </div>
           <div className="heatmap-legend">
             <span>Min: {min == null ? "-" : metric === "price" ? `${min.toFixed(2)} Kc/kWh` : `${min.toFixed(3)} kWh`}</span>

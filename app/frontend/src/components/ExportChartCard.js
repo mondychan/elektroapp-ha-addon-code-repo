@@ -1,17 +1,7 @@
 import React, { useMemo } from "react";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
 import DateNavigator from "./DateNavigator";
+import ComboTimeChart from "../charting/components/ComboTimeChart";
+import { buildExportChartConfig, buildExportChartData } from "../charting/builders/costExportBuilder";
 import { formatDate } from "../utils/formatters";
 
 const ExportChartCard = ({
@@ -25,34 +15,8 @@ const ExportChartCard = ({
   showAnnotations = false,
 }) => {
   const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
-  const formatIsoToTime = (iso) => {
-    const dt = new Date(iso);
-    const h = dt.getHours().toString().padStart(2, "0");
-    const m = dt.getMinutes().toString().padStart(2, "0");
-    return `${h}:${m}`;
-  };
-  const exportChartData = useMemo(() => {
-    if (!exportPoints.length) return [];
-    return exportPoints.map((p) => ({
-      time: formatIsoToTime(p.time),
-      kwh: p.kwh,
-      sell: p.sell,
-    }));
-  }, [exportPoints]);
-  const exportTransitions = useMemo(() => {
-    const events = [];
-    let wasExporting = false;
-    exportChartData.forEach((row) => {
-      const isExporting = (row.kwh ?? 0) > 0;
-      if (isExporting && !wasExporting) {
-        events.push({ time: row.time, kind: "start" });
-      } else if (!isExporting && wasExporting) {
-        events.push({ time: row.time, kind: "stop" });
-      }
-      wasExporting = isExporting;
-    });
-    return events;
-  }, [exportChartData]);
+  const exportChartData = useMemo(() => buildExportChartData(exportPoints), [exportPoints]);
+  const chartConfig = useMemo(() => buildExportChartConfig(exportChartData, showAnnotations), [exportChartData, showAnnotations]);
 
   return (
     <div className="card card-spaced-lg">
@@ -69,67 +33,14 @@ const ExportChartCard = ({
         <div className="muted-note">Data pro vybrany den nejsou k dispozici.</div>
       ) : (
         <>
-          {exportCacheFallback && (
-            <div className="alert">Dotaz na InfluxDB selhal, zobrazuji data z cache.</div>
-          )}
-          {!exportCacheFallback && exportFromCache && (
-            <div className="muted-note">Data jsou z cache exportu.</div>
-          )}
+          {exportCacheFallback && <div className="alert">Dotaz na InfluxDB selhal, zobrazuji data z cache.</div>}
+          {!exportCacheFallback && exportFromCache && <div className="muted-note">Data jsou z cache exportu.</div>}
           {exportSummary && (
             <div className="summary">
               Celkem: {exportSummary.export_kwh_total?.toFixed(2)} kWh / {exportSummary.sell_total?.toFixed(2)},-Kc
             </div>
           )}
-          <div className="cost-stack">
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={exportChartData} margin={{ top: 10, right: 20, left: 30, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" tick={false} />
-                <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "Kc", angle: -90, position: "insideLeft" }} />
-                <Tooltip
-                  contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                  itemStyle={{ color: "var(--text)" }}
-                  labelStyle={{ color: "var(--text)" }}
-                  formatter={(value) => [`${value?.toFixed(2) ?? "-"},-Kc`, "Trzby"]}
-                />
-                {showAnnotations &&
-                  exportTransitions.map((event, idx) => (
-                    <ReferenceLine
-                      key={`export-ann-${idx}`}
-                      x={event.time}
-                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.35)" : "rgba(212, 106, 106, 0.28)"}
-                      strokeDasharray="3 4"
-                      ifOverflow="hidden"
-                    />
-                  ))}
-                <Line type="monotone" dataKey="sell" stroke="var(--accent-2)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={exportChartData} margin={{ top: 0, right: 20, left: 30, bottom: 10 }} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" tick={{ fill: "var(--text-muted)" }} />
-                <YAxis tick={{ fill: "var(--text-muted)" }} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
-                <Tooltip
-                  contentStyle={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
-                  itemStyle={{ color: "var(--text)" }}
-                  labelStyle={{ color: "var(--text)" }}
-                  formatter={(value) => [`${value?.toFixed(3) ?? "-"}`, "Prodej kWh"]}
-                />
-                {showAnnotations &&
-                  exportTransitions.map((event, idx) => (
-                    <ReferenceLine
-                      key={`export-bar-ann-${idx}`}
-                      x={event.time}
-                      stroke={event.kind === "start" ? "rgba(57, 181, 106, 0.25)" : "rgba(212, 106, 106, 0.22)"}
-                      strokeDasharray="3 4"
-                      ifOverflow="hidden"
-                    />
-                  ))}
-                <Bar dataKey="kwh" fill="var(--accent)" barSize={6} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ComboTimeChart height={340} animationProfile={showAnnotations ? "soft" : "realtime"} {...chartConfig} />
         </>
       )}
     </div>

@@ -1,71 +1,13 @@
 import React, { useMemo, useState } from "react";
+import LineTimeChart from "../charting/components/LineTimeChart";
+import BarTimeChart from "../charting/components/BarTimeChart";
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+  ENERGY_SERIES,
+  buildEnergyBalanceBarConfig,
+  buildEnergyBalanceLineConfig,
+} from "../charting/builders/energyBalanceBuilder";
 
 const formatKwh = (value) => (value == null || Number.isNaN(value) ? "-" : `${Number(value).toFixed(2)} kWh`);
-
-const ENERGY_SERIES = [
-  { key: "grid_export_kwh", name: "Export grid", color: "#4d79ff" },
-  { key: "grid_import_kwh", name: "Import grid", color: "#ff4d4f" },
-  { key: "pv_kwh", name: "PV vyroba", color: "#f2c230" },
-  { key: "house_load_kwh", name: "Spotreba domu", color: "#c7392f" },
-];
-
-const SERIES_ORDER = ENERGY_SERIES.reduce((acc, series, index) => {
-  acc[series.key] = index;
-  return acc;
-}, {});
-
-const EnergyBalanceTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-
-  const rows = [...payload].sort((a, b) => {
-    const aIdx = SERIES_ORDER[a?.dataKey] ?? Number.MAX_SAFE_INTEGER;
-    const bIdx = SERIES_ORDER[b?.dataKey] ?? Number.MAX_SAFE_INTEGER;
-    return aIdx - bIdx;
-  });
-
-  return (
-    <div
-      style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        color: "var(--text)",
-        padding: "10px 12px",
-        minWidth: 160,
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>{label || "-"}</div>
-      {rows.map((entry) => (
-        <div
-          key={entry.dataKey}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            marginTop: 4,
-            borderLeft: `3px solid ${entry.color || "var(--border)"}`,
-            paddingLeft: 8,
-          }}
-        >
-          <span style={{ color: entry.color || "var(--text)", whiteSpace: "nowrap" }}>{entry.name}</span>
-          <span style={{ whiteSpace: "nowrap" }}>{formatKwh(entry.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 const EnergyBalanceCard = ({
   period,
@@ -77,11 +19,12 @@ const EnergyBalanceCard = ({
   loading,
   error,
 }) => {
-  const points = data?.points || [];
+  const points = useMemo(() => data?.points || [], [data]);
   const totals = data?.totals || {};
   const [chartType, setChartType] = useState("line");
 
-  const labelTick = useMemo(() => ({ fill: "var(--text-muted)" }), []);
+  const lineConfig = useMemo(() => buildEnergyBalanceLineConfig(points), [points]);
+  const barConfig = useMemo(() => buildEnergyBalanceBarConfig(points), [points]);
   const barChartMinWidth = useMemo(() => {
     const pointCount = Math.max(points.length, 1);
     return Math.max(680, pointCount * 34);
@@ -128,47 +71,18 @@ const EnergyBalanceCard = ({
       ) : (
         <>
           <div className="energy-balance-totals">
-            <span>PV: {formatKwh(totals.pv_kwh)}</span>
-            <span>Spotreba: {formatKwh(totals.house_load_kwh)}</span>
-            <span>Import: {formatKwh(totals.grid_import_kwh)}</span>
-            <span>Export: {formatKwh(totals.grid_export_kwh)}</span>
+            {ENERGY_SERIES.map((series) => (
+              <span key={series.key}>
+                {series.name}: {formatKwh(totals[series.key])}
+              </span>
+            ))}
           </div>
           {chartType === "line" ? (
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={points} margin={{ top: 10, right: 20, left: 30, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={labelTick} />
-                <YAxis tick={labelTick} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
-                <Tooltip content={<EnergyBalanceTooltip />} />
-                <Legend />
-                {ENERGY_SERIES.map((series) => (
-                  <Line
-                    key={series.key}
-                    type="monotone"
-                    dataKey={series.key}
-                    name={series.name}
-                    stroke={series.color}
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <LineTimeChart height={320} animationProfile="soft" {...lineConfig} />
           ) : (
             <div className="energy-balance-chart-scroll">
               <div className="energy-balance-chart-inner" style={{ minWidth: `${barChartMinWidth}px` }}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={points} margin={{ top: 10, right: 20, left: 30, bottom: 10 }} barCategoryGap="12%" barGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tick={labelTick} />
-                    <YAxis tick={labelTick} label={{ value: "kWh", angle: -90, position: "insideLeft" }} />
-                    <Tooltip content={<EnergyBalanceTooltip />} />
-                    <Legend />
-                    {ENERGY_SERIES.map((series) => (
-                      <Bar key={series.key} dataKey={series.key} name={series.name} fill={series.color} barSize={10} maxBarSize={14} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarTimeChart height={320} animationProfile="soft" {...barConfig} />
               </div>
             </div>
           )}
