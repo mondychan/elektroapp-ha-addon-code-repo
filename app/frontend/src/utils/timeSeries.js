@@ -1,10 +1,25 @@
 import { formatSlotToTime } from "./formatters";
 
+export const parseIsoLocalTimeParts = (iso) => {
+  if (!iso || typeof iso !== "string") {
+    return null;
+  }
+  const match = iso.match(/T(\d{2}):(\d{2})/);
+  if (!match) {
+    return null;
+  }
+  const hour = Number.parseInt(match[1], 10);
+  const minute = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return null;
+  }
+  return { hour, minute };
+};
+
 export const getQuarterHourSlotFromIso = (iso) => {
-  if (!iso) return null;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return null;
-  const slot = dt.getHours() * 4 + Math.floor(dt.getMinutes() / 15);
+  const parts = parseIsoLocalTimeParts(iso);
+  if (!parts) return null;
+  const slot = parts.hour * 4 + Math.floor(parts.minute / 15);
   return slot >= 0 && slot < 96 ? slot : null;
 };
 

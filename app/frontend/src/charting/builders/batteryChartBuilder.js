@@ -1,10 +1,10 @@
+import { parseIsoLocalTimeParts } from "../../utils/timeSeries";
 import { buildTooltip } from "./common";
 
 const formatIsoToTime = (iso) => {
-  if (!iso) return "-";
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return "-";
-  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+  const parts = parseIsoLocalTimeParts(iso);
+  if (!parts) return "-";
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 };
 
 export const buildBatteryChartData = (batteryData) => {
@@ -195,4 +195,3 @@ export const buildBatteryPowerChartConfig = (chartData) => ({
     },
   },
 });
-
