@@ -11,6 +11,7 @@ export const buildBatteryChartData = (batteryData) => {
   const map = new Map();
   const historyPoints = batteryData?.history?.points || [];
   const projectionPoints = batteryData?.projection?.points || [];
+  const lastHistoryTime = historyPoints[historyPoints.length - 1]?.time || null;
 
   historyPoints.forEach((point) => {
     const row = map.get(point.time) || {
@@ -30,9 +31,6 @@ export const buildBatteryChartData = (batteryData) => {
       slot: getQuarterHourSlotFromIso(point.time),
     };
     row.socProjected = point.soc_percent ?? null;
-    if (index === 0 && row.soc == null) {
-      row.soc = point.soc_percent ?? null;
-    }
     map.set(point.time, row);
   });
 
@@ -50,6 +48,7 @@ export const buildBatteryChartData = (batteryData) => {
   }
 
   const projectionStartMs = projectionPoints.length ? new Date(projectionPoints[0].time).getTime() : null;
+  const lastHistoryMs = lastHistoryTime ? new Date(lastHistoryTime).getTime() : null;
   let lastSoc = null;
   let lastProjectedSoc = null;
 
@@ -62,13 +61,16 @@ export const buildBatteryChartData = (batteryData) => {
     })
     .map((row) => {
       const normalizedRow = { ...row };
+      const rowTimeMs = new Date(normalizedRow.time).getTime();
+
       if (Number.isFinite(normalizedRow.soc)) {
         lastSoc = normalizedRow.soc;
-      } else if (lastSoc != null) {
+      } else if (lastSoc != null && lastHistoryMs != null && rowTimeMs <= lastHistoryMs) {
         normalizedRow.soc = lastSoc;
+      } else {
+        normalizedRow.soc = null;
       }
 
-      const rowTimeMs = new Date(normalizedRow.time).getTime();
       if (Number.isFinite(normalizedRow.socProjected)) {
         lastProjectedSoc = normalizedRow.socProjected;
       } else if (projectionStartMs != null && rowTimeMs >= projectionStartMs && lastProjectedSoc != null) {
@@ -138,7 +140,11 @@ export const buildBatterySocChartConfig = (chartData) => ({
         return {
           title: point.timeLabel,
           sections: [
-            { label: "SoC", value: `${Number(point.soc ?? 0).toFixed(1)} %`, color: "rgba(45, 127, 249, 0.92)" },
+            {
+              label: "SoC",
+              value: point.soc == null ? "-" : `${Number(point.soc).toFixed(1)} %`,
+              color: "rgba(45, 127, 249, 0.92)",
+            },
             {
               label: "Projekce SoC",
               value: point.socProjected == null ? "-" : `${Number(point.socProjected).toFixed(1)} %`,
