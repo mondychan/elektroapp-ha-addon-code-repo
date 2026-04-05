@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+- **PND Srovnání s lokálními daty**: Nová srovnávací tabulka v PND portálu pro přímou kontrolu přesnosti lokálních senzorů proti oficiálním datům z distribuce.
+- **Navigace v detailu**: Možnost posunu o jeden den do budoucnosti v sekci Cena (zobrazení zítřka) s upozorněním na dostupnost dat.
+- **Solární předpověď**: Redesign karty - čistší design bez textů, KPI mřížka a pokročilé informace pod tlačítkem 'Detail'.
+- **Statistiky**: Možnost skrytí panelů výkonu a bilance na hlavní obrazovce pod přepínač 'Statistiky'.
+- **Heatmapa historie**: Výraznější barevná paleta (Blue-Red) pro lepší vizuální odlišení cenových výkyvů.
+- **PND Layout**: Reorganizace stránky PND (Cache nahoře, stavové bloky pod tlačítky) pro lepší přehlednost na mobilu.
+
 ## 0.2.1
 - oprava overview nacitani cen: karta `Zitra` uz bere publikovana data z kombinovaneho feedu `dnes + zitra` misto jednodennich snapshot cen
 - detail dne nadale pouziva samostatny denni endpoint, takze nedochazi k regresi v historickem prohlizeni
