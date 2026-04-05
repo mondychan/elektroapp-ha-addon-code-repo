@@ -67,6 +67,7 @@ const App: React.FC = () => {
   const [showPlanner, setShowPlanner] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
   const [showFeesHistory, setShowFeesHistory] = useState(false);
+  const [showBatteryPanel, setShowBatteryPanel] = useState(false);
 
   const [theme, setTheme] = useLocalStorageState<"light" | "dark" | "system">("theme", "light");
   const [plannerDuration, setPlannerDuration] = useLocalStorageState("plannerDuration", "120");
@@ -233,13 +234,13 @@ const App: React.FC = () => {
     }
 
     return [
-      { key: "price-now", label: "Cena ted", value: currentPriceItem ? formatCurrency(currentPriceItem.final) : "-", detail: currentPriceItem?.time, tone: "price" as const },
+      { key: "price-now", label: "Cena ted", value: currentPriceItem ? formatCurrency(currentPriceItem.final) : "-", detail: currentPriceItem?.time, tone: "price" as const, onClick: () => setPageMode("costs") },
       { key: "price-min", label: "Dnes min", value: minFinal != null ? formatCurrency(minFinal) : "-", detail: minPriceItem ? formatSlotRange(minPriceItem.slot) : null, tone: "neutral" as const },
       { key: "price-max", label: "Dnes max", value: maxFinal != null ? formatCurrency(maxFinal) : "-", detail: maxPriceItem ? formatSlotRange(maxPriceItem.slot) : null, tone: "neutral" as const },
-      { key: "cost-today", label: "Naklad dnes", value: formatCurrency(dashboard.todayCostsKpi?.cost_total), detail: dashboard.todayCostsKpi?.kwh_total ? `${dashboard.todayCostsKpi.kwh_total.toFixed(2)} kWh` : null, tone: "buy" as const },
-      { key: "export-today", label: "Export dnes", value: formatCurrency(dashboard.todayExportKpi?.sell_total), detail: dashboard.todayExportKpi?.export_kwh_total ? `${dashboard.todayExportKpi.export_kwh_total.toFixed(2)} kWh` : null, tone: "sell" as const },
-      { key: "net-today", label: "Netto dnes", value: formatCurrency(netTotal), tone: (netTotal != null && netTotal <= 0 ? "sell" : "buy") as "sell" | "buy" },
-      { key: "battery", label: "Baterie", value: batterySoc != null ? `${batterySoc.toFixed(0)} %` : "-", detail: [batteryPower != null ? `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W` : null, batteryEtaDetail].filter(Boolean).join(" | "), tone: "battery" as const },
+      { key: "cost-today", label: "Naklad dnes", value: formatCurrency(dashboard.todayCostsKpi?.cost_total), detail: dashboard.todayCostsKpi?.kwh_total ? `${dashboard.todayCostsKpi.kwh_total.toFixed(2)} kWh` : null, tone: "buy" as const, onClick: () => setPageMode("costs") },
+      { key: "export-today", label: "Export dnes", value: formatCurrency(dashboard.todayExportKpi?.sell_total), detail: dashboard.todayExportKpi?.export_kwh_total ? `${dashboard.todayExportKpi.export_kwh_total.toFixed(2)} kWh` : null, tone: "sell" as const, onClick: () => setPageMode("costs") },
+      { key: "net-today", label: "Netto dnes", value: formatCurrency(netTotal), tone: (netTotal != null && netTotal <= 0 ? "sell" : "buy") as "sell" | "buy", onClick: () => setPageMode("costs") },
+      { key: "battery", label: "Baterie", value: batterySoc != null ? `${batterySoc.toFixed(0)} %` : "-", detail: [batteryPower != null ? `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W` : null, batteryEtaDetail].filter(Boolean).join(" | "), tone: "battery" as const, onClick: () => { setPageMode("overview"); setShowBatteryPanel(prev => !prev); } },
     ];
   }, [todayData, currentSlot, dashboard.todayCostsKpi, dashboard.todayExportKpi, batteryData]);
 
@@ -387,8 +388,8 @@ const App: React.FC = () => {
                 setBillingYear,
                 maxBillingMonth: currentMonthStr,
                 maxBillingYear: currentYearStr,
-                showBatteryPanel: false,
-                setShowBatteryPanel: () => {},
+                showBatteryPanel,
+                setShowBatteryPanel,
                 refreshPrices,
                 refreshBattery: dashboard.refreshBattery,
                 showPlanner,
@@ -546,8 +547,8 @@ const App: React.FC = () => {
                   setBillingYear,
                   maxBillingMonth: currentMonthStr,
                   maxBillingYear: currentYearStr,
-                  showBatteryPanel: false,
-                  setShowBatteryPanel: () => {},
+                  showBatteryPanel,
+                  setShowBatteryPanel,
                   refreshPrices,
                   refreshBattery: dashboard.refreshBattery,
                   showPlanner: false,

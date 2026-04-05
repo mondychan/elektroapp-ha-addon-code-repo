@@ -236,34 +236,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </DataCard>
       )}
 
-      {showStats && (
-        <section className="section">
-          <DataCard title="Srovnání výkonu" loading={comparisonLoading}>
-            <ComparisonCard comparison={comparison} loading={comparisonLoading} />
-          </DataCard>
 
-          <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
-            <EnergyBalanceCard
-              period={energyBalancePeriod}
-              anchor={currentEnergyBalanceAnchor}
-              onPrev={() =>
-                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
-              }
-              onNext={() =>
-                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
-              }
-              disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
-              onPeriodChange={(value: any) => {
-                setEnergyBalancePeriod(value as any);
-                setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
-              }}
-              data={energyBalanceData}
-              loading={energyBalanceLoading}
-              error={energyBalanceError}
-            />
-          </DataCard>
-        </section>
-      )}
 
       {!showBatteryPanel && !showConfig && (
         <section className="section">
@@ -391,6 +364,35 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
       <button onClick={() => setShowStats(!showStats)} className="ghost-button">
         {showStats ? "Skrýt statistiky" : "Zobrazit statistiky"}
       </button>
+
+      {showStats && (
+        <section className="section">
+          <DataCard title="Srovnání výkonu" loading={comparisonLoading}>
+            <ComparisonCard comparison={comparison} loading={comparisonLoading} />
+          </DataCard>
+
+          <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
+            <EnergyBalanceCard
+              period={energyBalancePeriod}
+              anchor={currentEnergyBalanceAnchor}
+              onPrev={() =>
+                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
+              }
+              onNext={() =>
+                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
+              }
+              disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
+              onPeriodChange={(value: any) => {
+                setEnergyBalancePeriod(value as any);
+                setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
+              }}
+              data={energyBalanceData}
+              loading={energyBalanceLoading}
+              error={energyBalanceError}
+            />
+          </DataCard>
+        </section>
+      )}
 
       <button onClick={handlePlannerToggle} className="ghost-button">
         {showPlanner ? "Skrýt plánovač" : "Zobrazit plánovač"}

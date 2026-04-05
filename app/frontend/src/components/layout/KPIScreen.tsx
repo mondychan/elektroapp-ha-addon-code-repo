@@ -6,6 +6,7 @@ interface KPIItem {
   value: string;
   detail?: string | null;
   tone?: "price" | "neutral" | "buy" | "sell" | "battery" | string;
+  onClick?: () => void;
 }
 
 interface KPIScreenProps {
@@ -16,7 +17,13 @@ const KPIScreen: React.FC<KPIScreenProps> = ({ items }) => {
   return (
     <section className="kpi-strip" aria-label="Dnesni KPI">
       {items.map((item) => (
-        <div key={item.key} className={`kpi-tile ${item.tone ? `kpi-tile--${item.tone}` : ""}`}>
+        <div
+          key={item.key}
+          className={`kpi-tile ${item.tone ? `kpi-tile--${item.tone}` : ""}`}
+          onClick={item.onClick}
+          style={item.onClick ? { cursor: "pointer" } : undefined}
+          title={item.onClick ? `Zobrazit detail ${item.label}` : undefined}
+        >
           <div className="kpi-tile-label">{item.label}</div>
           <div className="kpi-tile-value">{item.value}</div>
           <div className="kpi-tile-detail">{item.detail || ""}</div>
