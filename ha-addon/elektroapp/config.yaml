@@ -41,14 +41,14 @@ options:
   tarif:
     vt_periods: "6-7,9-10,13-14,16-17"
   influxdb:
-    host: "192.168.82.120"
+    host: "192.168.1.100"
     port: 8086
     database: "homeassistant"
     retention_policy: "autogen"
     measurement: "kWh"
     field: "value"
-    entity_id: "solax_drinov_today_s_import_energy"
-    export_entity_id: "solax_drinov_today_s_export_energy"
+    entity_id: "sensor.solar_today_s_import_energy"
+    export_entity_id: "sensor.solar_today_s_export_energy"
     username: "electroapp"
     password: "CHANGE_ME"
     timezone: "Europe/Prague"
@@ -57,10 +57,10 @@ options:
     koeficient_snizeni_ceny: 390
   battery:
     enabled: true
-    soc_entity_id: "sensor.solax_drinov_battery_capacity"
-    power_entity_id: "sensor.solax_drinov_battery_power_charge"
-    input_energy_today_entity_id: "sensor.solax_drinov_battery_input_energy_today"
-    output_energy_today_entity_id: "sensor.solax_drinov_battery_output_energy_today"
+    soc_entity_id: "sensor.solar_battery_capacity"
+    power_entity_id: "sensor.solar_battery_power_charge"
+    input_energy_today_entity_id: "sensor.solar_battery_input_energy_today"
+    output_energy_today_entity_id: "sensor.solar_battery_output_energy_today"
     usable_capacity_kwh: 11.6
     reserve_soc_percent: 15
     eta_smoothing_minutes: 15
@@ -68,12 +68,12 @@ options:
     charge_efficiency: 0.95
     discharge_efficiency: 0.95
   energy:
-    house_load_power_entity_id: "sensor.solax_drinov_house_load"
-    grid_import_power_entity_id: "sensor.solax_drinov_grid_import"
-    grid_export_power_entity_id: "sensor.solax_drinov_grid_export"
-    pv_power_total_entity_id: "sensor.solax_drinov_pv_power_total"
-    pv_power_1_entity_id: "sensor.solax_drinov_pv_power_1"
-    pv_power_2_entity_id: "sensor.solax_drinov_pv_power_2"
+    house_load_power_entity_id: "sensor.solar_house_load"
+    grid_import_power_entity_id: "sensor.solar_grid_import"
+    grid_export_power_entity_id: "sensor.solar_grid_export"
+    pv_power_total_entity_id: "sensor.solar_pv_power_total"
+    pv_power_1_entity_id: "sensor.solar_pv_power_1"
+    pv_power_2_entity_id: "sensor.solar_pv_power_2"
   forecast_solar:
     enabled: true
     power_now_entity_id: "sensor.power_production_now"
