@@ -275,108 +275,12 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
     }
   };
 
+  const [showStatus, setShowStatus] = useState(false);
+  const [showFeed, setShowFeed] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+
   return (
     <section className="page-pnd">
-      <DataCard title="PND konfigurace" className="card-spaced">
-        <div className="pnd-form-grid">
-          <label className="pnd-field">
-            <span>Uzivatelske jmeno</span>
-            <input value={form.username} onChange={(e) => handleField("username", e.target.value)} placeholder="email@domena.cz" />
-          </label>
-          <label className="pnd-field">
-            <span>Heslo</span>
-            <input type="password" value={form.password} onChange={(e) => handleField("password", e.target.value)} placeholder="heslo do PND" />
-          </label>
-          <label className="pnd-field">
-            <span>Meter ID / ELM</span>
-            <input value={form.meter_id} onChange={(e) => handleField("meter_id", e.target.value)} placeholder="3000012345" />
-          </label>
-        </div>
-        <div className="pnd-toggle-grid">
-          <label><input type="checkbox" checked={form.enabled} onChange={(e) => handleField("enabled", e.target.checked)} /> PND zapnuto</label>
-          <label><input type="checkbox" checked={form.verify_on_startup} onChange={(e) => handleField("verify_on_startup", e.target.checked)} /> Verify pri startu</label>
-          <label><input type="checkbox" checked={form.nightly_sync_enabled} onChange={(e) => handleField("nightly_sync_enabled", e.target.checked)} /> Nocni sync aktivni</label>
-        </div>
-        <div className="pnd-form-grid">
-          <label className="pnd-field">
-            <span>Start nocniho okna (hodina)</span>
-            <input
-              type="number"
-              min={0}
-              max={23}
-              value={form.nightly_sync_window_start_hour}
-              onChange={(e) => handleField("nightly_sync_window_start_hour", Number(e.target.value || 0))}
-            />
-          </label>
-          <label className="pnd-field">
-            <span>Konec nocniho okna (hodina)</span>
-            <input
-              type="number"
-              min={form.nightly_sync_window_start_hour}
-              max={23}
-              value={form.nightly_sync_window_end_hour}
-              onChange={(e) => handleField("nightly_sync_window_end_hour", Number(e.target.value || 0))}
-            />
-          </label>
-        </div>
-        <div className="config-actions">
-          <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit PND konfiguraci"}</button>
-        </div>
-        {saveMessage ? <div className="config-muted">{saveMessage}</div> : null}
-        {saveError ? <div className="alert error">{saveError}</div> : null}
-      </DataCard>
-
-      <DataCard title="Stav a verify" loading={statusLoading} error={statusError} className="card-spaced">
-        {statePresentation ? (
-          <div className={`alert pnd-state-banner pnd-state-banner--${statePresentation.tone}`}>
-            <strong>{statePresentation.title}</strong>
-            <div>{statePresentation.description}</div>
-          </div>
-        ) : null}
-        <div className="pnd-status-grid">
-          <div><strong>Enabled:</strong> {status?.enabled ? "ano" : "ne"}</div>
-          <div><strong>Configured:</strong> {status?.configured ? "ano" : "ne"}</div>
-          <div><strong>Healthy:</strong> {status?.healthy ? "ano" : "ne"}</div>
-          <div><strong>State:</strong> {status?.state || "-"}</div>
-          <div><strong>Portal version:</strong> {status?.portal_version || "-"}</div>
-          <div><strong>Posledni verify:</strong> {formatDateTime(status?.last_verify_at)}</div>
-          <div><strong>Posledni sync:</strong> {formatDateTime(status?.last_sync_at)}</div>
-        </div>
-        {status?.last_error ? (
-          <div className="alert error">
-            <strong>{status.last_error.message}</strong>
-            {status.last_error.code ? ` [${status.last_error.code}]` : ""}
-            {diagnosticRows.length ? (
-              <ul className="pnd-diagnostics-list">
-                {diagnosticRows.map((row) => (
-                  <li key={row}>{row}</li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : (
-          <div className="config-muted">Posledni chyba neni evidovana.</div>
-        )}
-        <div className="config-actions">
-          <button onClick={handleVerify} disabled={actionLoading}>{actionLoading ? "Overuji..." : "Spustit verify"}</button>
-        </div>
-        {actionMessage ? <div className="config-muted">{actionMessage}</div> : null}
-        {actionError ? <div className="alert error">{actionError}</div> : null}
-      </DataCard>
-
-      <DataCard title="Feed a backfill" className="card-spaced">
-        <div className="toolbar">
-          <button onClick={() => handleBackfill("yesterday")} disabled={actionLoading}>Vcera</button>
-          <button onClick={() => handleBackfill("week")} disabled={actionLoading}>7 dni</button>
-          <button onClick={() => handleBackfill("month")} disabled={actionLoading}>Mesic</button>
-          <button onClick={() => handleBackfill("year")} disabled={actionLoading}>Rok</button>
-          <button onClick={() => handleBackfill("max")} disabled={actionLoading}>Maximum</button>
-        </div>
-        <div className="config-muted">
-          Nocni sync zkousi stahnout vcerejsi data mezi {String(form.nightly_sync_window_start_hour).padStart(2, "0")}:00 a {String(form.nightly_sync_window_end_hour).padStart(2, "0")}:59, kazdou hodinu.
-        </div>
-      </DataCard>
-
       <DataCard title="Cache a data" className="card-spaced">
         <div className="pnd-status-grid">
           <div><strong>Cached from:</strong> {status?.cached_from || "-"}</div>
@@ -406,30 +310,201 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
         </div>
         {dataError ? <div className="alert error">{dataError}</div> : null}
         {dataPreview.length ? (
-          <table className="data-table table-spaced">
-            <thead>
-              <tr>
-                <th>Den</th>
-                <th>Spotreba</th>
-                <th>Vyroba</th>
-                <th>Intervaly</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataPreview.map((day) => (
-                <tr key={day.date}>
-                  <td>{day.date}</td>
-                  <td>{day.totals?.consumption_kwh?.toFixed?.(2) ?? "-"}</td>
-                  <td>{day.totals?.production_kwh?.toFixed?.(2) ?? "-"}</td>
-                  <td>{day.intervals?.length ?? 0}</td>
+          <>
+            <table className="data-table table-spaced" style={{ marginTop: "16px" }}>
+              <thead>
+                <tr>
+                  <th>Den</th>
+                  <th>Solax (Nákup)</th>
+                  <th>PND (Nákup)</th>
+                  <th>Rozdíl (N)</th>
+                  <th>Solax (Prodej)</th>
+                  <th>PND (Prodej)</th>
+                  <th>Rozdíl (P)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {dataPreview.map((day) => {
+                  const pndBuy = day.totals?.consumption_kwh ?? 0;
+                  const localBuy = day.local_comparison?.consumption_kwh ?? 0;
+                  const diffBuy = localBuy - pndBuy;
+
+                  const pndSell = day.totals?.production_kwh ?? 0;
+                  const localSell = day.local_comparison?.production_kwh ?? 0;
+                  const diffSell = localSell - pndSell;
+
+                  return (
+                    <tr key={day.date}>
+                      <td>{day.date}</td>
+                      <td>{localBuy.toFixed(2)}</td>
+                      <td>{pndBuy.toFixed(2)}</td>
+                      <td className={Math.abs(diffBuy) > 0.05 ? "text-danger" : ""}>
+                        {diffBuy > 0 ? "+" : ""}{diffBuy.toFixed(2)}
+                      </td>
+                      <td>{localSell.toFixed(2)}</td>
+                      <td>{pndSell.toFixed(2)}</td>
+                      <td className={Math.abs(diffSell) > 0.05 ? "text-danger" : ""}>
+                        {diffSell > 0 ? "+" : ""}{diffSell.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot style={{ fontWeight: "bold", borderTop: "2px solid var(--border)" }}>
+                {(() => {
+                  const totals = dataPreview.reduce(
+                    (acc, day) => {
+                      acc.pndBuy += day.totals?.consumption_kwh ?? 0;
+                      acc.localBuy += day.local_comparison?.consumption_kwh ?? 0;
+                      acc.pndSell += day.totals?.production_kwh ?? 0;
+                      acc.localSell += day.local_comparison?.production_kwh ?? 0;
+                      return acc;
+                    },
+                    { pndBuy: 0, localBuy: 0, pndSell: 0, localSell: 0 }
+                  );
+                  const grandDiffBuy = totals.localBuy - totals.pndBuy;
+                  const grandDiffSell = totals.localSell - totals.pndSell;
+
+                  return (
+                    <tr>
+                      <td>CELKEM</td>
+                      <td>{totals.localBuy.toFixed(2)}</td>
+                      <td>{totals.pndBuy.toFixed(2)}</td>
+                      <td className={Math.abs(grandDiffBuy) > 1.0 ? "text-danger" : ""}>
+                        {grandDiffBuy > 0 ? "+" : ""}{grandDiffBuy.toFixed(2)}
+                      </td>
+                      <td>{totals.localSell.toFixed(2)}</td>
+                      <td>{totals.pndSell.toFixed(2)}</td>
+                      <td className={Math.abs(grandDiffSell) > 1.0 ? "text-danger" : ""}>
+                        {grandDiffSell > 0 ? "+" : ""}{grandDiffSell.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })()}
+              </tfoot>
+            </table>
+            <div className="config-muted" style={{ marginTop: "8px" }}>
+              * 'Solax' hodnoty jsou agregovány z lokálních entit Grid Import/Export v InfluxDB.
+            </div>
+          </>
         ) : (
-          <div className="config-muted">Preview dat se zobrazi po rucnim nacteni rozsahu.</div>
+          <div className="config-muted">Souhrn období a porovnání s lokálními daty se zobrazí po načtení.</div>
         )}
       </DataCard>
+
+      <div className="toolbar" style={{ marginTop: "12px" }}>
+        <button className="ghost-button" onClick={() => setShowStatus(!showStatus)}>{showStatus ? "Skrýt stav" : "Stav"}</button>
+        <button className="ghost-button" onClick={() => setShowFeed(!showFeed)}>{showFeed ? "Skrýt Feed" : "Feed"}</button>
+        <button className="ghost-button" onClick={() => setShowConfig(!showConfig)}>{showConfig ? "Skrýt konfiguraci" : "Konfigurace"}</button>
+      </div>
+
+      {showStatus && (
+        <DataCard title="Stav a verify" loading={statusLoading} error={statusError} className="card-spaced">
+          {statePresentation ? (
+            <div className={`alert pnd-state-banner pnd-state-banner--${statePresentation.tone}`}>
+              <strong>{statePresentation.title}</strong>
+              <div>{statePresentation.description}</div>
+            </div>
+          ) : null}
+          <div className="pnd-status-grid">
+            <div><strong>Enabled:</strong> {status?.enabled ? "ano" : "ne"}</div>
+            <div><strong>Configured:</strong> {status?.configured ? "ano" : "ne"}</div>
+            <div><strong>Healthy:</strong> {status?.healthy ? "ano" : "ne"}</div>
+            <div><strong>State:</strong> {status?.state || "-"}</div>
+            <div><strong>Portal version:</strong> {status?.portal_version || "-"}</div>
+            <div><strong>Posledni verify:</strong> {formatDateTime(status?.last_verify_at)}</div>
+            <div><strong>Posledni sync:</strong> {formatDateTime(status?.last_sync_at)}</div>
+          </div>
+          {status?.last_error ? (
+            <div className="alert error">
+              <strong>{status.last_error.message}</strong>
+              {status.last_error.code ? ` [${status.last_error.code}]` : ""}
+              {diagnosticRows.length ? (
+                <ul className="pnd-diagnostics-list">
+                  {diagnosticRows.map((row) => (
+                    <li key={row}>{row}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <div className="config-muted" style={{ marginTop: "8px" }}>Posledni chyba neni evidovana.</div>
+          )}
+          <div className="config-actions">
+            <button onClick={handleVerify} disabled={actionLoading}>{actionLoading ? "Overuji..." : "Spustit verify"}</button>
+          </div>
+          {actionMessage ? <div className="config-muted">{actionMessage}</div> : null}
+          {actionError ? <div className="alert error">{actionError}</div> : null}
+        </DataCard>
+      )}
+
+      {showFeed && (
+        <DataCard title="Feed a backfill" className="card-spaced">
+          <div className="toolbar">
+            <button onClick={() => handleBackfill("yesterday")} disabled={actionLoading}>Vcera</button>
+            <button onClick={() => handleBackfill("week")} disabled={actionLoading}>7 dni</button>
+            <button onClick={() => handleBackfill("month")} disabled={actionLoading}>Mesic</button>
+            <button onClick={() => handleBackfill("year")} disabled={actionLoading}>Rok</button>
+            <button onClick={() => handleBackfill("max")} disabled={actionLoading}>Maximum</button>
+          </div>
+          <div className="config-muted" style={{ marginTop: "8px" }}>
+            Nocni sync zkousi stahnout vcerejsi data mezi {String(form.nightly_sync_window_start_hour).padStart(2, "0")}:00 a {String(form.nightly_sync_window_end_hour).padStart(2, "0")}:59, kazdou hodinu.
+          </div>
+          {actionMessage ? <div className="config-muted">{actionMessage}</div> : null}
+          {actionError ? <div className="alert error">{actionError}</div> : null}
+        </DataCard>
+      )}
+
+      {showConfig && (
+        <DataCard title="PND konfigurace" className="card-spaced">
+          <div className="pnd-form-grid">
+            <label className="pnd-field">
+              <span>Uzivatelske jmeno</span>
+              <input value={form.username} onChange={(e) => handleField("username", e.target.value)} placeholder="email@domena.cz" />
+            </label>
+            <label className="pnd-field">
+              <span>Heslo</span>
+              <input type="password" value={form.password} onChange={(e) => handleField("password", e.target.value)} placeholder="heslo do PND" />
+            </label>
+            <label className="pnd-field">
+              <span>Meter ID / ELM</span>
+              <input value={form.meter_id} onChange={(e) => handleField("meter_id", e.target.value)} placeholder="3000012345" />
+            </label>
+          </div>
+          <div className="pnd-toggle-grid">
+            <label><input type="checkbox" checked={form.enabled} onChange={(e) => handleField("enabled", e.target.checked)} /> PND zapnuto</label>
+            <label><input type="checkbox" checked={form.verify_on_startup} onChange={(e) => handleField("verify_on_startup", e.target.checked)} /> Verify pri startu</label>
+            <label><input type="checkbox" checked={form.nightly_sync_enabled} onChange={(e) => handleField("nightly_sync_enabled", e.target.checked)} /> Nocni sync aktivni</label>
+          </div>
+          <div className="pnd-form-grid">
+            <label className="pnd-field">
+              <span>Start nocniho okna (hodina)</span>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={form.nightly_sync_window_start_hour}
+                onChange={(e) => handleField("nightly_sync_window_start_hour", Number(e.target.value || 0))}
+              />
+            </label>
+            <label className="pnd-field">
+              <span>Konec nocniho okna (hodina)</span>
+              <input
+                type="number"
+                min={form.nightly_sync_window_start_hour}
+                max={23}
+                value={form.nightly_sync_window_end_hour}
+                onChange={(e) => handleField("nightly_sync_window_end_hour", Number(e.target.value || 0))}
+              />
+            </label>
+          </div>
+          <div className="config-actions">
+            <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit PND konfiguraci"}</button>
+          </div>
+          {saveMessage ? <div className="config-muted">{saveMessage}</div> : null}
+          {saveError ? <div className="alert error">{saveError}</div> : null}
+        </DataCard>
+      )}
     </section>
   );
 };

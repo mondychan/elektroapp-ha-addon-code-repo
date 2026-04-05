@@ -63,8 +63,9 @@ def purge_pnd_cache():
 def get_pnd_data(
     from_date: str = Query(..., alias="from", pattern=r"^\d{4}-\d{2}-\d{2}$"),
     to_date: str = Query(..., alias="to", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    ctx: RequestContext = Depends(get_request_context),
 ):
-    return svc.get_pnd_data(from_date=from_date, to_date=to_date)
+    return svc.get_pnd_data(from_date=from_date, to_date=to_date, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.get("/version")

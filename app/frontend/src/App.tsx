@@ -58,6 +58,7 @@ const shiftMonthValue = (value: string, monthDelta: number) => {
 
 const App: React.FC = () => {
   const todayDateStr = getTodayDateStr();
+  const tomorrowDateStr = shiftDateValue(todayDateStr, 1);
   const currentMonthStr = getCurrentMonthStr();
   const currentYearStr = getCurrentYearStr();
   const [pageMode, setPageMode] = useState<PageMode>("overview");
@@ -429,7 +430,7 @@ const App: React.FC = () => {
                 selectedDatePriceData,
                 selectedDatePricesLoading: dashboard.selectedDatePricesLoading,
                 selectedDatePricesError: dashboard.selectedDatePricesError,
-                maxDate: todayDateStr,
+                maxDate: tomorrowDateStr,
                 maxMonth: currentMonthStr,
                 effectiveHighlightSlot: effectiveHighlightSlot as any,
                 pinnedSlot: pinnedSlot as any,

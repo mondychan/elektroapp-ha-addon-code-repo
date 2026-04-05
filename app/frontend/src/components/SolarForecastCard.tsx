@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { SolarForecast } from "../types/elektroapp";
 
 interface SolarForecastCardProps {
@@ -39,6 +39,8 @@ const formatSignedW = (value?: number | null) => {
 };
 
 const SolarForecastCard: React.FC<SolarForecastCardProps> = ({ solarForecast, loading }) => {
+  const [showDetail, setShowDetail] = useState(false);
+
   if (loading || !solarForecast || !solarForecast.enabled) return null;
 
   const status = solarForecast.status || {};
@@ -56,87 +58,88 @@ const SolarForecastCard: React.FC<SolarForecastCardProps> = ({ solarForecast, lo
   const projectionGap = comparison.projection_delta_to_forecast_kwh ?? null;
   const forecastSoFar = comparison.forecast_so_far_kwh ?? null;
 
-  const topItems = [
-    { label: "Aktualni vykon panelu", value: formatW(actualPowerNow) },
-    { label: "Forecast vykon ted", value: formatW(forecastPowerNow) },
-    { label: "Rozdil ted", value: formatSignedW(comparison.power_delta_w) },
-    { label: "Vyrobeno dnes realne", value: formatKwh(actualToday) },
-    { label: "Forecast do ted", value: formatKwh(forecastSoFar) },
-    { label: "Rozdil do ted", value: formatSignedKwh(comparison.delta_so_far_kwh) },
-    { label: "Forecast dnes celkem", value: formatKwh(forecastToday) },
-    { label: "Forecast zbyva dnes", value: formatKwh(forecastRemaining) },
-    { label: "Systemovy odhad dnes", value: formatKwh(adjustedProjection) },
+  const kpiItems = [
+    { label: "Aktuální výkon", value: formatW(actualPowerNow) },
+    { label: "Vyrobeno dnes", value: formatKwh(actualToday) },
+    { label: "Systémový odhad", value: formatKwh(adjustedProjection) },
+    { label: "Forecast zbyvajíci", value: formatKwh(forecastRemaining) },
+    { label: "Forecast celkem", value: formatKwh(forecastToday) },
+    { label: "Rozdíl do teď", value: formatSignedKwh(comparison.delta_so_far_kwh) },
   ];
 
   const calibrationItems = [
-    { label: "Dnesni pace ratio", value: formatRatio(comparison.live_ratio) },
+    { label: "Dnešní pace ratio", value: formatRatio(comparison.live_ratio) },
     { label: "Historicky bias", value: formatRatio(comparison.historical_bias_ratio) },
-    { label: "Pouzita korekce", value: formatRatio(comparison.effective_bias_ratio) },
+    { label: "Použitá korekce", value: formatRatio(comparison.effective_bias_ratio) },
     { label: "Odchylka od forecast dne", value: formatSignedKwh(projectionGap) },
-    { label: "Historickych dni v cache", value: String(history.days_tracked ?? 0) },
-    { label: "Posledni dokonceny den", value: history.last_completed_date || "-" },
+    { label: "Historických dní v cache", value: String(history.days_tracked ?? 0) },
+    { label: "Poslední dokončený den", value: history.last_completed_date || "-" },
   ];
 
   return (
     <div className="solar-forecast-grid">
-      <div className="summary">
-        Karta kombinuje Forecast.Solar s realnou PV vyrobou z InfluxDB. Systemovy odhad upravuje zbytek dnesniho
-        forecastu podle dnesniho prubehu a historicke odchylky vaseho systemu.
-      </div>
-
       {!actual.pv_power_entity_id && (
         <div className="muted-note">
-          Chybi `energy.pv_power_total_entity_id`, proto lze zobrazit jen surovy forecast bez realne vyroby systemu.
+          Chybí `energy.pv_power_total_entity_id`, proto lze zobrazit jen surový forecast bez reálné výroby systému.
         </div>
       )}
 
-      <div className="solar-main-stats">
-        {topItems.map((item) => (
-          <div key={item.label} className="solar-stat-card">
-            <div className="solar-stat-info">
-              <div className="solar-stat-label">{item.label}</div>
-              <div className="solar-stat-value">{item.value}</div>
-            </div>
+      <div className="battery-kpi-grid">
+        {kpiItems.map((item) => (
+          <div key={item.label} className="battery-kpi">
+            <div className="battery-kpi-label">{item.label}</div>
+            <div className="battery-kpi-value">{item.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="battery-meta-grid">
-        <div className="battery-meta-block">
-          <h4>Kalibrace systemu</h4>
-          <div className="battery-meta-list">
-            {calibrationItems.map((item) => (
-              <div key={item.label}>
-                {item.label}: {item.value}
-              </div>
-            ))}
-          </div>
-        </div>
+      <button onClick={() => setShowDetail(!showDetail)} className="ghost-button">
+        {showDetail ? "Skrýt detail" : "Detail"}
+      </button>
 
-        <div className="battery-meta-block">
-          <h4>Forecast detail</h4>
-          <div className="battery-meta-list">
-            <div>Tato hodina: {formatKwh(status.energy_current_hour ?? status.energy_current_hour_kwh ?? null)}</div>
-            <div>Pristi hodina: {formatKwh(status.energy_next_hour ?? status.energy_next_hour_kwh ?? null)}</div>
-            <div>Zitra celkem: {formatKwh(status.production_tomorrow ?? status.energy_production_tomorrow_kwh ?? null)}</div>
-            <div>Spicka dnes: {status.peak_time_today_hhmm || "-"}</div>
-            <div>Spicka zitra: {status.peak_time_tomorrow_hhmm || "-"}</div>
-            <div>Vzorku dnes: {actual.samples_today != null ? String(actual.samples_today) : "-"}</div>
-          </div>
-        </div>
-      </div>
-
-      {history.recent_days && history.recent_days.length > 0 && (
-        <div className="battery-meta-block">
-          <h4>Posledni dny v cache</h4>
-          <div className="battery-meta-list">
-            {history.recent_days.slice().reverse().map((day) => (
-              <div key={day.date}>
-                {day.date}: real {formatKwh(day.actual_total_kwh)} / forecast {formatKwh(day.forecast_total_kwh)} / ratio{" "}
-                {formatRatio(day.ratio)}
+      {showDetail && (
+        <div style={{ marginTop: "16px" }}>
+          <div className="battery-meta-grid">
+            <div className="battery-meta-block">
+              <h4>Kalibrace systému</h4>
+              <div className="battery-meta-list">
+                {calibrationItems.map((item) => (
+                  <div key={item.label}>
+                    {item.label}: {item.value}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            <div className="battery-meta-block">
+              <h4>Forecast detail</h4>
+              <div className="battery-meta-list">
+                <div>Forecast výkon teď: {formatW(forecastPowerNow)}</div>
+                <div>Rozdíl výkonu teď: {formatSignedW(comparison.power_delta_w)}</div>
+                <div>Forecast do teď: {formatKwh(forecastSoFar)}</div>
+                <div>Tato hodina: {formatKwh(status.energy_current_hour ?? status.energy_current_hour_kwh ?? null)}</div>
+                <div>Příští hodina: {formatKwh(status.energy_next_hour ?? status.energy_next_hour_kwh ?? null)}</div>
+                <div>Zítra celkem: {formatKwh(status.production_tomorrow ?? status.energy_production_tomorrow_kwh ?? null)}</div>
+                <div>Špička dnes: {status.peak_time_today_hhmm || "-"}</div>
+                <div>Špička zítra: {status.peak_time_tomorrow_hhmm || "-"}</div>
+                <div>Vzorků dnes: {actual.samples_today != null ? String(actual.samples_today) : "-"}</div>
+              </div>
+            </div>
           </div>
+
+          {history.recent_days && history.recent_days.length > 0 && (
+            <div className="battery-meta-block" style={{ marginTop: "12px" }}>
+              <h4>Poslední dny v cache</h4>
+              <div className="battery-meta-list">
+                {history.recent_days.slice().reverse().map((day) => (
+                  <div key={day.date}>
+                    {day.date}: real {formatKwh(day.actual_total_kwh)} / forecast {formatKwh(day.forecast_total_kwh)} / ratio{" "}
+                    {formatRatio(day.ratio)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

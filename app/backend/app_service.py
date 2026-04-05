@@ -586,10 +586,41 @@ def backfill_pnd(range_name: str, cfg=None, tzinfo=None):
         service.record_error(exc, job_type="backfill", extra={"range": range_name})
         _handle_pnd_error(exc)
 
-def get_pnd_data(from_date: str, to_date: str):
+def get_pnd_data(from_date: str, to_date: str, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     service = _require_pnd_service()
     try:
-        return service.get_data(from_date, to_date)
+        res = service.get_data(from_date, to_date)
+        
+        # Add local comparison
+        energy_cfg = get_energy_entities_cfg(cfg)
+        influx = get_influx_cfg(cfg)
+        interval = influx.get("interval", "15m")
+        interval_m = parse_influx_interval_to_minutes(interval, 15)
+        
+        start_local = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=tzinfo)
+        end_local = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=tzinfo)
+        
+        local_data = {}
+        for key, eid in [("consumption_kwh", energy_cfg.get("grid_import_power_entity_id")), 
+                         ("production_kwh", energy_cfg.get("grid_export_power_entity_id"))]:
+            if not eid: continue
+            points = INFLUX_SERVICE.query_entity_series(
+                influx, eid, start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc),
+                interval=interval, tzinfo=tzinfo, numeric=True, measurement_candidates=["W", "kW"]
+            )
+            aggregated = aggregate_power_points(points, interval_m, bucket="day", tzinfo=tzinfo)
+            for d_key, val in aggregated.items():
+                local_data.setdefault(d_key, {})[key] = val
+        
+        for day in res.get("days", []):
+            d_str = day.get("date")
+            l_info = local_data.get(d_str, {})
+            day["local_comparison"] = {
+                "consumption_kwh": l_info.get("consumption_kwh"),
+                "production_kwh": l_info.get("production_kwh"),
+            }
+        return res
     except PNDServiceError as exc:
         _handle_pnd_error(exc)
 

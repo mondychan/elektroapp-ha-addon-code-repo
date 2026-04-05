@@ -53,8 +53,8 @@ export const getHeatmapColor = (metric, ratio, hasValue = true, theme = getChart
 
   const clamped = Math.max(0, Math.min(1, ratio));
   if (metric === "price") {
-    const hue = 120 - (120 * clamped);
-    return `hsla(${hue}, 75%, 52%, 0.72)`;
+    const hue = 200 - (200 * clamped);
+    return `hsla(${hue}, 85%, 50%, 0.82)`;
   }
   if (metric === "export") {
     return `hsla(145, 70%, ${35 + clamped * 25}%, ${0.2 + clamped * 0.58})`;

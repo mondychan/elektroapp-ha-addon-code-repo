@@ -140,7 +140,7 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
           </div>
           <PriceChartCard
             chartData={selectedDatePriceData}
-            fallbackMessage="Data nejsou k dispozici."
+            fallbackMessage="Data pro tento den (zítřek) nejsou k dispozici."
             vtPeriods={config?.tarif?.vt_periods}
             highlightSlot={effectiveHighlightSlot}
             pinnedSlot={pinnedSlot}
