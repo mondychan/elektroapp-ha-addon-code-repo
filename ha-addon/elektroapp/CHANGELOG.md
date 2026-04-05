@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.78
+- Vizuální redesign tabulek: odstraněno podbarvení pozadí buněk a nahrazeno čistším barevným odlišením samotného textu.
+- Barvy textu (červená pro nákup/náklady, zelená pro prodej/zisky) jsou optimalizovány pro vysoký kontrast ve světlém i tmavém režimu.
+- Záhlaví tabulek jsou nyní neutrální pro lepší profesionální vzhled.
+- Sloupce množství energie (kWh) v měsíčním souhrnu jsou nyní bez barevného odlišení.
+- V tabulce Odhad vyúčtování se barva celkových nákladů mění dynamicky (červená při platbě, zelená při celkovém zisku).
+
 ## 0.1.77
 - Pridany sloupce "Netto (kWh)" a "Netto (Kč)" do mesicniho souhrnu pro lepsi prehled o bilanci.
 - Barevne odliseni netto hodnot (cervena pro naklady, zelena pro zisky).
