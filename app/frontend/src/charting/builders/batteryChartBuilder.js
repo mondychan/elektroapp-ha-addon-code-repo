@@ -11,7 +11,11 @@ export const buildBatteryChartData = (batteryData) => {
   const map = new Map();
   const historyPoints = batteryData?.history?.points || [];
   const projectionPoints = batteryData?.projection?.points || [];
-  const lastHistoryTime = historyPoints[historyPoints.length - 1]?.time || null;
+
+  // Find the last history point that actually contains SoC data.
+  // This prevents the blue line from extending flat to the end of the day if the backend returns empty slots.
+  const lastValidHistoryPoint = [...historyPoints].reverse().find((p) => p.soc_percent != null);
+  const lastHistoryTime = lastValidHistoryPoint?.time || null;
 
   historyPoints.forEach((point) => {
     const row = map.get(point.time) || {
@@ -34,17 +38,17 @@ export const buildBatteryChartData = (batteryData) => {
     map.set(point.time, row);
   });
 
-  const lastHistoryPoint = historyPoints[historyPoints.length - 1];
-  if (lastHistoryPoint && projectionPoints.length > 0) {
-    const row = map.get(lastHistoryPoint.time) || {
-      time: lastHistoryPoint.time,
-      timeLabel: formatIsoToTime(lastHistoryPoint.time),
-      slot: getQuarterHourSlotFromIso(lastHistoryPoint.time),
+  // Stitching: ensure projection starts from the last valid history point
+  if (lastValidHistoryPoint && projectionPoints.length > 0) {
+    const row = map.get(lastValidHistoryPoint.time) || {
+      time: lastValidHistoryPoint.time,
+      timeLabel: formatIsoToTime(lastValidHistoryPoint.time),
+      slot: getQuarterHourSlotFromIso(lastValidHistoryPoint.time),
     };
     if (row.socProjected == null) {
-      row.socProjected = row.soc ?? lastHistoryPoint.soc_percent ?? null;
+      row.socProjected = row.soc ?? lastValidHistoryPoint.soc_percent ?? null;
     }
-    map.set(lastHistoryPoint.time, row);
+    map.set(lastValidHistoryPoint.time, row);
   }
 
   const projectionStartMs = projectionPoints.length ? new Date(projectionPoints[0].time).getTime() : null;
@@ -77,7 +81,11 @@ export const buildBatteryChartData = (batteryData) => {
         normalizedRow.socProjected = lastProjectedSoc;
       }
 
-      normalizedRow.batteryPower = Number.isFinite(normalizedRow.batteryPower) ? normalizedRow.batteryPower : 0;
+      normalizedRow.batteryPower = Number.isFinite(normalizedRow.batteryPower)
+        ? normalizedRow.batteryPower
+        : lastHistoryMs && rowTimeMs <= lastHistoryMs
+        ? 0
+        : null;
       return normalizedRow;
     });
 };
@@ -101,6 +109,7 @@ export const buildBatterySocChartConfig = (chartData) => ({
         borderWidth: 2.5,
         pointRadius: 0,
         pointHoverRadius: 4,
+        spanGaps: true,
         tension: 0.28,
       },
       {
