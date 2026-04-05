@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.11
+- Fix: oprava chyby při buildu (missing tomorowData destructuring).
+- Fix: graf cen na zítřek je nyní plně funkční.
+
 ## 0.2.10
 - Fix: vrácen graf cen pro zítřek na hlavní obrazovku. Graf se zobrazuje automaticky pouze tehdy, když jsou data pro další den k dispozici.
 - Fix: stabilizace rozvržení hlavní stránky (tlačítka už neodskakují při otevírání panelů).
