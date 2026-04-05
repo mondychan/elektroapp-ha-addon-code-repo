@@ -2,6 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { normalizeEnergyBalanceAnchor } from "./dashboardUtils";
 
+interface UseInsightsDataProps {
+  selectedMonth: string;
+  showConfig: boolean;
+  showFeesHistory: boolean;
+  showBilling: boolean;
+  billingMode: "month" | "year";
+  billingMonth: string;
+  billingYear: string;
+  pageMode: "overview" | "detail";
+  energyBalancePeriod: "week" | "month" | "year";
+  energyBalanceAnchor: string;
+  heatmapMonth: string;
+  heatmapMetric: "buy" | "sell";
+}
+
 export const useInsightsData = ({
   selectedMonth,
   showConfig,
@@ -15,33 +30,33 @@ export const useInsightsData = ({
   energyBalanceAnchor,
   heatmapMonth,
   heatmapMetric,
-}) => {
-  const [monthlySummary, setMonthlySummary] = useState([]);
-  const [monthlyTotals, setMonthlyTotals] = useState(null);
-  const [monthlyError, setMonthlyError] = useState(null);
+}: UseInsightsDataProps) => {
+  const [monthlySummary, setMonthlySummary] = useState<any[]>([]);
+  const [monthlyTotals, setMonthlyTotals] = useState<any>(null);
+  const [monthlyError, setMonthlyError] = useState<string | null>(null);
 
-  const [billingData, setBillingData] = useState(null);
+  const [billingData, setBillingData] = useState<any>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const [billingError, setBillingError] = useState(null);
+  const [billingError, setBillingError] = useState<string | null>(null);
 
-  const [energyBalanceData, setEnergyBalanceData] = useState(null);
+  const [energyBalanceData, setEnergyBalanceData] = useState<any>(null);
   const [energyBalanceLoading, setEnergyBalanceLoading] = useState(false);
-  const [energyBalanceError, setEnergyBalanceError] = useState(null);
+  const [energyBalanceError, setEnergyBalanceError] = useState<string | null>(null);
 
-  const [heatmapData, setHeatmapData] = useState(null);
+  const [heatmapData, setHeatmapData] = useState<any>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapError, setHeatmapError] = useState(null);
+  const [heatmapError, setHeatmapError] = useState<string | null>(null);
 
-  const [feesHistory, setFeesHistory] = useState([]);
+  const [feesHistory, setFeesHistory] = useState<any[]>([]);
   const [feesHistoryLoading, setFeesHistoryLoading] = useState(false);
-  const [feesHistoryError, setFeesHistoryError] = useState(null);
+  const [feesHistoryError, setFeesHistoryError] = useState<string | null>(null);
 
   const fetchEnergyBalance = useCallback(async () => {
     setEnergyBalanceLoading(true);
     setEnergyBalanceError(null);
     const anchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
     try {
-      const data = await elektroappApi.getEnergyBalance(energyBalancePeriod, anchor);
+      const data = await (elektroappApi as any).getEnergyBalance(energyBalancePeriod, anchor);
       setEnergyBalanceData(data);
     } catch (err) {
       console.error("Error fetching energy balance:", err);
@@ -55,7 +70,7 @@ export const useInsightsData = ({
     setHeatmapLoading(true);
     setHeatmapError(null);
     try {
-      const data = await elektroappApi.getHistoryHeatmap(heatmapMonth, heatmapMetric);
+      const data = await (elektroappApi as any).getHistoryHeatmap(heatmapMonth, heatmapMetric);
       setHeatmapData(data);
     } catch (err) {
       console.error("Error fetching heatmap:", err);
@@ -79,7 +94,7 @@ export const useInsightsData = ({
     }
   }, []);
 
-  const saveFeesHistory = useCallback(async (historyPayload) => {
+  const saveFeesHistory = useCallback(async (historyPayload: any) => {
     setFeesHistoryLoading(true);
     setFeesHistoryError(null);
     try {
@@ -117,10 +132,10 @@ export const useInsightsData = ({
     setBillingLoading(true);
     setBillingError(null);
     setBillingData(null);
-    const request = billingMode === "year" ? elektroappApi.getBillingYear(billingYear) : elektroappApi.getBillingMonth(billingMonth);
+    const request = billingMode === "year" ? (elektroappApi as any).getBillingYear(billingYear) : (elektroappApi as any).getBillingMonth(billingMonth);
     request
-      .then((data) => setBillingData(data))
-      .catch((err) => {
+      .then((data: any) => setBillingData(data))
+      .catch((err: any) => {
         console.error("Error fetching billing summary:", err);
         setBillingError(buildInfluxError(err));
       })

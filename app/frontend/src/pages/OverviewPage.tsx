@@ -51,8 +51,8 @@ interface OverviewPageProps {
   monthlyLoading?: boolean;
   showBilling: boolean;
   setShowBilling: (show: boolean) => void;
-  billingMode: string;
-  setBillingMode: (mode: string) => void;
+  billingMode: "month" | "year";
+  setBillingMode: (mode: "month" | "year") => void;
   billingMonth: string;
   setBillingMonth: (month: string) => void;
   billingYear: string;
@@ -69,7 +69,7 @@ interface OverviewPageProps {
   energyBalancePeriod: string;
   energyBalanceAnchor: string;
   setEnergyBalanceAnchor: React.Dispatch<React.SetStateAction<string>>;
-  setEnergyBalancePeriod: (period: string) => void;
+  setEnergyBalancePeriod: (period: "week" | "month" | "year") => void;
   energyBalanceData: any;
   energyBalanceLoading: boolean;
   energyBalanceError: any;
@@ -80,7 +80,7 @@ interface OverviewPageProps {
   handleLoadPlanner: (dur?: string) => Promise<void>;
   finalPlannerError: any;
   plannerLoading: boolean;
-  plannerNote: string;
+  plannerNote: string | null;
   plannerResults: any;
   showConfig: boolean;
   setShowConfig: (show: boolean) => void;
@@ -89,24 +89,25 @@ interface OverviewPageProps {
   consumptionCacheRows: any[];
   cacheStatus: any;
   showFeesHistory: boolean;
-  setShowFeesHistory: (show: any) => void;
+  setShowFeesHistory: React.Dispatch<React.SetStateAction<boolean>>;
   feesHistory: any;
   feesHistoryLoading: boolean;
   feesHistoryError: any;
   saveFeesHistory: (history: any) => void;
-  defaultFeesValues: any;
   priceProviderLabel: string;
   priceProviderUrl: string;
   refreshPrices: () => void;
   pricesRefreshLoading: boolean;
-  pricesRefreshMessage: string;
-  pricesRefreshError: any;
+  pricesRefreshMessage: string | null;
+  pricesRefreshError: string | null;
   pricesLoading?: boolean;
   alerts: any;
   comparison: any;
   comparisonLoading: boolean;
   solarForecast: any;
   solarForecastLoading: boolean;
+  defaultFeesValues: any;
+  thresholds: any;
 }
 
 const OverviewPage: React.FC<OverviewPageProps> = (props) => {
@@ -188,7 +189,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     feesHistoryLoading,
     feesHistoryError,
     saveFeesHistory,
-    defaultFeesValues,
     priceProviderLabel,
     priceProviderUrl,
     refreshPrices,
@@ -354,8 +354,8 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
             onNext={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
             }
-            onPeriodChange={(value: string) => {
-              setEnergyBalancePeriod(value);
+            onPeriodChange={(value: any) => {
+              setEnergyBalancePeriod(value as any);
               setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
             }}
             data={energyBalanceData}
@@ -395,12 +395,12 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
             consumptionCacheRows={consumptionCacheRows}
             cacheStatus={cacheStatus}
             showFeesHistory={showFeesHistory}
-            onToggleFeesHistory={() => setShowFeesHistory((prev: any) => !prev)}
+            onToggleFeesHistory={() => setShowFeesHistory((prev: boolean) => !prev)}
             feesHistory={feesHistory}
             feesHistoryLoading={feesHistoryLoading}
             feesHistoryError={feesHistoryError}
             onSaveFeesHistory={saveFeesHistory}
-            defaultFeesValues={defaultFeesValues}
+            defaultFeesValues={props.defaultFeesValues}
             priceProviderLabel={priceProviderLabel}
             priceProviderUrl={priceProviderUrl}
             onRefreshPrices={refreshPrices}

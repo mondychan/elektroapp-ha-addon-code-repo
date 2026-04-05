@@ -17,15 +17,18 @@ class BillingService:
         build_price_map_for_date: Callable[..., tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]],
         get_export_entity_id: Callable[[dict[str, Any]], str | None],
         get_fee_snapshot_for_date: Callable[..., dict[str, Any]],
-        get_sell_coefficient_kwh: Callable[..., float],
         compute_fixed_breakdown_for_day: Callable[..., tuple[dict[str, float], dict[str, float]]],
+        calculate_sell_coefficient: Callable[..., float] | None = None,
+        get_sell_coefficient_kwh: Callable[..., float] | None = None,
     ):
         self._get_consumption_points = get_consumption_points
         self._get_export_points = get_export_points
         self._build_price_map_for_date = build_price_map_for_date
         self._get_export_entity_id = get_export_entity_id
         self._get_fee_snapshot_for_date = get_fee_snapshot_for_date
-        self._get_sell_coefficient_kwh = get_sell_coefficient_kwh
+        self._calculate_sell_coefficient = calculate_sell_coefficient or get_sell_coefficient_kwh
+        if self._calculate_sell_coefficient is None:
+             raise TypeError("BillingService missing calculate_sell_coefficient or get_sell_coefficient_kwh")
         self._compute_fixed_breakdown_for_day = compute_fixed_breakdown_for_day
 
     def calculate_daily_totals(self, cfg: dict[str, Any], date_str: str) -> dict[str, Any]:
@@ -69,7 +72,7 @@ class BillingService:
             return {"export_kwh_total": None, "sell_total": None, "has_series": has_series}
         price_map, price_map_utc = self._build_price_map_for_date(cfg, date_str, tzinfo)
         fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
-        coef_kwh = self._get_sell_coefficient_kwh(cfg, fee_snapshot)
+        coef_kwh = self._calculate_sell_coefficient(cfg, fee_snapshot)
 
         total_kwh = 0.0
         total_sell = 0.0

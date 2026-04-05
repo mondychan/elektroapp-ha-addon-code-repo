@@ -4,6 +4,24 @@ import { usePrimaryDashboardData } from "./usePrimaryDashboardData";
 
 export { getTodayDateStr, normalizeEnergyBalanceAnchor, shiftEnergyBalanceAnchor } from "./dashboardUtils";
 
+interface UseDashboardDataProps {
+  selectedDate: string;
+  selectedMonth: string;
+  showConfig: boolean;
+  showFeesHistory: boolean;
+  showBilling: boolean;
+  billingMode: "month" | "year";
+  billingMonth: string;
+  billingYear: string;
+  pageMode: "overview" | "detail";
+  energyBalancePeriod: "week" | "month" | "year";
+  energyBalanceAnchor: string;
+  heatmapMonth: string;
+  heatmapMetric: "buy" | "sell";
+  autoRefreshEnabled: boolean;
+  isPageVisible: boolean;
+}
+
 export const useDashboardData = ({
   selectedDate,
   selectedMonth,
@@ -20,7 +38,7 @@ export const useDashboardData = ({
   heatmapMetric,
   autoRefreshEnabled,
   isPageVisible,
-}) => {
+}: UseDashboardDataProps) => {
   const primary = usePrimaryDashboardData({
     selectedDate,
     showConfig,

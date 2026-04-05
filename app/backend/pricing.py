@@ -2,6 +2,25 @@ import re
 from html.parser import HTMLParser
 
 
+def _safe_float(value, default=0.0):
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def calculate_sell_coefficient(cfg, fee_snapshot=None):
+    prodej = None
+    if isinstance(fee_snapshot, dict):
+        prodej = fee_snapshot.get("prodej") if isinstance(fee_snapshot.get("prodej"), dict) else None
+    if not isinstance(prodej, dict):
+        prodej = cfg.get("prodej", {}) if isinstance(cfg.get("prodej"), dict) else {}
+    coef_mwh = _safe_float(prodej.get("koeficient_snizeni_ceny", 0))
+    return coef_mwh / 1000.0
+
+
 PRICE_PROVIDER_SPOT = "spotovaelektrina"
 PRICE_PROVIDER_OTE = "ote"
 DEFAULT_PRICE_PROVIDER = PRICE_PROVIDER_SPOT
@@ -46,11 +65,6 @@ def get_price_provider(cfg):
     return normalize_price_provider(cfg.get("price_provider"))
 
 
-def _safe_float(value):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def normalize_dph_percent(value):
@@ -267,3 +281,6 @@ def parse_price_html(html_text):
             continue
         rows.append((time_str, price_czk))
     return rows
+
+def is_price_cache_provider_match(date_str, provider, get_cached_price_provider_fn):
+    return get_cached_price_provider_fn(date_str) == normalize_price_provider(provider)

@@ -242,8 +242,11 @@ def update_fees_history_logic(history_payload: list, tzinfo):
     
     save_fee_history(normalized)
     return normalized
+
+def resolve_config_and_timezone(cfg=None, tzinfo=None):
     cfg = cfg if isinstance(cfg, dict) else load_config()
-    tzinfo = tzinfo or get_local_tz(cfg.get("influxdb", {}).get("timezone"))
+    if not tzinfo:
+        tzinfo = get_local_tz(cfg.get("influxdb", {}).get("timezone"))
     return cfg, tzinfo
 
 def get_influx_cfg(cfg):
@@ -307,11 +310,3 @@ def has_battery_required_cfg(battery_cfg):
         and battery_cfg.get("usable_capacity_kwh", 0) > 0
     )
 
-def get_sell_coefficient_kwh(cfg, fee_snapshot=None):
-    prodej = None
-    if isinstance(fee_snapshot, dict):
-        prodej = fee_snapshot.get("prodej") if isinstance(fee_snapshot.get("prodej"), dict) else None
-    if not isinstance(prodej, dict):
-        prodej = cfg.get("prodej", {}) if isinstance(cfg.get("prodej"), dict) else {}
-    coef_mwh = _safe_float(prodej.get("koeficient_snizeni_ceny", 0))
-    return coef_mwh / 1000.0

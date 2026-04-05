@@ -13,12 +13,15 @@ class ExportService:
         get_export_points: Callable[..., dict[str, Any]],
         build_price_map_for_date: Callable[..., tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]],
         get_fee_snapshot_for_date: Callable[..., dict[str, Any]],
-        get_sell_coefficient_kwh: Callable[..., float],
+        calculate_sell_coefficient: Callable[..., float] | None = None,
+        get_sell_coefficient_kwh: Callable[..., float] | None = None,
     ):
         self._get_export_points = get_export_points
         self._build_price_map_for_date = build_price_map_for_date
         self._get_fee_snapshot_for_date = get_fee_snapshot_for_date
-        self._get_sell_coefficient_kwh = get_sell_coefficient_kwh
+        self._calculate_sell_coefficient = calculate_sell_coefficient or get_sell_coefficient_kwh
+        if self._calculate_sell_coefficient is None:
+             raise TypeError("ExportService missing calculate_sell_coefficient or get_sell_coefficient_kwh")
 
     @staticmethod
     def _slot_key_from_iso(value: str | None) -> str | None:
@@ -86,7 +89,7 @@ class ExportService:
             coef_kwh = coef_by_date.get(date_key)
             if coef_kwh is None:
                 fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_key, tzinfo)
-                coef_kwh = self._get_sell_coefficient_kwh(cfg, fee_snapshot)
+                coef_kwh = self._calculate_sell_coefficient(cfg, fee_snapshot)
                 coef_by_date[date_key] = coef_kwh
             sell_price = spot_price - coef_kwh if spot_price is not None else None
             sell = None

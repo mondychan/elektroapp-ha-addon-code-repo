@@ -17,9 +17,10 @@ from pricing import (
     get_price_provider,
     normalize_price_provider,
     parse_price_html,
+    is_price_cache_provider_match,
 )
 from services.runtime_state import RuntimeState
-from cache import is_price_cache_provider_match, should_use_daily_cache, is_today_date
+from cache import should_use_daily_cache, is_today_date
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -434,5 +435,3 @@ def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
         price_map_utc[key_utc] = {"spot": entry["spot"], "final": entry["final"]}
     return price_map, price_map_utc
 
-def is_price_cache_provider_match(date_str, provider, get_cached_price_provider_fn):
-    return get_cached_price_provider_fn(date_str) == normalize_price_provider(provider)

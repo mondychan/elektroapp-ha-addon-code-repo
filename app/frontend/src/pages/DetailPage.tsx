@@ -36,17 +36,17 @@ interface DetailPageProps {
   exportLoading?: boolean;
   exportFromCache: boolean;
   exportCacheFallback: boolean;
-  energyBalancePeriod: string;
+  energyBalancePeriod: "week" | "month" | "year";
   energyBalanceAnchor: string;
   setEnergyBalanceAnchor: React.Dispatch<React.SetStateAction<string>>;
-  setEnergyBalancePeriod: (period: string) => void;
+  setEnergyBalancePeriod: (period: "week" | "month" | "year") => void;
   energyBalanceData: any;
   energyBalanceLoading: boolean;
   energyBalanceError: any;
   heatmapMonth: string;
   setHeatmapMonth: (month: string) => void;
-  heatmapMetric: string;
-  setHeatmapMetric: (metric: string) => void;
+  heatmapMetric: "buy" | "sell";
+  setHeatmapMetric: (metric: "buy" | "sell") => void;
   heatmapData: any;
   heatmapLoading: boolean;
   heatmapError: any;
@@ -54,6 +54,7 @@ interface DetailPageProps {
   batteryLoading: boolean;
   batteryError: any;
   refreshBattery: () => void;
+  thresholds: any;
 }
 
 const DetailPage: React.FC<DetailPageProps> = (props) => {
@@ -139,6 +140,7 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
             highlightSlot={effectiveHighlightSlot}
             pinnedSlot={pinnedSlot}
             onPinSlot={setPinnedSlot}
+            thresholds={props.thresholds}
             className=""
           />
         </DataCard>
@@ -183,9 +185,9 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
             onNext={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
             }
-            onPeriodChange={(value: string) => {
-              setEnergyBalancePeriod(value);
-              setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
+            onPeriodChange={(value: any) => {
+              setEnergyBalancePeriod(value as any);
+              setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value as any, prev));
             }}
             data={energyBalanceData}
             loading={energyBalanceLoading}

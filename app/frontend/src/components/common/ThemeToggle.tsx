@@ -1,8 +1,8 @@
 import React from "react";
 
 interface ThemeToggleProps {
-  theme: "light" | "dark";
-  setTheme: (theme: "light" | "dark") => void;
+  theme: "light" | "dark" | "system";
+  setTheme: (theme: "light" | "dark" | "system") => void;
 }
 
 const ThemeToggle: React.FC<ThemeToggleProps> = ({ theme, setTheme }) => {

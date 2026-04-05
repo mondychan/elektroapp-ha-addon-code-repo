@@ -1,5 +1,6 @@
-import pathlib
 import sys
+import pathlib
+print("--- DEBUG: conftest.py sys.path:", sys.path)
 
 import pytest
 
@@ -27,6 +28,10 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     monkeypatch.setattr(backend_main, "CACHE_DIR", cache_dir)
     monkeypatch.setattr(backend_main, "CONSUMPTION_CACHE_DIR", consumption_cache_dir)
     monkeypatch.setattr(backend_main, "EXPORT_CACHE_DIR", export_cache_dir)
+
+    from services.cache_manager import SeriesCache
+    backend_main.CONSUMPTION_CACHE = SeriesCache("consumption", consumption_cache_dir, 3600)
+    backend_main.EXPORT_CACHE = SeriesCache("export", export_cache_dir, 3600)
     monkeypatch.setattr(backend_main, "OPTIONS_BACKUP_FILE", storage_dir / "options.json")
     monkeypatch.setattr(backend_main, "FEES_HISTORY_FILE", storage_dir / "fees-history.json")
     monkeypatch.setattr(backend_main, "PRICES_CACHE", {})

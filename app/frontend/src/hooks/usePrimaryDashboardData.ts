@@ -1,48 +1,56 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { getTodayDateStr } from "./dashboardUtils";
+import { Config, BatteryData, CostsKpi, ExportKpi, SolarForecast } from "../types/elektroapp";
 
-export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshEnabled, isPageVisible }) => {
-  const [prices, setPrices] = useState([]);
-  const [selectedDatePrices, setSelectedDatePrices] = useState([]);
+interface UsePrimaryDashboardDataProps {
+  selectedDate: string;
+  showConfig: boolean;
+  autoRefreshEnabled: boolean;
+  isPageVisible: boolean;
+}
+
+export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshEnabled, isPageVisible }: UsePrimaryDashboardDataProps) => {
+  const [prices, setPrices] = useState<any[]>([]);
+  const [selectedDatePrices, setSelectedDatePrices] = useState<any[]>([]);
   const [selectedDatePricesLoading, setSelectedDatePricesLoading] = useState(false);
-  const [selectedDatePricesError, setSelectedDatePricesError] = useState(null);
+  const [selectedDatePricesError, setSelectedDatePricesError] = useState<string | null>(null);
   
-  const [config, setConfig] = useState(null);
-  const [cacheStatus, setCacheStatus] = useState(null);
-  const [version, setVersion] = useState(null);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<any>(null);
+  const [version, setVersion] = useState<string | null>(null);
 
-  const [costs, setCosts] = useState([]);
-  const [costsSummary, setCostsSummary] = useState(null);
-  const [costsError, setCostsError] = useState(null);
+  const [costs, setCosts] = useState<any[]>([]);
+  const [costsSummary, setCostsSummary] = useState<CostsKpi | null>(null);
+  const [costsError, setCostsError] = useState<string | null>(null);
   const [costsFromCache, setCostsFromCache] = useState(false);
   const [costsCacheFallback, setCostsCacheFallback] = useState(false);
 
-  const [exportPoints, setExportPoints] = useState([]);
-  const [exportSummary, setExportSummary] = useState(null);
-  const [exportError, setExportError] = useState(null);
+  const [exportPoints, setExportPoints] = useState<any[]>([]);
+  const [exportSummary, setExportSummary] = useState<ExportKpi | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exportFromCache, setExportFromCache] = useState(false);
   const [exportCacheFallback, setExportCacheFallback] = useState(false);
 
-  const [batteryData, setBatteryData] = useState(null);
+  const [batteryData, setBatteryData] = useState<BatteryData | null>(null);
   const [batteryLoading, setBatteryLoading] = useState(false);
-  const [batteryError, setBatteryError] = useState(null);
+  const [batteryError, setBatteryError] = useState<string | null>(null);
 
-  const [todayCostsKpi, setTodayCostsKpi] = useState(null);
-  const [todayExportKpi, setTodayExportKpi] = useState(null);
+  const [todayCostsKpi, setTodayCostsKpi] = useState<CostsKpi | null>(null);
+  const [todayExportKpi, setTodayExportKpi] = useState<ExportKpi | null>(null);
 
   const [pricesRefreshLoading, setPricesRefreshLoading] = useState(false);
-  const [pricesRefreshMessage, setPricesRefreshMessage] = useState(null);
-  const [pricesRefreshError, setPricesRefreshError] = useState(null);
-  const [alerts, setAlerts] = useState(null);
-  const [comparison, setComparison] = useState(null);
+  const [pricesRefreshMessage, setPricesRefreshMessage] = useState<string | null>(null);
+  const [pricesRefreshError, setPricesRefreshError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<any>(null);
+  const [comparison, setComparison] = useState<any>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [solarForecast, setSolarForecast] = useState(null);
+  const [solarForecast, setSolarForecast] = useState<SolarForecast | null>(null);
   const [solarForecastLoading, setSolarForecastLoading] = useState(false);
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
 
-  const fetchDashboardSnapshot = useCallback(async (dateValue, options = {}) => {
+  const fetchDashboardSnapshot = useCallback(async (dateValue: string, options: { silent?: boolean } = {}) => {
     const { silent = false } = options;
     if (!silent) {
       setSelectedDatePricesLoading(true);
@@ -77,8 +85,6 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setExportError(null);
     } catch (err) {
       console.error("Error fetching dashboard snapshot:", err);
-      // Fallback to individual calls if snapshot fails? 
-      // For now just set errors
       setSelectedDatePricesError(formatApiError(err, "Nepodařilo se načíst data dashboardu."));
     } finally {
       setSelectedDatePricesLoading(false);
@@ -87,7 +93,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     }
   }, [todayDate]);
 
-  const refreshBattery = useCallback(async (options = {}) => {
+  const refreshBattery = useCallback(async (options: { silent?: boolean } = {}) => {
     const { silent = false } = options;
     if (!silent) setBatteryLoading(true);
     setBatteryError(null);
@@ -107,9 +113,9 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     setPricesRefreshMessage(null);
     setPricesRefreshError(null);
     try {
-      const data = await elektroappApi.refreshPrices({});
-      const refreshed = data?.refreshed || [];
-      const summary = refreshed.map((item) => `${item.date}: ${item.count} zaznamu`).join(" | ");
+      const resp = await elektroappApi.refreshPrices({});
+      const refreshed = resp?.refreshed || [];
+      const summary = refreshed.map((item: any) => `${item.date}: ${item.count} zaznamu`).join(" | ");
       setPricesRefreshMessage(summary || "Ceny byly obnoveny.");
       await fetchDashboardSnapshot(selectedDate);
       if (showConfig) {

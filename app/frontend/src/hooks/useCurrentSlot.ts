@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export const useCurrentSlot = () => {
-  const [currentSlot, setCurrentSlot] = useState(null);
+  const [currentSlot, setCurrentSlot] = useState<number | null>(null);
 
   useEffect(() => {
     const updateSlot = () => {

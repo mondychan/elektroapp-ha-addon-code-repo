@@ -1,4 +1,12 @@
-import { useRef } from "react";
+import { useRef, TouchEvent } from "react";
+
+interface useSwipeGestureProps {
+  enabled?: boolean;
+  minDistance?: number;
+  maxOffAxis?: number;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+}
 
 export const useSwipeGesture = ({
   enabled = true,
@@ -6,10 +14,10 @@ export const useSwipeGesture = ({
   maxOffAxis = 50,
   onSwipeLeft,
   onSwipeRight,
-}) => {
-  const touchRef = useRef(null);
+}: useSwipeGestureProps) => {
+  const touchRef = useRef<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
 
-  const onTouchStart = (event) => {
+  const onTouchStart = (event: TouchEvent) => {
     if (!enabled || event.touches.length !== 1) return;
     const touch = event.touches[0];
     touchRef.current = {
@@ -20,7 +28,7 @@ export const useSwipeGesture = ({
     };
   };
 
-  const onTouchMove = (event) => {
+  const onTouchMove = (event: TouchEvent) => {
     if (!touchRef.current || event.touches.length !== 1) return;
     const touch = event.touches[0];
     touchRef.current.endX = touch.clientX;

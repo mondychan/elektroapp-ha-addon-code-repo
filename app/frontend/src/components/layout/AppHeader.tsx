@@ -4,8 +4,8 @@ import ThemeToggle from "../common/ThemeToggle";
 interface AppHeaderProps {
   pageMode: "overview" | "detail";
   setPageMode: (mode: "overview" | "detail") => void;
-  theme: "light" | "dark";
-  setTheme: (theme: "light" | "dark") => void;
+  theme: "light" | "dark" | "system";
+  setTheme: (theme: "light" | "dark" | "system") => void;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ pageMode, setPageMode, theme, setTheme }) => {

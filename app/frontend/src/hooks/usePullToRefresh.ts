@@ -1,4 +1,12 @@
-import { useRef, useState } from "react";
+import { useRef, useState, TouchEvent } from "react";
+
+interface UsePullToRefreshProps {
+  enabled?: boolean;
+  threshold?: number;
+  maxPull?: number;
+  resistance?: number;
+  onRefresh?: () => Promise<void> | void;
+}
 
 export const usePullToRefresh = ({
   enabled = true,
@@ -6,7 +14,7 @@ export const usePullToRefresh = ({
   maxPull = 120,
   resistance = 0.5,
   onRefresh,
-}) => {
+}: UsePullToRefreshProps) => {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isArmed, setIsArmed] = useState(false);
@@ -21,14 +29,14 @@ export const usePullToRefresh = ({
     setIsArmed(false);
   };
 
-  const onTouchStart = (event) => {
+  const onTouchStart = (event: TouchEvent) => {
     if (!enabled || isRefreshing || event.touches.length !== 1) return;
     if (window.scrollY > 0) return;
     activeRef.current = true;
     startYRef.current = event.touches[0].clientY;
   };
 
-  const onTouchMove = (event) => {
+  const onTouchMove = (event: TouchEvent) => {
     if (!activeRef.current || event.touches.length !== 1) return;
     if (window.scrollY > 0) {
       activeRef.current = false;

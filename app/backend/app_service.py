@@ -16,7 +16,12 @@ from pricing import (
     get_price_provider,
     normalize_fee_snapshot,
     normalize_price_provider,
+    calculate_sell_coefficient,
+    is_price_cache_provider_match,
 )
+from cache import is_cache_fresh, is_date_cache_complete
+import pricing
+import threading
 
 # New modules
 from config_loader import (
@@ -32,7 +37,6 @@ from config_loader import (
     get_energy_entities_cfg,
     get_forecast_solar_cfg,
     has_battery_required_cfg,
-    get_sell_coefficient_kwh,
 )
 from services.runtime_state import RuntimeState
 from services.cache_manager import SeriesCache, build_series_cache_key
@@ -46,7 +50,7 @@ from services.price_fetcher import (
     get_ote_backoff_remaining_seconds,
     is_ote_unavailable,
 )
-from services.consumption_service import get_consumption_points, get_export_points
+
 from services.battery_projection import (
     build_hybrid_battery_projection,
     build_battery_projection,
@@ -63,8 +67,12 @@ from services.energy_balance_service import (
 )
 from services.scheduler import (
     start_prefetch_scheduler as start_scheduler_fn,
+    start_prefetch_scheduler,
     schedule_prefetch_loop,
     release_prefetch_process_lock,
+    acquire_prefetch_process_lock,
+    get_prefetch_lock_path,
+    PREFETCH_LOCK_STALE_SECONDS,
 )
 
 # Re-exporting injected services (for main.py and others)
@@ -128,6 +136,32 @@ def save_prices_cache(date_str, entries, provider=None):
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta_payload, f)
 
+# Legacy aliases and constants for tests
+CONSUMPTION_CACHE_TTL_SECONDS = 3600
+EXPORT_CACHE_TTL_SECONDS = 3600
+
+def build_consumption_cache_key(influx_cfg, entity_id=None, version=2):
+    if entity_id is None:
+        entity_id = influx_cfg.get("entity_id")
+    return build_series_cache_key(influx_cfg, entity_id, version)
+
+def build_export_cache_key(influx_cfg, entity_id=None, version=2):
+    if entity_id is None:
+        entity_id = influx_cfg.get("entity_id") or influx_cfg.get("export_entity_id")
+    return build_series_cache_key(influx_cfg, entity_id, version)
+
+def calculate_final_price(spot, hour, cfg, fee_snapshot):
+    return pricing.calculate_final_price(spot, hour, cfg, fee_snapshot)
+
+def normalize_dph_percent(value):
+    return pricing.normalize_dph_percent(value)
+
+def normalize_price_provider(value):
+    return pricing.normalize_price_provider(value)
+
+def parse_vt_periods(value):
+    return pricing.parse_vt_periods(value)
+
 def get_cached_price_provider(date_str):
     provider = PRICES_CACHE_PROVIDER.get(date_str)
     if provider: return provider
@@ -148,12 +182,91 @@ def has_price_cache(date_str, provider=None):
         return get_cached_price_provider(date_str) == normalize_price_provider(provider)
     return True
 
+def is_price_cache_provider_match(date_str, provider, get_cached_price_provider_fn=None):
+    if get_cached_price_provider_fn is None:
+        get_cached_price_provider_fn = get_cached_price_provider
+    from pricing import is_price_cache_provider_match as pricing_match
+    return pricing_match(date_str, provider, get_cached_price_provider_fn)
+
 def clear_prices_cache_for_date(date_str, remove_files=True):
     PRICES_CACHE.pop(date_str, None)
     PRICES_CACHE_PROVIDER.pop(date_str, None)
     if remove_files and CACHE_DIR:
         (CACHE_DIR / f"prices-{date_str}.json").unlink(missing_ok=True)
         (CACHE_DIR / f"prices-meta-{date_str}.json").unlink(missing_ok=True)
+
+def get_prices_cache_path(date_str):
+    if not CACHE_DIR: return None
+    return CACHE_DIR / f"prices-{date_str}.json"
+
+def get_prices_cache_meta_path(date_str):
+    if not CACHE_DIR: return None
+    return CACHE_DIR / f"prices-meta-{date_str}.json"
+
+def load_prices_cache_meta(date_str):
+    path = get_prices_cache_meta_path(date_str)
+    if not path or not path.exists(): return None
+    try:
+        import json
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except: return None
+
+def save_consumption_cache(date_str, key, data):
+    if CONSUMPTION_CACHE:
+        CONSUMPTION_CACHE.save(date_str, key, data)
+
+def load_consumption_cache(date_str, key):
+    if CONSUMPTION_CACHE:
+        return CONSUMPTION_CACHE.load(date_str, key)
+    return None, None, None
+
+def save_export_cache(date_str, key, data):
+    if EXPORT_CACHE:
+        EXPORT_CACHE.save(date_str, key, data)
+
+def load_export_cache(date_str, key):
+    if EXPORT_CACHE:
+        return EXPORT_CACHE.load(date_str, key)
+    return None, None, None
+
+def get_prefetch_lock_path_legacy(storage_dir=None):
+    from services.scheduler import get_prefetch_lock_path as scheduler_get_path
+    return scheduler_get_path(storage_dir or STORAGE_DIR)
+
+def acquire_prefetch_process_lock_legacy(runtime_state=None, storage_dir=None):
+    from services.scheduler import acquire_prefetch_process_lock as scheduler_acquire
+    return scheduler_acquire(runtime_state or RUNTIME_STATE, storage_dir or STORAGE_DIR)
+
+def release_prefetch_process_lock_legacy(runtime_state=None):
+    from services.scheduler import release_prefetch_process_lock as scheduler_release
+    return scheduler_release(runtime_state or RUNTIME_STATE)
+
+def influx_query(influx, query):
+    if INFLUX_SERVICE:
+        return INFLUX_SERVICE.influx_query(influx, query)
+    return None
+
+# Exports for tests
+get_prefetch_lock_path = get_prefetch_lock_path_legacy
+acquire_prefetch_process_lock = acquire_prefetch_process_lock_legacy
+release_prefetch_process_lock = release_prefetch_process_lock_legacy
+
+def get_consumption_points(cfg, date=None, start=None, end=None, cache_ttl=600):
+    from services.consumption_service import get_consumption_points as gcp
+    import sys
+    class LegacyConsumptionCacheProxy:
+        def load(self, d, k): return load_consumption_cache(d, k)
+        def save(self, d, k, v): return save_consumption_cache(d, k, v)
+    return gcp(cfg, sys.modules[__name__], LegacyConsumptionCacheProxy(), get_influx_cfg, get_local_tz, date, start, end, cache_ttl)
+
+def get_export_points(cfg, date=None, start=None, end=None, cache_ttl=600):
+    from services.consumption_service import get_export_points as gep
+    import sys
+    class LegacyExportCacheProxy:
+        def load(self, d, k): return load_export_cache(d, k)
+        def save(self, d, k, v): return save_export_cache(d, k, v)
+    return gep(cfg, sys.modules[__name__], LegacyExportCacheProxy(), get_influx_cfg, get_local_tz, get_export_entity_id, date, start, end, cache_ttl)
 
 # --- Service Instances ---
 PRICES_SERVICE = PricesService(
@@ -182,7 +295,7 @@ EXPORT_SERVICE = ExportService(
         cfg, d, tz, PRICES_SERVICE.get_prices
     ),
     get_fee_snapshot_for_date=get_fee_snapshot_for_date,
-    get_sell_coefficient_kwh=get_sell_coefficient_kwh,
+    calculate_sell_coefficient=calculate_sell_coefficient,
 )
 
 BILLING_SERVICE = BillingService(
@@ -197,7 +310,7 @@ BILLING_SERVICE = BillingService(
     ),
     get_export_entity_id=get_export_entity_id,
     get_fee_snapshot_for_date=get_fee_snapshot_for_date,
-    get_sell_coefficient_kwh=get_sell_coefficient_kwh,
+    calculate_sell_coefficient=calculate_sell_coefficient,
     compute_fixed_breakdown_for_day=compute_fixed_breakdown_for_day,
 )
 
