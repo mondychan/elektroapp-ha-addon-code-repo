@@ -228,16 +228,31 @@ const App: React.FC = () => {
   const configRows = useMemo(() => {
     if (!config) return [];
     const f = (v: any) => v ?? "-";
+    const dphVal = config.dph ?? 0;
+    const mDph = 1 + dphVal / 100;
+
+    const row = (label: string, val: any, unit: string) => ({
+      label,
+      value: val != null && val !== "" ? `${val} (${(Number(val) * mDph).toFixed(2)} s DPH)` : "-",
+      unit
+    });
+
     return [
-      { label: "DPH", value: Number(config.dph ?? 0).toFixed(0), unit: "%" },
+      { label: "DPH", value: String(dphVal), unit: "%" },
       { label: "Zdroj cen", value: priceProviderLabel },
-      { label: "Služba obchodu", value: f(config.poplatky?.komodita_sluzba), unit: "Kč/kWh" },
-      { label: "OZE", value: f(config.poplatky?.oze), unit: "Kč/kWh" },
-      { label: "Daň", value: f(config.poplatky?.dan), unit: "Kč/kWh" },
-      { label: "Systémové služby", value: f(config.poplatky?.systemove_sluzby), unit: "Kč/kWh" },
-      { label: "Distribuce NT/VT", value: `${f(config.poplatky?.distribuce?.NT)} / ${f(config.poplatky?.distribuce?.VT)}`, unit: "Kč/kWh" },
-      { label: "Stálý plat", value: f(config.fixni?.denni?.staly_plat), unit: "Kč/den" },
-      { label: "Jistič", value: f(config.fixni?.mesicni?.jistic), unit: "Kč/měsíc" },
+      row("Služba obchodu", config.poplatky?.komodita_sluzba, "Kč/kWh"),
+      row("OZE", config.poplatky?.oze, "Kč/kWh"),
+      row("Daň", config.poplatky?.dan, "Kč/kWh"),
+      row("Systémové služby", config.poplatky?.systemove_sluzby, "Kč/kWh"),
+      { 
+        label: "Distribuce NT/VT", 
+        value: `${f(config.poplatky?.distribuce?.NT)} / ${f(config.poplatky?.distribuce?.VT)}`, 
+        unit: "Kč/kWh" 
+      },
+      row("Nesíťová infrastruktura", config.fixni?.mesicni?.provoz_nesitove_infrastruktury, "Kč/měsíc"),
+      row("Stálý plat", config.fixni?.denni?.staly_plat, "Kč/den"),
+      row("Jistič", config.fixni?.mesicni?.jistic, "Kč/měsíc"),
+      row("Koeficient snížení (prodej)", config.prodej?.koeficient_snizeni_ceny, "Kč/MWh"),
     ];
   }, [config, priceProviderLabel]);
 

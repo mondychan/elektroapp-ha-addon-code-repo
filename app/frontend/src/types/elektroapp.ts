@@ -23,6 +23,9 @@ export interface Config {
   tarif?: {
     vt_periods?: any;
   };
+  prodej?: {
+    koeficient_snizeni_ceny?: number;
+  };
   battery?: {
     enabled?: boolean;
     usable_capacity_kwh?: number;
