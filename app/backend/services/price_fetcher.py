@@ -422,7 +422,7 @@ def get_prices_for_date(
     return apply_fee_snapshot(entries, cfg, fee_snapshot)
 
 def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
-    entries = get_prices_for_date_fn(cfg, date_str, tzinfo)
+    entries = get_prices_for_date_fn(cfg=cfg, date=date_str, tzinfo=tzinfo)
     price_map = {}
     price_map_utc = {}
     for entry in entries:

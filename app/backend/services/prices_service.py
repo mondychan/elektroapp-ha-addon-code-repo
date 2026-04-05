@@ -18,17 +18,24 @@ class PricesService:
         self._get_price_provider = get_price_provider
         self._clear_prices_cache_for_date = clear_prices_cache_for_date
 
-    def get_prices(self, *, date: str | None, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
+    def get_prices(
+        self, 
+        cfg: dict[str, Any], 
+        date: str | None, 
+        tzinfo, 
+        force_refresh: bool = False, 
+        include_neighbor_live: bool = False
+    ) -> list[dict[str, Any]]:
         if date:
-            return {"prices": self._get_prices_for_date(cfg, date, tzinfo)}
+            return self._get_prices_for_date(cfg, date, tzinfo, force_refresh=force_refresh, include_neighbor_live=include_neighbor_live)
 
         final_list: list[dict[str, Any]] = []
         now = datetime.now(tzinfo)
         today_str = now.strftime("%Y-%m-%d")
-        final_list.extend(self._get_prices_for_date(cfg, today_str, tzinfo, include_neighbor_live=True))
+        final_list.extend(self._get_prices_for_date(cfg, today_str, tzinfo, force_refresh=force_refresh, include_neighbor_live=True))
         tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-        final_list.extend(self._get_prices_for_date(cfg, tomorrow_str, tzinfo))
-        return {"prices": final_list}
+        final_list.extend(self._get_prices_for_date(cfg, tomorrow_str, tzinfo, force_refresh=force_refresh))
+        return final_list
 
     def refresh_prices(self, *, payload: dict[str, Any] | None, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
         payload = payload or {}

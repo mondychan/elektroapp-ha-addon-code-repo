@@ -13,7 +13,7 @@ class AlertsService:
         today_str = now_local.strftime("%Y-%m-%d")
         
         # Získat ceny pro dnešek a zítřek
-        prices = get_prices_for_date_fn(cfg, today_str, tzinfo, include_neighbor_live=True)
+        prices = get_prices_for_date_fn(cfg=cfg, date=today_str, tzinfo=tzinfo, include_neighbor_live=True)
         
         current_slot = int((now_local.hour * 60 + now_local.minute) / 15)
         

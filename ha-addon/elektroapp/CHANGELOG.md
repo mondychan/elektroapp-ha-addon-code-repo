@@ -1,13 +1,12 @@
 # Changelog
 
-## 0.1.85
-### ⚡ Hotfix: Backend Refactor
-- Fix: "TypeError: got an unexpected keyword argument" - oprava kritických chyb v backendu po refaktoringu služeb (Solar, Billing, Costs, Prices).
-- Fix: Oprava nesprávného počtu argumentů při volání služeb Influxu.
-- Fix: Obnovena chybějící funkce `query_recent_slot_profile_by_day_type` pro predikci baterie.
-- Sjednoceno zapojení služeb v `app_service.py` pro bezchybnou inicializaci dashboardu.
+## 0.1.86
+### ⚡ Hotfix: Frontend & Backend Synergy
+- Fix: "toFixed is not a function" - opraven pád v komponentě `SolarForecastCard` způsobený nesprávným formátem dat z backendu.
+- Fix: "TypeError: get_prices() takes 1 positional argument but 4 were given" - opravena volání cenové služby napříč celým backendem (Alerts, Price Map, Dashboard).
+- Vylepšena robustnost volání interních služeb (přechod na explicitní pojmenované argumenty).
 
-## 0.1.84
+## 0.1.85
 ### ⚡ Stabilita
 - Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
 - (Zahrnuje všechny novinky a opravy z verze 0.1.80, která neprošla buildem na GitHubu).

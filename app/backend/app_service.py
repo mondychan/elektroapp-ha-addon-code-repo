@@ -441,7 +441,8 @@ def get_version(): return {"version": APP_VERSION}
 
 def get_prices(date: str = Query(default=None), cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
-    return PRICES_SERVICE.get_prices(date=date, cfg=cfg, tzinfo=tzinfo)
+    prices = PRICES_SERVICE.get_prices(cfg, date, tzinfo)
+    return {"prices": prices}
 
 def refresh_prices(payload: dict = Body(default=None), cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)

@@ -37,7 +37,11 @@ class SolarService:
 
         for key, entity_id in entities.items():
             if entity_id:
-                val = self.safe_query_entity_last_value(influx, entity_id, label=f"solar_{key}")
-                res["status"][key] = val
+                is_numeric = "peak" not in key
+                val = self.safe_query_entity_last_value(influx, entity_id, numeric=is_numeric, label=f"solar_{key}")
+                if val:
+                    res["status"][key] = val.get("value") if is_numeric else val.get("raw_value")
+                else:
+                    res["status"][key] = None
 
         return res
