@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7
+- Design: vylepšené rozvržení PND srovnávací tabulky s víceúrovňovou hlavičkou pro lepší přehlednost skupin Nákup a Prodej.
+- Design: přidáno vizuální oddělení skupin dat pomocí vertikálních linek a upravený tón zápatí tabulky.
+
 ## 0.2.6
 - Style: srozumitelnější textace chybového stavu v PND sekci ("Nebyla zaznamenána žádná chyba").
 
