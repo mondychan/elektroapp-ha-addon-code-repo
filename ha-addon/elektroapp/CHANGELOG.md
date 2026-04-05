@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.92
+- robustnejsi detekce jednotek z PND (kontrola globalniho 'unitY' i per-series metadat)
+- oprava konverze kW na kWh v pripadech, kdy je jednotka definovana v rootu response
+- doplnena diagnostika do recognized_series pro snadnejsi provereni spravne detekce jednotek
+- vynuceni prepersonu 15min intervalu pro Energy (kWh) vypocet
+
 ## 0.1.91
 - oprava vypoctu energetickych hodnot z PND (prevod kW na kWh pro 15min intervaly)
 - sjednoceni vice datovych rad (faze L1, L2, L3) do celkove sumy v ramci intervalu
