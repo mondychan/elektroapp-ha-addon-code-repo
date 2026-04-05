@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.88
+- chytrejsi projekce baterie: preferuje blizky stav, ukazuje ETA do plna a navazujici pokles k rezerve podle forecastu
+- blokace navigace do budoucnosti napric grafy, tabulkami, heatmapou, vyuctovanim a energetickou bilanci
+- kompaktnejsi layout grafovych karet a rozsireni solar/forecast diagnostiky vcetne export cache
+
 ## 0.1.87
 - fix regressions after backend refactor in price map and energy balance service contracts
 - restore daily summary, dashboard snapshot price lookups, and energy balance chart loading
