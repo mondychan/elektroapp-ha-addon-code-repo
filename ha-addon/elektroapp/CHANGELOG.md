@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.8
+- Fix: moduly (Statistiky, Baterie, atd.) se nyní otevírají přímo pod svým tlačítkem pro lepší UX.
+- Feature: dlaždice KPI (Baterie, Ceny, Náklady) jsou nyní klikatelné a aktivují příslušné sekce nebo pohledy.
+- Fix: opraveno nefunkční tlačítko "Baterie a projekce" na hlavní stránce.
+
 ## 0.2.7
 - Design: vylepšené rozvržení PND srovnávací tabulky s víceúrovňovou hlavičkou pro lepší přehlednost skupin Nákup a Prodej.
 - Design: přidáno vizuální oddělení skupin dat pomocí vertikálních linek a upravený tón zápatí tabulky.
