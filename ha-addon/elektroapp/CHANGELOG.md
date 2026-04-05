@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.6
+- Style: srozumitelnější textace chybového stavu v PND sekci ("Nebyla zaznamenána žádná chyba").
+
 ## 0.2.5
 - Fix: zvýšení robustnosti PND testů (pomocí findByRole a regexů) pro stabilnější proběhnutí v CI prostředí s animacemi.
 
