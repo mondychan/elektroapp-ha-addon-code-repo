@@ -22,6 +22,10 @@ body[data-theme="light"] {
   --shadow: 0 12px 30px rgba(16, 24, 40, 0.12);
   --buy-text: #d44a4a;
   --sell-text: #2f8f49;
+  --bg-alt: #f7faff;
+  --border-soft: #d7dee7;
+  --border-light: #edf1f5;
+  --error: #d44a4a;
 }
 
 body[data-theme="dark"] {
@@ -38,6 +42,10 @@ body[data-theme="dark"] {
   --shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
   --buy-text: #ff8a8a;
   --sell-text: #4cc77f;
+  --bg-alt: #1a2233;
+  --border-soft: #273046;
+  --border-light: #1f2a3b;
+  --error: #ff8a8a;
 }
 
 /* Data States & Loading */

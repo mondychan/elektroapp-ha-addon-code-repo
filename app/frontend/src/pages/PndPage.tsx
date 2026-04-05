@@ -311,16 +311,24 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
         {dataError ? <div className="alert error">{dataError}</div> : null}
         {dataPreview.length ? (
           <>
-            <table className="data-table table-spaced" style={{ marginTop: "16px" }}>
+            <table className="data-table table-spaced" style={{ marginTop: "16px", borderCollapse: "collapse" }}>
               <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-soft)" }}>
+                  <th rowSpan={2} style={{ verticalAlign: "middle" }}>Den</th>
+                  <th colSpan={3} style={{ textAlign: "center", textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: "0.05em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-soft)" }}>
+                    Nákup (kWh)
+                  </th>
+                  <th colSpan={3} style={{ textAlign: "center", textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: "0.05em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-soft)", borderLeft: "1px solid var(--border-soft)" }}>
+                    Prodej (kWh)
+                  </th>
+                </tr>
                 <tr>
-                  <th>Den</th>
-                  <th>Solax (Nákup)</th>
-                  <th>PND (Nákup)</th>
-                  <th>Rozdíl (N)</th>
-                  <th>Solax (Prodej)</th>
-                  <th>PND (Prodej)</th>
-                  <th>Rozdíl (P)</th>
+                  <th style={{ textAlign: "right" }}>Solax</th>
+                  <th style={{ textAlign: "right" }}>PND</th>
+                  <th style={{ textAlign: "right" }}>Delta</th>
+                  <th style={{ textAlign: "right", borderLeft: "1px solid var(--border-soft)" }}>Solax</th>
+                  <th style={{ textAlign: "right" }}>PND</th>
+                  <th style={{ textAlign: "right" }}>Delta</th>
                 </tr>
               </thead>
               <tbody>
@@ -334,23 +342,23 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
                   const diffSell = localSell - pndSell;
 
                   return (
-                    <tr key={day.date}>
-                      <td>{day.date}</td>
-                      <td>{localBuy.toFixed(2)}</td>
-                      <td>{pndBuy.toFixed(2)}</td>
-                      <td className={Math.abs(diffBuy) > 0.05 ? "text-danger" : ""}>
+                    <tr key={day.date} style={{ borderBottom: "1px solid var(--border-light)" }}>
+                      <td style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{day.date}</td>
+                      <td style={{ textAlign: "right" }}>{localBuy.toFixed(2)}</td>
+                      <td style={{ textAlign: "right" }}>{pndBuy.toFixed(2)}</td>
+                      <td style={{ textAlign: "right", fontWeight: "500", color: Math.abs(diffBuy) > 0.05 ? "var(--error)" : "inherit" }}>
                         {diffBuy > 0 ? "+" : ""}{diffBuy.toFixed(2)}
                       </td>
-                      <td>{localSell.toFixed(2)}</td>
-                      <td>{pndSell.toFixed(2)}</td>
-                      <td className={Math.abs(diffSell) > 0.05 ? "text-danger" : ""}>
+                      <td style={{ textAlign: "right", borderLeft: "1px solid var(--border-soft)" }}>{localSell.toFixed(2)}</td>
+                      <td style={{ textAlign: "right" }}>{pndSell.toFixed(2)}</td>
+                      <td style={{ textAlign: "right", fontWeight: "500", color: Math.abs(diffSell) > 0.05 ? "var(--error)" : "inherit" }}>
                         {diffSell > 0 ? "+" : ""}{diffSell.toFixed(2)}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-              <tfoot style={{ fontWeight: "bold", borderTop: "2px solid var(--border)" }}>
+              <tfoot style={{ fontWeight: "bold", borderTop: "2px solid var(--border-soft)", backgroundColor: "var(--bg-alt)" }}>
                 {(() => {
                   const totals = dataPreview.reduce(
                     (acc, day) => {
@@ -367,15 +375,15 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
 
                   return (
                     <tr>
-                      <td>CELKEM</td>
-                      <td>{totals.localBuy.toFixed(2)}</td>
-                      <td>{totals.pndBuy.toFixed(2)}</td>
-                      <td className={Math.abs(grandDiffBuy) > 1.0 ? "text-danger" : ""}>
+                      <td style={{ textTransform: "uppercase", fontSize: "0.8rem", color: "var(--text-muted)" }}>CELKEM</td>
+                      <td style={{ textAlign: "right" }}>{totals.localBuy.toFixed(2)}</td>
+                      <td style={{ textAlign: "right" }}>{totals.pndBuy.toFixed(2)}</td>
+                      <td style={{ textAlign: "right", color: Math.abs(grandDiffBuy) > 1.0 ? "var(--error)" : "inherit" }}>
                         {grandDiffBuy > 0 ? "+" : ""}{grandDiffBuy.toFixed(2)}
                       </td>
-                      <td>{totals.localSell.toFixed(2)}</td>
-                      <td>{totals.pndSell.toFixed(2)}</td>
-                      <td className={Math.abs(grandDiffSell) > 1.0 ? "text-danger" : ""}>
+                      <td style={{ textAlign: "right", borderLeft: "1px solid var(--border-soft)" }}>{totals.localSell.toFixed(2)}</td>
+                      <td style={{ textAlign: "right" }}>{totals.pndSell.toFixed(2)}</td>
+                      <td style={{ textAlign: "right", color: Math.abs(grandDiffSell) > 1.0 ? "var(--error)" : "inherit" }}>
                         {grandDiffSell > 0 ? "+" : ""}{grandDiffSell.toFixed(2)}
                       </td>
                     </tr>
