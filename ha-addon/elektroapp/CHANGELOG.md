@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.5
+- Fix: zvýšení robustnosti PND testů (pomocí findByRole a regexů) pro stabilnější proběhnutí v CI prostředí s animacemi.
+
 ## 0.2.4
 - Fix: aktualizace PND testů tak, aby reflektovaly nové skryté sekce UI.
 - Stabilizace CI/CD po restrukturalizaci PND portálu.
