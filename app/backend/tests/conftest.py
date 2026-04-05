@@ -10,6 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app_service  # noqa: E402
+import config_loader  # noqa: E402
 
 
 @pytest.fixture
@@ -24,7 +25,11 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     consumption_cache_dir = storage_dir / "consumption-cache"
     export_cache_dir = storage_dir / "export-cache"
     pnd_cache_dir = storage_dir / "pnd-cache"
+    config_file = tmp_path / "config.yaml"
+    ha_options_file = storage_dir / "ha-options.json"
 
+    monkeypatch.setattr(backend_main, "CONFIG_FILE", str(config_file))
+    monkeypatch.setattr(backend_main, "HA_OPTIONS_FILE", ha_options_file)
     monkeypatch.setattr(backend_main, "STORAGE_DIR", storage_dir)
     monkeypatch.setattr(backend_main, "CACHE_DIR", cache_dir)
     monkeypatch.setattr(backend_main, "CONSUMPTION_CACHE_DIR", consumption_cache_dir)
@@ -36,6 +41,11 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     backend_main.EXPORT_CACHE = SeriesCache("export", export_cache_dir, 3600)
     monkeypatch.setattr(backend_main, "OPTIONS_BACKUP_FILE", storage_dir / "options.json")
     monkeypatch.setattr(backend_main, "FEES_HISTORY_FILE", storage_dir / "fees-history.json")
+    monkeypatch.setattr(config_loader, "CONFIG_FILE", str(config_file))
+    monkeypatch.setattr(config_loader, "HA_OPTIONS_FILE", ha_options_file)
+    monkeypatch.setattr(config_loader, "STORAGE_DIR", storage_dir)
+    monkeypatch.setattr(config_loader, "OPTIONS_BACKUP_FILE", storage_dir / "options.json")
+    monkeypatch.setattr(config_loader, "FEES_HISTORY_FILE", storage_dir / "fees-history.json")
     monkeypatch.setattr(backend_main, "PRICES_CACHE", {})
     monkeypatch.setattr(backend_main, "PRICES_CACHE_PROVIDER", {})
     backend_main.RUNTIME_STATE.prefetch_thread = None
@@ -48,6 +58,8 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
 
     return {
         "storage_dir": storage_dir,
+        "config_file": config_file,
+        "ha_options_file": ha_options_file,
         "cache_dir": cache_dir,
         "consumption_cache_dir": consumption_cache_dir,
         "export_cache_dir": export_cache_dir,

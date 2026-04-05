@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import app_service
+import config_loader
 from container import build_container
 from errors import register_error_handling
 from routers.api_router import router as api_router
@@ -23,6 +24,11 @@ def _wire_service_from_container():
     app_service.PND_CACHE_DIR = cfg.pnd_cache_dir
     app_service.OPTIONS_BACKUP_FILE = cfg.options_backup_file
     app_service.FEES_HISTORY_FILE = cfg.fees_history_file
+    config_loader.CONFIG_FILE = cfg.config_file
+    config_loader.HA_OPTIONS_FILE = cfg.ha_options_file
+    config_loader.STORAGE_DIR = cfg.storage_dir
+    config_loader.OPTIONS_BACKUP_FILE = cfg.options_backup_file
+    config_loader.FEES_HISTORY_FILE = cfg.fees_history_file
     app_service.finalize_initialization()
     return container
 

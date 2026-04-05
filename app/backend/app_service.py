@@ -26,6 +26,7 @@ import threading
 # New modules
 from config_loader import (
     load_config,
+    save_options_sync,
     save_fee_history,
     ensure_fee_history,
     get_fee_snapshot_for_date,
@@ -413,14 +414,12 @@ def save_config(new_config: dict = Body(...)):
     if isinstance(new_config, dict):
         new_config["price_provider"] = normalize_price_provider(new_config.get("price_provider"))
     import yaml
-    import json
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.safe_dump(new_config, f, allow_unicode=True)
-    if STORAGE_DIR:
-        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(STORAGE_DIR / "options.json", "w", encoding="utf-8") as f:
-            json.dump(new_config, f)
+    option_sync = save_options_sync(new_config if isinstance(new_config, dict) else {})
     response = {"status": "ok", "message": "Konfigurace ulozena"}
+    if option_sync:
+        response["config_sync"] = option_sync
     if PND_SERVICE:
         pnd_cfg = get_pnd_cfg(new_config)
         if has_pnd_required_cfg(pnd_cfg):

@@ -28,6 +28,37 @@ else:
 OPTIONS_BACKUP_FILE = STORAGE_DIR / "options.json"
 FEES_HISTORY_FILE = STORAGE_DIR / "fees-history.json"
 
+
+def _read_json_file(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+
+
+def _write_json_file(path: Path, payload: dict[str, Any]) -> bool:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        return True
+    except OSError as exc:
+        logger.warning("Failed to write config mirror %s: %s", path, exc)
+        return False
+
+
+def save_options_sync(options: dict[str, Any]) -> dict[str, bool]:
+    results: dict[str, bool] = {}
+    for path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):
+        if not path:
+            continue
+        results[str(path)] = _write_json_file(path, options)
+    return results
+
 def merge_config(base, override):
     if not isinstance(base, dict):
         base = {}
@@ -132,21 +163,26 @@ def load_config():
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
 
-    options_files = [HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE]
-    for options_path in options_files:
-        if not options_path.exists():
+    option_sources: list[tuple[float, Path, dict[str, Any]]] = []
+    for options_path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):
+        options = _read_json_file(options_path)
+        if options is None:
             continue
         try:
-            with open(options_path, "r", encoding="utf-8") as f:
-                options = json.load(f)
-            cfg = merge_config(cfg, options)
-            if options_path == HA_OPTIONS_FILE and STORAGE_DIR:
-                STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-                with open(OPTIONS_BACKUP_FILE, "w", encoding="utf-8") as f:
-                    json.dump(options, f)
-            break
-        except (OSError, json.JSONDecodeError, TypeError):
-            continue
+            mtime = options_path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        option_sources.append((mtime, options_path, options))
+
+    if option_sources:
+        option_sources.sort(key=lambda item: item[0], reverse=True)
+        _, selected_path, selected_options = option_sources[0]
+        cfg = merge_config(cfg, selected_options)
+
+        for mirror_path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):
+            if mirror_path == selected_path:
+                continue
+            _write_json_file(mirror_path, selected_options)
 
     if isinstance(cfg, dict):
         cfg["dph"] = normalize_dph_percent(cfg.get("dph", 0))
