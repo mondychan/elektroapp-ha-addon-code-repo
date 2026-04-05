@@ -329,38 +329,55 @@ function App() {
     ];
   }, [cacheStatus]);
 
+  const dphMultiplier = useMemo(() => {
+    const dphVal = config?.dph != null ? Number(config.dph) : 21;
+    return 1 + (Number.isNaN(dphVal) ? 21 : Math.max(0, dphVal)) / 100;
+  }, [config?.dph]);
+
   const todayData = useMemo(() => {
     if (!prices.length) return [];
-    return prices.slice(0, 96).map((p, i) => ({
-      slot: i,
-      time: formatSlotToTime(i),
-      spot: p.spot,
-      extra: p.final - p.spot,
-      final: p.final,
-    }));
-  }, [prices]);
+    return prices.slice(0, 96).map((p, i) => {
+      const spotWithDph = p.spot * dphMultiplier;
+      return {
+        slot: i,
+        time: formatSlotToTime(i),
+        spot: spotWithDph,
+        extra: p.final - spotWithDph,
+        final: p.final,
+        rawSpot: p.spot,
+      };
+    });
+  }, [prices, dphMultiplier]);
 
   const tomorrowData = useMemo(() => {
     if (!prices.length) return [];
-    return prices.slice(96, 192).map((p, i) => ({
-      slot: i,
-      time: formatSlotToTime(i),
-      spot: p.spot,
-      extra: p.final - p.spot,
-      final: p.final,
-    }));
-  }, [prices]);
+    return prices.slice(96, 192).map((p, i) => {
+      const spotWithDph = p.spot * dphMultiplier;
+      return {
+        slot: i,
+        time: formatSlotToTime(i),
+        spot: spotWithDph,
+        extra: p.final - spotWithDph,
+        final: p.final,
+        rawSpot: p.spot,
+      };
+    });
+  }, [prices, dphMultiplier]);
 
   const selectedDatePriceData = useMemo(() => {
     if (!selectedDatePrices.length) return [];
-    return selectedDatePrices.map((p, i) => ({
-      slot: i,
-      time: formatSlotToTime(i),
-      spot: p.spot,
-      extra: p.final - p.spot,
-      final: p.final,
-    }));
-  }, [selectedDatePrices]);
+    return selectedDatePrices.map((p, i) => {
+      const spotWithDph = p.spot * dphMultiplier;
+      return {
+        slot: i,
+        time: formatSlotToTime(i),
+        spot: spotWithDph,
+        extra: p.final - spotWithDph,
+        final: p.final,
+        rawSpot: p.spot,
+      };
+    });
+  }, [selectedDatePrices, dphMultiplier]);
 
   const kpiItems = useMemo(() => {
     const currentPriceItem =
