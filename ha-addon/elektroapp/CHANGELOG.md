@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.94
+- oprava testovaci sady v CI po zavedeni robustnejsi diagnostiky jednotek
+- stabilizace release pipeline
+
 ## 0.1.93
 - nova funkce "Smazat cache" v UI pro rucni promazani lokalnich PND dat a raw zaloh
 - backend podpora pro bezpecne smazani cache souboru a reset stavu integrace
