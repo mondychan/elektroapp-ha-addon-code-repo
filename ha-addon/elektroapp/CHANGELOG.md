@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+- oprava overview nacitani cen: karta `Zitra` uz bere publikovana data z kombinovaneho feedu `dnes + zitra` misto jednodennich snapshot cen
+- detail dne nadale pouziva samostatny denni endpoint, takze nedochazi k regresi v historickem prohlizeni
+- doplnen regresni frontend test pro publikovana data nasledujiciho dne
+
 ## 0.2.0
 - velky release 0.2.0 s klicovymi opravami presnosti dat
 - oprava PND (Portalu namerenych dat): korektni prevod kW na kWh (4x presnejsi data)
