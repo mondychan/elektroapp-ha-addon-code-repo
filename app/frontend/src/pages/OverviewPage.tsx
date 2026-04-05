@@ -259,6 +259,24 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
             thresholds={alerts}
           />
         </DataCard>
+
+        {tomorrowData?.length > 0 && (
+          <DataCard
+            loading={pricesLoading}
+            title={`Cena elektřiny (Kč/kWh) | Zítra (${formatDate(tomorrow)})`}
+          >
+            <PriceChartCard
+              chartData={tomorrowData}
+              fallbackMessage="Data pro zítřek zatím nejsou k dispozici."
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={-1}
+              pinnedSlot={null}
+              onPinSlot={() => {}}
+              className=""
+              thresholds={alerts}
+            />
+          </DataCard>
+        )}
       </section>
 
       <section className="section swipe-zone" {...dateSwipeHandlers}>
