@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.93
+- nova funkce "Smazat cache" v UI pro rucni promazani lokalnich PND dat a raw zaloh
+- backend podpora pro bezpecne smazani cache souboru a reset stavu integrace
+- vylepseny vizualni styl pro nebezpecna tlacitka (hover efekty)
+- oprava parsovani kW na kWh z predchoziho releasu je nyni plne ucinna i po rucnim promazani stare cache
+
 ## 0.1.92
 - robustnejsi detekce jednotek z PND (kontrola globalniho 'unitY' i per-series metadat)
 - oprava konverze kW na kWh v pripadech, kdy je jednotka definovana v rootu response
