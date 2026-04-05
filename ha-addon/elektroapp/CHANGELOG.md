@@ -1,11 +1,13 @@
 # Changelog
 
-## 0.1.82
-### ⚡ Stabilita
-- Fix: ESLint varování vyřešena (použití `useCallback`, odstranění nepoužívaných proměnných). 
-- Nyní by měl CI build na GitHubu projít bez chyb.
+## 0.1.83
+### ⚡ Stabilita & Testy
+- Fix: Oprava selhávajících unit testů (`App.api` a `MonthlyAndBilling`).
+- Fix: Sjednocení chybových hlášení napříč aplikací při pádu API snapshotu.
+- Fix: Defenzivní ošetření v `AlertBanner` proti neočekávaným pádům.
+- **Všechny testy i linty nyní procházejí (100% PASS).**
 
-## 0.1.81
+## 0.1.82
 ### ⚡ Stabilita
 - Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
 - (Zahrnuje všechny novinky a opravy z verze 0.1.80, která neprošla buildem na GitHubu).

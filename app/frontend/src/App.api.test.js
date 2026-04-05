@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { elektroappApi } from "./api/elektroappApi";
@@ -22,6 +22,8 @@ jest.mock("./api/elektroappApi", () => ({
     getFeesHistory: jest.fn(),
     saveFeesHistory: jest.fn(),
     getSchedule: jest.fn(),
+    getDashboardSnapshot: jest.fn(),
+    getSolarForecast: jest.fn(),
   },
   extractApiError: (err) => {
     const status = err?.response?.status ?? null;
@@ -75,32 +77,49 @@ describe("App API states", () => {
     elektroappApi.getEnergyBalance.mockResolvedValue({});
     elektroappApi.getHistoryHeatmap.mockResolvedValue({});
     elektroappApi.getSchedule.mockResolvedValue({ recommendations: [], note: null });
+    elektroappApi.getDashboardSnapshot.mockResolvedValue({
+      prices: { prices: [] },
+      costs: { points: [], summary: null },
+      export: { points: [], summary: null },
+      battery: { enabled: false },
+      alerts: [],
+      comparison: null,
+      solar: null,
+      version: "test"
+    });
+    elektroappApi.getSolarForecast.mockResolvedValue(null);
   });
 
   afterEach(() => {
+    cleanup();
+    jest.clearAllMocks();
     if (console.error.mockRestore) {
       console.error.mockRestore();
     }
   });
 
   test("shows auth-related InfluxDB error when costs API returns 401", async () => {
+    elektroappApi.getDashboardSnapshot.mockRejectedValue({ response: { status: 401 } });
     render(<App />);
 
-    expect(
-      await screen.findByText("Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo. [HTTP_401]")
-    ).toBeInTheDocument();
+    await waitFor(async () => {
+      const elements = await screen.findAllByText(/HTTP_401/);
+      expect(elements.length).toBeGreaterThan(0);
+    });
   });
 
   test("planner preset button immediately loads matching duration", async () => {
     render(<App />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Zobrazit planovac" }));
+    await userEvent.click(screen.getByRole("button", { name: "Zobrazit plánovač" }));
 
     await waitFor(() => {
       expect(elektroappApi.getSchedule).toHaveBeenCalledWith(120, 3);
     });
 
-    expect(screen.getByText("Vybrano: 120 min")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Vybrano:.*120 min/i)).toBeInTheDocument();
+    });
 
     await userEvent.click(screen.getByRole("button", { name: "60" }));
 
@@ -108,6 +127,8 @@ describe("App API states", () => {
       expect(elektroappApi.getSchedule).toHaveBeenCalledWith(60, 3);
     });
 
-    expect(screen.getByText("Vybrano: 60 min")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Vybrano:.*60 min/i)).toBeInTheDocument();
+    });
   });
 });

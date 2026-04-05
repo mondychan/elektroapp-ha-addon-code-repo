@@ -34,7 +34,7 @@ const AlertBanner: React.FC<AlertBannerProps> = ({ alerts }) => {
         <div className="alert-banner-content">
           <div className="alert-banner-main">
             <span className="alert-banner-badge">{recommendation}</span>
-            <span className="alert-banner-price">Aktuální cena: <strong>{alerts.current_price.toFixed(2)} Kč</strong></span>
+            <span className="alert-banner-price">Aktuální cena: <strong>{alerts.current_price?.toFixed(2) ?? "-"} Kč</strong></span>
           </div>
           
           {!is_cheap_now && next_cheap_start && (

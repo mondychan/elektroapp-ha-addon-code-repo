@@ -118,7 +118,14 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
     }
   }
 
-  if (monthlyError) return null;
+  if (monthlyError) {
+    const errorMessage = typeof monthlyError === "string" ? monthlyError : monthlyError?.message || "Došlo k chybě při načítání.";
+    return (
+      <div className="data-state-container error-state">
+        <p>{errorMessage}</p>
+      </div>
+    );
+  }
   if (!monthlySummary.length && !monthlyError) return null;
 
   return (

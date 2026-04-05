@@ -84,12 +84,16 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setCostsError(null);
       setExportError(null);
     } catch (err) {
-      console.error("Error fetching dashboard snapshot:", err);
-      setSelectedDatePricesError(formatApiError(err, "Nepodařilo se načíst data dashboardu."));
+      const errMsg = formatApiError(err, "Nepodařilo se načíst data dashboardu.");
+      setSelectedDatePricesError(errMsg);
+      setCostsError(errMsg);
+      setExportError(errMsg);
+      setBatteryError(errMsg);
     } finally {
       setSelectedDatePricesLoading(false);
       setComparisonLoading(false);
       setSolarForecastLoading(false);
+      setBatteryLoading(false);
     }
   }, [todayDate]);
 

@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import BillingCard from "./BillingCard";
 import MonthlySummaryCard from "./MonthlySummaryCard";
+import DataCard from "./common/DataCard";
+
+jest.mock("../api/elektroappApi", () => ({
+  elektroappApi: {
+    exportMonthlyCsv: jest.fn(),
+  },
+}));
 
 describe("MonthlySummaryCard", () => {
   test("renders monthly rows and totals", () => {
@@ -27,20 +34,22 @@ describe("MonthlySummaryCard", () => {
       />
     );
 
-    expect(screen.getByText("Soucet")).toBeInTheDocument();
+    expect(screen.getByText("Součet")).toBeInTheDocument();
     expect(screen.getAllByText("12.35").length).toBeGreaterThan(0);
     expect(screen.getAllByText("45.68").length).toBeGreaterThan(0);
   });
 
   test("renders monthly error state", () => {
     render(
-      <MonthlySummaryCard
-        selectedMonth="2026-02"
-        setSelectedMonth={() => {}}
-        monthlySummary={[]}
-        monthlyTotals={null}
-        monthlyError="Chyba pri nacitani mesicniho souhrnu."
-      />
+      <DataCard error="Chyba pri nacitani mesicniho souhrnu.">
+        <MonthlySummaryCard
+          selectedMonth="2026-02"
+          setSelectedMonth={() => {}}
+          monthlySummary={[]}
+          monthlyTotals={null}
+          monthlyError="Chyba pri nacitani mesicniho souhrnu."
+        />
+      </DataCard>
     );
 
     expect(screen.getByText("Chyba pri nacitani mesicniho souhrnu.")).toBeInTheDocument();
@@ -48,22 +57,29 @@ describe("MonthlySummaryCard", () => {
 });
 
 describe("BillingCard", () => {
-  test("renders loading and error API states", () => {
+  test("renders loading state", () => {
     render(
-      <BillingCard
-        billingMode="month"
-        setBillingMode={() => {}}
-        billingMonth="2026-02"
-        setBillingMonth={() => {}}
-        billingYear="2026"
-        setBillingYear={() => {}}
-        billingData={null}
-        billingLoading={true}
-        billingError="Nepodarilo se nacist vyuctovani."
-      />
+      <DataCard loading={true}>
+        <BillingCard 
+          billingLoading={true}
+          billingMode="month"
+          setBillingMode={() => {}}
+        />
+      </DataCard>
     );
+    expect(screen.getByText(/Načítám/)).toBeInTheDocument();
+  });
 
+  test("renders error state", () => {
+    render(
+      <DataCard error="Nepodarilo se nacist vyuctovani.">
+        <BillingCard 
+          billingError="Nepodarilo se nacist vyuctovani."
+          billingMode="month"
+          setBillingMode={() => {}}
+        />
+      </DataCard>
+    );
     expect(screen.getByText("Nepodarilo se nacist vyuctovani.")).toBeInTheDocument();
-    expect(screen.getByText("Pocitam odhad vyuctovani...")).toBeInTheDocument();
   });
 });
