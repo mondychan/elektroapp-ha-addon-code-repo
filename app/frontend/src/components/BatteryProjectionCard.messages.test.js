@@ -43,7 +43,12 @@ describe("BatteryProjectionCard messages", () => {
       />
     );
 
-    expect(screen.getByText(/Baterie bude nabita cca v 13:20/)).toBeInTheDocument();
-    expect(screen.getByText(/Pri aktualnim forecastu klesne k rezerve cca v 23:10/)).toBeInTheDocument();
+    const summary = screen.getByText((content) => (
+      content.includes("Baterie bude nabita cca v") &&
+      content.includes("Pri aktualnim forecastu klesne k rezerve cca v")
+    ));
+
+    expect(summary).toHaveTextContent("1 h 30 min");
+    expect(summary).toHaveTextContent("11 h 20 min");
   });
 });
