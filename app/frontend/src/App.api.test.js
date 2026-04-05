@@ -108,6 +108,14 @@ describe("App API states", () => {
     });
   });
 
+  test("loads energy balance on overview because the card is visible there", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(elektroappApi.getEnergyBalance).toHaveBeenCalled();
+    });
+  });
+
   test("planner preset button immediately loads matching duration", async () => {
     render(<App />);
 

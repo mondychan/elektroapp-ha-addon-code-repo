@@ -150,9 +150,8 @@ export const useInsightsData = ({
   }, [showConfig, showFeesHistory, fetchFeesHistory]);
 
   useEffect(() => {
-    if (pageMode !== "costs") return;
     fetchEnergyBalance();
-  }, [pageMode, fetchEnergyBalance]);
+  }, [fetchEnergyBalance]);
 
   useEffect(() => {
     if (pageMode !== "costs") return;
