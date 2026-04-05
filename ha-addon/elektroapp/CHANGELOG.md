@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.95
+- oprava Energeticke bilance: zavedena detekce jednotek (W vs kW) primo z InfluxDB
+- odstranena nespolehliva heuristika, ktery zpusobovala astronomicke hodnoty u Wattovych senzoru s nizkym prikonem
+- sjednoceno zpracovani vykonu v BatteryService (vse nyni prepocitavano na Watty pro presnejsi projekce)
+- vylepsena diagnostika InfluxDB dotazu o metadata jednotek
+
 ## 0.1.94
 - oprava testovaci sady v CI po zavedeni robustnejsi diagnostiky jednotek
 - stabilizace release pipeline
