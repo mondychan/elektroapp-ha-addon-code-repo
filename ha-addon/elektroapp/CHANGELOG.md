@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.91
+- oprava vypoctu energetickych hodnot z PND (prevod kW na kWh pro 15min intervaly)
+- sjednoceni vice datovych rad (faze L1, L2, L3) do celkove sumy v ramci intervalu
+- ignorovani pomocnych rad (maximalni vykony) pro presnejsi soucty spotreby/vyroby
+- sjednoceni logiky vypoctu pro JSON API i CSV exporty z PND
+
 ## 0.1.90
 - oprava synchronizace konfigurace mezi Elektroapp UI a Home Assistant options, aby se zmeny po restartu nevracely na starsi hodnoty
 - load configu nove vybira nejaktualnejsi variantu mezi HA options a lokalnim backupem a druhou kopii na ni zrcadli
