@@ -121,6 +121,11 @@ class ForecastSolarConfig(StrictModel):
     power_highest_peak_time_tomorrow_entity_id: str | None = None
 
 
+class AlertsConfig(StrictModel):
+    low_price_threshold: float = Field(default=1.5, ge=0.0)
+    high_price_threshold: float = Field(default=5.0, ge=0.0)
+
+
 class AppConfigModel(StrictModel):
     dph: float = Field(default=0.0, ge=0.0, le=100.0)
     price_provider: Literal["spotovaelektrina", "ote"] = Field(default=DEFAULT_PRICE_PROVIDER)
@@ -132,6 +137,7 @@ class AppConfigModel(StrictModel):
     battery: BatteryConfig = Field(default_factory=BatteryConfig)
     energy: EnergyConfig = Field(default_factory=EnergyConfig)
     forecast_solar: ForecastSolarConfig = Field(default_factory=ForecastSolarConfig)
+    alerts: AlertsConfig = Field(default_factory=AlertsConfig)
 
     @field_validator("dph", mode="before")
     @classmethod

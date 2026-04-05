@@ -303,6 +303,13 @@ def get_forecast_solar_cfg(cfg):
         "power_highest_peak_time_tomorrow_entity_id": forecast.get("power_highest_peak_time_tomorrow_entity_id"),
     }
 
+def get_alerts_cfg(cfg):
+    alerts = cfg.get("alerts", {}) if isinstance(cfg.get("alerts"), dict) else {}
+    return {
+        "low_price_threshold": _safe_float(alerts.get("low_price_threshold", 1.5)),
+        "high_price_threshold": _safe_float(alerts.get("high_price_threshold", 5.0)),
+    }
+
 def has_battery_required_cfg(battery_cfg):
     return bool(
         battery_cfg.get("soc_entity_id")
