@@ -5,27 +5,26 @@ import { formatSlotToTime } from "../utils/formatters";
 
 const PriceChartCard = ({
   chartData,
-  title,
   fallbackMessage,
   vtPeriods,
   className,
-  highlightSlot,
   pinnedSlot,
   onPinSlot,
   thresholds,
+  highlightSlot,
 }) => {
   const chartConfig = useMemo(
     () =>
       buildPriceChartConfig({
         chartData,
-        title,
+        title: "",
         vtPeriods,
         highlightSlot,
         pinnedSlot,
         fallbackMessage,
         thresholds,
       }),
-    [chartData, title, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds]
+    [chartData, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds]
   );
 
   if (!chartData.length && !fallbackMessage) {
@@ -33,11 +32,8 @@ const PriceChartCard = ({
   }
 
   return (
-    <div className={`card ${className || ""}`.trim()}>
-      <div className="card-header">
-        <h3>{title}</h3>
-        {Number.isInteger(pinnedSlot) && <div className="chart-pin-note">Pin: {formatSlotToTime(pinnedSlot)}</div>}
-      </div>
+    <div className={className || ""}>
+      {Number.isInteger(pinnedSlot) && <div className="chart-pin-note">Pin: {formatSlotToTime(pinnedSlot)}</div>}
       {!chartData.length ? (
         <div className="config-muted">{fallbackMessage}</div>
       ) : (

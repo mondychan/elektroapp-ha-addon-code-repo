@@ -9,11 +9,16 @@ import HistoryHeatmapCard from "../components/HistoryHeatmapCard";
 import BatteryProjectionCard from "../components/BatteryProjectionCard";
 import DataCard from "../components/common/DataCard";
 import { formatDate, formatSlotToTime } from "../utils/formatters";
-import { normalizeEnergyBalanceAnchor, shiftEnergyBalanceAnchor } from "../hooks/useDashboardData";
+import {
+  getMaxEnergyBalanceAnchor,
+  normalizeEnergyBalanceAnchor,
+  shiftEnergyBalanceAnchor,
+} from "../hooks/useDashboardData";
 
 interface DetailPageProps {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  maxDate: string;
   selectedDateObj: Date;
   selectedDatePriceData: any[];
   selectedDatePricesLoading: boolean;
@@ -45,6 +50,7 @@ interface DetailPageProps {
   energyBalanceError: any;
   heatmapMonth: string;
   setHeatmapMonth: (month: string) => void;
+  maxMonth: string;
   heatmapMetric: "buy" | "sell";
   setHeatmapMetric: (metric: "buy" | "sell") => void;
   heatmapData: any;
@@ -61,6 +67,7 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
   const {
     selectedDate,
     setSelectedDate,
+    maxDate,
     selectedDateObj,
     selectedDatePriceData,
     selectedDatePricesLoading,
@@ -92,6 +99,7 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
     energyBalanceError,
     heatmapMonth,
     setHeatmapMonth,
+    maxMonth,
     heatmapMetric,
     setHeatmapMetric,
     heatmapData,
@@ -103,6 +111,10 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
     refreshBattery,
   } = props;
 
+  const currentEnergyBalanceAnchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
+  const maxEnergyBalanceAnchor = getMaxEnergyBalanceAnchor(energyBalancePeriod);
+  const selectedDateLabel = formatDate(selectedDateObj);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -111,30 +123,23 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
       transition={{ duration: 0.3 }}
     >
       <section className="section">
-        <div className="section-heading">
-          <h2>Detailní pohled</h2>
-          {Number.isInteger(pinnedSlot) && (
-            <button onClick={() => setPinnedSlot(null)} className="ghost-button">
-              Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
-            </button>
-          )}
-        </div>
-        <div className="gesture-hint">
-          Detail zobrazuje denní data s anotacemi přechodu nákup/export, energetickou bilanci a heatmapy.
-        </div>
-        
-        <div style={{ marginBottom: "1rem" }}>
-          <DateNavigator value={selectedDate} onChange={setSelectedDate} />
-        </div>
-
-        <DataCard 
-          loading={selectedDatePricesLoading} 
+        <DataCard
+          loading={selectedDatePricesLoading}
           error={selectedDatePricesError}
-          title={`Cena elektřiny - ${formatDate(selectedDateObj)}`}
+          title={`Cena elektřiny (Kč/kWh) | ${selectedDateLabel}`}
+          headerActions={
+            Number.isInteger(pinnedSlot) ? (
+              <button onClick={() => setPinnedSlot(null)} className="ghost-button">
+                Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
+              </button>
+            ) : undefined
+          }
         >
+          <div className="toolbar toolbar-compact">
+            <DateNavigator value={selectedDate} onChange={setSelectedDate} maxDate={maxDate} />
+          </div>
           <PriceChartCard
             chartData={selectedDatePriceData}
-            title=""
             fallbackMessage="Data nejsou k dispozici."
             vtPeriods={config?.tarif?.vt_periods}
             highlightSlot={effectiveHighlightSlot}
@@ -147,10 +152,11 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
       </section>
 
       <section className="section detail-grid swipe-zone" {...dateSwipeHandlers}>
-        <DataCard title="Spotřeba a náklady" loading={costsLoading} error={costsError}>
+        <DataCard title={`Spotřeba a náklady | ${selectedDateLabel}`} loading={costsLoading} error={costsError}>
           <CostChartCard
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            maxDate={maxDate}
             costs={costs}
             costsSummary={costsSummary}
             costsError={costsError}
@@ -160,10 +166,11 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
           />
         </DataCard>
 
-        <DataCard title="Export a tržby" loading={exportLoading} error={exportError}>
+        <DataCard title={`Prodej a export | ${selectedDateLabel}`} loading={exportLoading} error={exportError}>
           <ExportChartCard
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            maxDate={maxDate}
             exportPoints={exportPoints}
             exportSummary={exportSummary}
             exportError={exportError}
@@ -178,13 +185,14 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
         <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
           <EnergyBalanceCard
             period={energyBalancePeriod}
-            anchor={normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor)}
+            anchor={currentEnergyBalanceAnchor}
             onPrev={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
             }
             onNext={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
             }
+            disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
             onPeriodChange={(value: any) => {
               setEnergyBalancePeriod(value as any);
               setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value as any, prev));
@@ -199,6 +207,7 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
           <HistoryHeatmapCard
             month={heatmapMonth}
             setMonth={setHeatmapMonth}
+            maxMonth={maxMonth}
             metric={heatmapMetric}
             setMetric={setHeatmapMetric}
             heatmapData={heatmapData}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import MonthNavigator from "./MonthNavigator";
 import { formatDate } from "../utils/formatters";
 import { MonthlyDayData, MonthlyTotals } from "../types/elektroapp";
@@ -7,6 +7,7 @@ import { elektroappApi } from "../api/elektroappApi";
 interface MonthlySummaryCardProps {
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
+  maxMonth?: string;
   monthlySummary: MonthlyDayData[];
   monthlyTotals: MonthlyTotals | null;
   monthlyError: any;
@@ -17,6 +18,7 @@ type SortKey = keyof MonthlyDayData | "netKwh" | "netCost";
 const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   selectedMonth,
   setSelectedMonth,
+  maxMonth,
   monthlySummary,
   monthlyTotals,
   monthlyError,
@@ -28,14 +30,14 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   const [isExporting, setIsExporting] = useState(false);
 
   const sortedData = useMemo(() => {
-    let sortableData = [...monthlySummary].map((day) => {
+    const sortableData = [...monthlySummary].map((day) => {
       const kwhBought = day.kwh_total || 0;
       const kwhSold = day.export_kwh_total || 0;
-      const netKwh = (day.kwh_total != null || day.export_kwh_total != null) ? kwhBought - kwhSold : null;
+      const netKwh = day.kwh_total != null || day.export_kwh_total != null ? kwhBought - kwhSold : null;
 
       const costBought = day.cost_total || 0;
       const costSold = day.sell_total || 0;
-      const netCost = (day.cost_total != null || day.sell_total != null) ? costBought - costSold : null;
+      const netCost = day.cost_total != null || day.sell_total != null ? costBought - costSold : null;
 
       return {
         ...day,
@@ -46,8 +48,8 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
 
     if (sortConfig.key) {
       sortableData.sort((a, b) => {
-        let aVal = a[sortConfig.key];
-        let bVal = b[sortConfig.key];
+        const aVal = a[sortConfig.key];
+        const bVal = b[sortConfig.key];
 
         if (aVal == null) return 1;
         if (bVal == null) return -1;
@@ -61,6 +63,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         return 0;
       });
     }
+
     return sortableData;
   }, [monthlySummary, sortConfig]);
 
@@ -107,40 +110,49 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
     const kwhSold = monthlyTotals.export_kwh_total || 0;
     if (monthlyTotals.kwh_total != null || monthlyTotals.export_kwh_total != null) {
       footerNetKwh = kwhBought - kwhSold;
-      footerKwhClass = footerNetKwh > 0 ? "cell-buy" : (footerNetKwh < 0 ? "cell-sell" : "");
+      footerKwhClass = footerNetKwh > 0 ? "cell-buy" : footerNetKwh < 0 ? "cell-sell" : "";
     }
 
     const costBought = monthlyTotals.cost_total || 0;
     const costSold = monthlyTotals.sell_total || 0;
     if (monthlyTotals.cost_total != null || monthlyTotals.sell_total != null) {
       footerNetCost = costBought - costSold;
-      footerCostClass = footerNetCost > 0 ? "cell-buy" : (footerNetCost < 0 ? "cell-sell" : "");
+      footerCostClass = footerNetCost > 0 ? "cell-buy" : footerNetCost < 0 ? "cell-sell" : "";
     }
   }
 
   if (monthlyError) {
-    const errorMessage = typeof monthlyError === "string" ? monthlyError : monthlyError?.message || "Došlo k chybě při načítání.";
+    const errorMessage =
+      typeof monthlyError === "string" ? monthlyError : monthlyError?.message || "Došlo k chybě při načítání.";
     return (
       <div className="data-state-container error-state">
         <p>{errorMessage}</p>
       </div>
     );
   }
+
   if (!monthlySummary.length && !monthlyError) return null;
 
   return (
     <div className="summary-card-inner">
       <div className="summary-header">
-        <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} />
-        <button 
-          className="btn-secondary btn-sm" 
+        <div className="summary-header-nav">
+          <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} maxMonth={maxMonth} />
+        </div>
+        <button
+          className="summary-export-btn"
           onClick={handleExportCsv}
           disabled={isExporting}
+          aria-label="Export CSV"
+          title="Export CSV"
         >
-          {isExporting ? "Exportuji..." : "📥 Export CSV"}
+          <span className="summary-export-icon" aria-hidden="true">
+            📥
+          </span>
+          <span className="summary-export-label">{isExporting ? "Exportuji..." : "Export CSV"}</span>
         </button>
       </div>
-      
+
       <div className="table-responsive sticky-container" style={{ maxHeight: "450px" }}>
         <table className="data-table table-spaced">
           <thead className="sticky-header">
@@ -175,8 +187,8 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
               const dayOfWeek = dt.getDay();
               const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
               const dayName = dt.toLocaleDateString("cs-CZ", { weekday: "short" });
-              const kwhClass = day.netKwh != null ? (day.netKwh > 0 ? "cell-buy" : (day.netKwh < 0 ? "cell-sell" : "")) : "";
-              const costClass = day.netCost != null ? (day.netCost > 0 ? "cell-buy" : (day.netCost < 0 ? "cell-sell" : "")) : "";
+              const kwhClass = day.netKwh != null ? (day.netKwh > 0 ? "cell-buy" : day.netKwh < 0 ? "cell-sell" : "") : "";
+              const costClass = day.netCost != null ? (day.netCost > 0 ? "cell-buy" : day.netCost < 0 ? "cell-sell" : "") : "";
 
               return (
                 <tr key={day.date} className={isWeekend ? "row-weekend" : ""}>
@@ -187,10 +199,10 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
                   <td className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
                   <td className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
                   <td className={`cell-right ${kwhClass}`}>
-                    {day.netKwh == null ? "-" : (day.netKwh > 0 ? "+" : "") + day.netKwh.toFixed(2)}
+                    {day.netKwh == null ? "-" : `${day.netKwh > 0 ? "+" : ""}${day.netKwh.toFixed(2)}`}
                   </td>
                   <td className={`cell-right ${costClass}`}>
-                    {day.netCost == null ? "-" : (day.netCost > 0 ? "+" : "") + day.netCost.toFixed(2)}
+                    {day.netCost == null ? "-" : `${day.netCost > 0 ? "+" : ""}${day.netCost.toFixed(2)}`}
                   </td>
                 </tr>
               );
@@ -205,10 +217,10 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
                 <td className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
                 <td className="cell-right cell-sell">{monthlyTotals.sell_total?.toFixed(2)}</td>
                 <td className={`cell-right ${footerKwhClass}`}>
-                  {footerNetKwh == null ? "-" : (footerNetKwh > 0 ? "+" : "") + footerNetKwh.toFixed(2)}
+                  {footerNetKwh == null ? "-" : `${footerNetKwh > 0 ? "+" : ""}${footerNetKwh.toFixed(2)}`}
                 </td>
                 <td className={`cell-right ${footerCostClass}`}>
-                  {footerNetCost == null ? "-" : (footerNetCost > 0 ? "+" : "") + footerNetCost.toFixed(2)}
+                  {footerNetCost == null ? "-" : `${footerNetCost > 0 ? "+" : ""}${footerNetCost.toFixed(2)}`}
                 </td>
               </tr>
             </tfoot>

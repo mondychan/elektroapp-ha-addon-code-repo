@@ -16,6 +16,13 @@ const toDateValue = (dt) => {
   return `${y}-${m}-${d}`;
 };
 
+const compareDateValues = (left, right) => {
+  if (!left && !right) return 0;
+  if (!left) return -1;
+  if (!right) return 1;
+  return left.localeCompare(right);
+};
+
 const shiftDateValue = (value, deltaDays) => {
   const dt = parseDate(value);
   if (!dt) return value;
@@ -23,6 +30,18 @@ const shiftDateValue = (value, deltaDays) => {
   return toDateValue(dt);
 };
 
+/**
+ * @param {{
+ *   value: string,
+ *   onChange?: (nextValue: string) => void,
+ *   className?: string,
+ *   compact?: boolean,
+ *   todayLabel?: string,
+ *   showShortcuts?: boolean,
+ *   minDate?: string | null,
+ *   maxDate?: string | null,
+ * }} props
+ */
 const DateNavigator = ({
   value,
   onChange,
@@ -38,6 +57,14 @@ const DateNavigator = ({
   const selectedDate = useMemo(() => parseDate(value), [value]);
   const minDateObj = useMemo(() => parseDate(minDate), [minDate]);
   const maxDateObj = useMemo(() => parseDate(maxDate), [maxDate]);
+  const prevValue = useMemo(() => shiftDateValue(value, -1), [value]);
+  const nextValue = useMemo(() => shiftDateValue(value, 1), [value]);
+  const todayValue = useMemo(() => toDateValue(new Date()), []);
+  const canGoPrev = !minDate || compareDateValues(prevValue, minDate) >= 0;
+  const canGoNext = !maxDate || compareDateValues(nextValue, maxDate) <= 0;
+  const canJumpToday =
+    (!minDate || compareDateValues(todayValue, minDate) >= 0) &&
+    (!maxDate || compareDateValues(todayValue, maxDate) <= 0);
 
   const selectedLabel = selectedDate
     ? selectedDate.toLocaleDateString("cs-CZ", compact ? { day: "2-digit", month: "2-digit", year: "numeric" } : { day: "numeric", month: "long", year: "numeric" })
@@ -64,6 +91,9 @@ const DateNavigator = ({
   }, []);
 
   const applyValue = (nextValue) => {
+    if (typeof onChange !== "function" || !nextValue) return;
+    if (minDate && compareDateValues(nextValue, minDate) < 0) return;
+    if (maxDate && compareDateValues(nextValue, maxDate) > 0) return;
     if (typeof onChange === "function" && nextValue) {
       onChange(nextValue);
     }
@@ -72,7 +102,7 @@ const DateNavigator = ({
   return (
     <div className={`date-nav ${compact ? "date-nav-compact" : ""} ${className}`.trim()} ref={rootRef}>
       {!compact && (
-        <button type="button" className="date-nav-btn" onClick={() => applyValue(shiftDateValue(value, -1))}>
+        <button type="button" className="date-nav-btn" onClick={() => applyValue(prevValue)} disabled={!canGoPrev}>
           Prev
         </button>
       )}
@@ -94,12 +124,12 @@ const DateNavigator = ({
         </span>
       </button>
       {!compact && (
-        <button type="button" className="date-nav-btn" onClick={() => applyValue(shiftDateValue(value, 1))}>
+        <button type="button" className="date-nav-btn" onClick={() => applyValue(nextValue)} disabled={!canGoNext}>
           Next
         </button>
       )}
       {!compact && (
-        <button type="button" className="date-nav-btn date-nav-btn-today" onClick={() => applyValue(toDateValue(new Date()))}>
+        <button type="button" className="date-nav-btn date-nav-btn-today" onClick={() => applyValue(todayValue)} disabled={!canJumpToday}>
           {todayLabel}
         </button>
       )}
@@ -122,13 +152,13 @@ const DateNavigator = ({
           />
           {showShortcuts && (
             <div className="date-nav-shortcuts">
-              <button type="button" onClick={() => applyValue(shiftDateValue(value, -1))}>
+              <button type="button" onClick={() => applyValue(prevValue)} disabled={!canGoPrev}>
                 Vcera
               </button>
-              <button type="button" onClick={() => applyValue(toDateValue(new Date()))}>
+              <button type="button" onClick={() => applyValue(todayValue)} disabled={!canJumpToday}>
                 Dnes
               </button>
-              <button type="button" onClick={() => applyValue(shiftDateValue(value, 1))}>
+              <button type="button" onClick={() => applyValue(nextValue)} disabled={!canGoNext}>
                 Zitra
               </button>
             </div>

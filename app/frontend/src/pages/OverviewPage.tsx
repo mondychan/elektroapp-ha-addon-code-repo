@@ -14,7 +14,11 @@ import AlertBanner from "../components/common/AlertBanner";
 import ComparisonCard from "../components/ComparisonCard";
 import SolarForecastCard from "../components/SolarForecastCard";
 import { formatDate, formatSlotToTime } from "../utils/formatters";
-import { normalizeEnergyBalanceAnchor, shiftEnergyBalanceAnchor } from "../hooks/useDashboardData";
+import {
+  getMaxEnergyBalanceAnchor,
+  normalizeEnergyBalanceAnchor,
+  shiftEnergyBalanceAnchor,
+} from "../hooks/useDashboardData";
 
 interface OverviewPageProps {
   today: Date;
@@ -28,6 +32,7 @@ interface OverviewPageProps {
   dateSwipeHandlers: any;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  maxDate: string;
   costs: any;
   costsSummary: any;
   costsError: any;
@@ -45,6 +50,7 @@ interface OverviewPageProps {
   monthSwipeHandlers: any;
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
+  maxMonth: string;
   monthlySummary: any;
   monthlyTotals: any;
   monthlyError: any;
@@ -57,6 +63,8 @@ interface OverviewPageProps {
   setBillingMonth: (month: string) => void;
   billingYear: string;
   setBillingYear: (year: string) => void;
+  maxBillingMonth: string;
+  maxBillingYear: string;
   billingData: any;
   billingLoading: boolean;
   billingError: any;
@@ -87,6 +95,7 @@ interface OverviewPageProps {
   configRows: any[];
   cacheRows: any[];
   consumptionCacheRows: any[];
+  exportCacheRows: any[];
   cacheStatus: any;
   showFeesHistory: boolean;
   setShowFeesHistory: React.Dispatch<React.SetStateAction<boolean>>;
@@ -123,6 +132,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     dateSwipeHandlers,
     selectedDate,
     setSelectedDate,
+    maxDate,
     costs,
     costsSummary,
     costsError,
@@ -140,6 +150,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     monthSwipeHandlers,
     selectedMonth,
     setSelectedMonth,
+    maxMonth,
     monthlySummary,
     monthlyTotals,
     monthlyError,
@@ -152,6 +163,8 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     setBillingMonth,
     billingYear,
     setBillingYear,
+    maxBillingMonth,
+    maxBillingYear,
     billingData,
     billingLoading,
     billingError,
@@ -182,6 +195,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     configRows,
     cacheRows,
     consumptionCacheRows,
+    exportCacheRows,
     cacheStatus,
     showFeesHistory,
     setShowFeesHistory,
@@ -203,6 +217,10 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     solarForecastLoading,
   } = props;
 
+  const selectedDateLabel = formatDate(new Date(`${selectedDate}T00:00:00`));
+  const currentEnergyBalanceAnchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
+  const maxEnergyBalanceAnchor = getMaxEnergyBalanceAnchor(energyBalancePeriod);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -211,7 +229,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
       transition={{ duration: 0.3 }}
     >
       <AlertBanner alerts={alerts} />
-      
+
       {solarForecast?.enabled && (
         <DataCard title="Solární předpověď" loading={solarForecastLoading}>
           <SolarForecastCard solarForecast={solarForecast} loading={solarForecastLoading} />
@@ -222,23 +240,21 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         <ComparisonCard comparison={comparison} loading={comparisonLoading} />
       </DataCard>
 
-      {/* Hide main price sections if strictly in battery/config mode */}
-      {(!showBatteryPanel && !showConfig) && (
+      {!showBatteryPanel && !showConfig && (
         <section className="section">
-          <div className="section-heading">
-            <h2>Cena elektřiny (Kč/kWh)</h2>
-            {Number.isInteger(pinnedSlot) && (
-              <button onClick={() => setPinnedSlot(null)} className="ghost-button">
-                Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
-              </button>
-            )}
-          </div>
-          <div className="gesture-hint">Swipe v grafech mění den, stažení shora obnoví ceny, dlouhý stisk sloupce připne hodinu.</div>
-          
-          <DataCard loading={pricesLoading} title={`Dnes (${formatDate(today)})`}>
+          <DataCard
+            loading={pricesLoading}
+            title={`Cena elektřiny (Kč/kWh) | Dnes (${formatDate(today)})`}
+            headerActions={
+              Number.isInteger(pinnedSlot) ? (
+                <button onClick={() => setPinnedSlot(null)} className="ghost-button">
+                  Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
+                </button>
+              ) : undefined
+            }
+          >
             <PriceChartCard
               chartData={todayData}
-              title=""
               fallbackMessage="Načítám data..."
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
@@ -249,10 +265,9 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
             />
           </DataCard>
 
-          <DataCard loading={pricesLoading} title={`Zítra (${formatDate(tomorrow)})`} className="card-spaced">
+          <DataCard loading={pricesLoading} title={`Cena elektřiny (Kč/kWh) | Zítra (${formatDate(tomorrow)})`}>
             <PriceChartCard
               chartData={tomorrowData}
-              title=""
               fallbackMessage="Data pro následující den zatím nebyla publikována"
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={-1}
@@ -265,12 +280,13 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </section>
       )}
 
-      {(!showBatteryPanel && !showConfig) && (
+      {!showBatteryPanel && !showConfig && (
         <section className="section swipe-zone" {...dateSwipeHandlers}>
-          <DataCard title="Dnešní náklady" loading={costsLoading} error={costsError}>
+          <DataCard title={`Spotřeba a náklady | ${selectedDateLabel}`} loading={costsLoading} error={costsError}>
             <CostChartCard
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
+              maxDate={maxDate}
               costs={costs}
               costsSummary={costsSummary}
               costsError={costsError}
@@ -279,11 +295,12 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
               showAnnotations={false}
             />
           </DataCard>
-          
-          <DataCard title="Dnešní export" loading={exportLoading} error={exportError}>
+
+          <DataCard title={`Prodej a export | ${selectedDateLabel}`} loading={exportLoading} error={exportError}>
             <ExportChartCard
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
+              maxDate={maxDate}
               exportPoints={exportPoints}
               exportSummary={exportSummary}
               exportError={exportError}
@@ -295,7 +312,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </section>
       )}
 
-      {(!showBatteryPanel && !showConfig) && (
+      {!showBatteryPanel && !showConfig && (
         <>
           <button onClick={() => setShowMonthlySummary(!showMonthlySummary)} className="ghost-button">
             {showMonthlySummary ? "Skrýt souhrn" : "Zobrazit souhrn"}
@@ -307,6 +324,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
                 <MonthlySummaryCard
                   selectedMonth={selectedMonth}
                   setSelectedMonth={setSelectedMonth}
+                  maxMonth={maxMonth}
                   monthlySummary={monthlySummary}
                   monthlyTotals={monthlyTotals}
                   monthlyError={monthlyError}
@@ -328,6 +346,8 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
                 setBillingMonth={setBillingMonth}
                 billingYear={billingYear}
                 setBillingYear={setBillingYear}
+                maxMonth={maxBillingMonth}
+                maxYear={maxBillingYear}
                 billingData={billingData}
                 billingLoading={billingLoading}
                 billingError={billingError}
@@ -337,7 +357,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </>
       )}
 
-      {(!showConfig) && (
+      {!showConfig && (
         <>
           <button onClick={() => setShowBatteryPanel(!showBatteryPanel)} className="ghost-button">
             {showBatteryPanel ? "Skrýt baterii a projekci" : "Baterie a projekce"}
@@ -360,13 +380,14 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
           <EnergyBalanceCard
             period={energyBalancePeriod}
-            anchor={normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor)}
+            anchor={currentEnergyBalanceAnchor}
             onPrev={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
             }
             onNext={() =>
               setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
             }
+            disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
             onPeriodChange={(value: any) => {
               setEnergyBalancePeriod(value as any);
               setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
@@ -406,6 +427,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
             configRows={configRows}
             cacheRows={cacheRows}
             consumptionCacheRows={consumptionCacheRows}
+            exportCacheRows={exportCacheRows}
             cacheStatus={cacheStatus}
             showFeesHistory={showFeesHistory}
             onToggleFeesHistory={() => setShowFeesHistory((prev: boolean) => !prev)}

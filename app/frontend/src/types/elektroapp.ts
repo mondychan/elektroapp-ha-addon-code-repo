@@ -26,10 +26,25 @@ export interface Config {
   prodej?: {
     koeficient_snizeni_ceny?: number;
   };
+  influxdb?: {
+    entity_id?: string;
+    export_entity_id?: string;
+  };
   battery?: {
     enabled?: boolean;
     usable_capacity_kwh?: number;
     reserve_soc_percent?: number;
+    soc_entity_id?: string;
+  };
+  energy?: {
+    house_load_power_entity_id?: string;
+    grid_import_power_entity_id?: string;
+    grid_export_power_entity_id?: string;
+    pv_power_total_entity_id?: string;
+  };
+  forecast_solar?: {
+    enabled?: boolean;
+    power_now_entity_id?: string;
   };
 }
 
@@ -48,11 +63,21 @@ export interface BatteryData {
     battery_power_w?: number;
   };
   projection?: {
-    state: "charging" | "discharging" | "idle";
+    state: "charging" | "discharging" | "idle" | "unknown";
+    end_state?: "charging" | "discharging" | "idle" | "unknown";
     eta_to_full_at?: string;
     eta_to_full_minutes?: number;
     eta_to_reserve_at?: string;
     eta_to_reserve_minutes?: number;
+    eta_to_reserve_after_full_at?: string;
+    eta_to_reserve_after_full_minutes?: number;
+    peak_soc_percent?: number;
+    peak_soc_at?: string;
+    min_soc_percent?: number;
+    min_soc_at?: string;
+    projected_end_soc_percent?: number;
+    first_transition_at?: string;
+    first_transition_state?: "charging" | "discharging" | "idle";
   };
   is_today?: boolean;
 }
@@ -68,11 +93,54 @@ export interface ExportKpi {
 }
 
 export interface SolarForecast {
-  power_now?: number;
-  energy_production_today_remaining?: number;
-  energy_production_tomorrow?: number;
-  power_highest_peak_time_today?: string;
-  power_highest_peak_time_tomorrow?: string;
+  enabled?: boolean;
+  date?: string;
+  status?: {
+    power_now?: number | null;
+    power_now_w?: number | null;
+    energy_current_hour?: number | null;
+    energy_current_hour_kwh?: number | null;
+    energy_next_hour?: number | null;
+    energy_next_hour_kwh?: number | null;
+    production_today?: number | null;
+    energy_production_today_kwh?: number | null;
+    production_today_remaining?: number | null;
+    energy_production_today_remaining_kwh?: number | null;
+    production_tomorrow?: number | null;
+    energy_production_tomorrow_kwh?: number | null;
+    peak_today?: string | null;
+    peak_time_today_hhmm?: string | null;
+    peak_tomorrow?: string | null;
+    peak_time_tomorrow_hhmm?: string | null;
+  };
+  actual?: {
+    pv_power_entity_id?: string | null;
+    power_now_w?: number | null;
+    production_today_kwh?: number | null;
+    samples_today?: number | null;
+  };
+  comparison?: {
+    forecast_so_far_kwh?: number | null;
+    delta_so_far_kwh?: number | null;
+    power_delta_w?: number | null;
+    live_ratio?: number | null;
+    historical_bias_ratio?: number | null;
+    effective_bias_ratio?: number | null;
+    adjusted_projection_today_kwh?: number | null;
+    projection_delta_to_forecast_kwh?: number | null;
+  };
+  history?: {
+    days_tracked?: number;
+    median_ratio?: number | null;
+    avg_ratio?: number | null;
+    last_completed_date?: string | null;
+    recent_days?: Array<{
+      date: string;
+      actual_total_kwh: number;
+      forecast_total_kwh: number;
+      ratio: number;
+    }>;
+  };
 }
 
 export interface MonthlyDayData {

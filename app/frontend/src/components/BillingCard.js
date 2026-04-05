@@ -10,6 +10,8 @@ const BillingCard = ({
   setBillingMonth,
   billingYear,
   setBillingYear,
+  maxMonth,
+  maxYear,
   billingData,
   billingLoading,
   billingError,
@@ -145,9 +147,9 @@ const BillingCard = ({
           <option value="year">Rok</option>
         </select>
         {billingMode === "month" ? (
-          <MonthNavigator value={billingMonth} onChange={setBillingMonth} />
+          <MonthNavigator value={billingMonth} onChange={setBillingMonth} maxMonth={maxMonth} />
         ) : (
-          <YearNavigator value={billingYear} onChange={setBillingYear} />
+          <YearNavigator value={billingYear} onChange={setBillingYear} maxYear={maxYear} />
         )}
       </div>
       {billingMode === "month" && renderBillingMonth()}

@@ -40,6 +40,13 @@ const formatDurationMins = (minutes) => {
   return `${h} h ${m} min`;
 };
 
+const formatEtaSentence = (prefix, iso, minutes) => {
+  const etaTime = formatEta(iso);
+  const duration = formatDurationMins(minutes);
+  if (!etaTime) return null;
+  return `${prefix} ${etaTime}${duration ? ` (${duration})` : ""}.`;
+};
+
 const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRefresh }) => {
   const chartData = useMemo(() => buildBatteryChartData(batteryData), [batteryData]);
   const socChartConfig = useMemo(() => buildBatterySocChartConfig(chartData), [chartData]);
@@ -52,15 +59,39 @@ const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRe
 
   const etaMessage = useMemo(() => {
     if (!batteryData?.is_today || !status) return null;
-    if (projection?.state === "charging" && projection?.eta_to_full_at) {
-      const etaTime = formatEta(projection.eta_to_full_at);
-      const duration = formatDurationMins(projection.eta_to_full_minutes);
-      return etaTime ? `Baterie bude nabita cca v ${etaTime}${duration ? ` (${duration})` : ""}.` : null;
+    if (projection?.state === "charging") {
+      if (projection?.eta_to_full_at) {
+        const fullMessage = formatEtaSentence(
+          "Baterie bude nabita cca v",
+          projection.eta_to_full_at,
+          projection.eta_to_full_minutes
+        );
+        const reserveAfterFullMessage = formatEtaSentence(
+          "Pri aktualnim forecastu klesne k rezerve cca v",
+          projection.eta_to_reserve_after_full_at,
+          projection.eta_to_reserve_after_full_minutes
+        );
+        return [fullMessage, reserveAfterFullMessage].filter(Boolean).join(" ");
+      }
+
+      if (projection?.peak_soc_at && projection?.peak_soc_percent != null) {
+        const peakTime = formatEta(projection.peak_soc_at);
+        if (peakTime) {
+          const peakMessage = `Baterie se bude jeste dobijet, maximum cca ${formatNumber(projection.peak_soc_percent, 0)} % v ${peakTime}.`;
+          const reserveMessage = formatEtaSentence(
+            "Potom klesne k rezerve cca v",
+            projection.eta_to_reserve_at,
+            projection.eta_to_reserve_minutes
+          );
+          return [peakMessage, reserveMessage].filter(Boolean).join(" ");
+        }
+      }
+
+      return "Baterie se ted nabiji, ale ETA do plna zatim neni k dispozici.";
     }
+
     if (projection?.state === "discharging" && projection?.eta_to_reserve_at) {
-      const etaTime = formatEta(projection.eta_to_reserve_at);
-      const duration = formatDurationMins(projection.eta_to_reserve_minutes);
-      return etaTime ? `Baterie vydrzi cca do ${etaTime}${duration ? ` (${duration})` : ""}.` : null;
+      return formatEtaSentence("Baterie vydrzi cca do", projection.eta_to_reserve_at, projection.eta_to_reserve_minutes);
     }
     if (status?.battery_state === "idle") {
       return "Baterie je zhruba ve stabilnim stavu (vykon pod prahem pro ETA).";

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 interface DataCardProps {
   title?: string;
+  headerActions?: React.ReactNode;
   loading?: boolean;
   error?: any;
   empty?: boolean;
@@ -13,6 +14,7 @@ interface DataCardProps {
 
 const DataCard: React.FC<DataCardProps> = ({
   title,
+  headerActions,
   loading,
   error,
   empty,
@@ -27,6 +29,7 @@ const DataCard: React.FC<DataCardProps> = ({
       {title && (
         <div className="card-header">
           <h3>{title}</h3>
+          {headerActions}
         </div>
       )}
       

@@ -6,6 +6,7 @@ const ConfigCard = ({
   configRows,
   cacheRows,
   consumptionCacheRows,
+  exportCacheRows,
   cacheStatus,
   showFeesHistory,
   onToggleFeesHistory,
@@ -47,6 +48,18 @@ const ConfigCard = ({
           />
         ) : (
           <div className="config-muted">Cache spotreby nejsou k dispozici.</div>
+        )}
+        <h4 className="config-subtitle">Cache exportu</h4>
+        {cacheStatus?.export ? (
+          <InfoTable
+            rows={exportCacheRows}
+            valueAlign="left"
+            headerValueAlign="left"
+            showUnit={false}
+            showHeader={false}
+          />
+        ) : (
+          <div className="config-muted">Cache exportu nejsou k dispozici.</div>
         )}
         <h4 className="config-subtitle">Zdroj cen</h4>
         <div>

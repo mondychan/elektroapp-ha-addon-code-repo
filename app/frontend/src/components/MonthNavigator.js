@@ -16,15 +16,33 @@ const shiftMonth = (value, delta) => {
   return toMonthValue(dt.getFullYear(), dt.getMonth() + 1);
 };
 
+const compareMonthValues = (left, right) => {
+  if (!left && !right) return 0;
+  if (!left) return -1;
+  if (!right) return 1;
+  return left.localeCompare(right);
+};
+
 const MONTH_LABELS = Array.from({ length: 12 }, (_, idx) =>
   new Date(2026, idx, 1).toLocaleDateString("cs-CZ", { month: "short" })
 );
 
-const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento mesic" }) => {
+/**
+ * @param {{
+ *   value: string,
+ *   onChange?: (nextValue: string) => void,
+ *   className?: string,
+ *   todayLabel?: string,
+ *   maxMonth?: string | null,
+ * }} props
+ */
+const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento mesic", maxMonth = null }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const parsed = useMemo(() => parseMonth(value), [value]);
   const [panelYear, setPanelYear] = useState(parsed?.year ?? new Date().getFullYear());
+  const prevValue = useMemo(() => shiftMonth(value, -1), [value]);
+  const nextValue = useMemo(() => shiftMonth(value, 1), [value]);
 
   useEffect(() => {
     if (parsed?.year) {
@@ -51,6 +69,8 @@ const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento m
   }, []);
 
   const applyValue = (nextValue) => {
+    if (typeof onChange !== "function" || !nextValue) return;
+    if (maxMonth && compareMonthValues(nextValue, maxMonth) > 0) return;
     if (typeof onChange === "function" && nextValue) {
       onChange(nextValue);
     }
@@ -62,10 +82,19 @@ const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento m
 
   const today = new Date();
   const currentMonthValue = toMonthValue(today.getFullYear(), today.getMonth() + 1);
+  const effectiveMaxMonth = maxMonth || null;
+  const canGoNext = !effectiveMaxMonth || compareMonthValues(nextValue, effectiveMaxMonth) <= 0;
+  const canJumpCurrent = !effectiveMaxMonth || compareMonthValues(currentMonthValue, effectiveMaxMonth) <= 0;
+  const canShiftPanelYear = (delta) => {
+    if (!effectiveMaxMonth) return true;
+    const maxParsed = parseMonth(effectiveMaxMonth);
+    if (!maxParsed) return true;
+    return panelYear + delta <= maxParsed.year;
+  };
 
   return (
     <div className={`date-nav ${className}`.trim()} ref={rootRef}>
-      <button type="button" className="date-nav-btn" onClick={() => applyValue(shiftMonth(value, -1))}>
+      <button type="button" className="date-nav-btn" onClick={() => applyValue(prevValue)}>
         Prev
       </button>
       <button
@@ -85,10 +114,15 @@ const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento m
           </svg>
         </span>
       </button>
-      <button type="button" className="date-nav-btn" onClick={() => applyValue(shiftMonth(value, 1))}>
+      <button type="button" className="date-nav-btn" onClick={() => applyValue(nextValue)} disabled={!canGoNext}>
         Next
       </button>
-      <button type="button" className="date-nav-btn date-nav-btn-today" onClick={() => applyValue(currentMonthValue)}>
+      <button
+        type="button"
+        className="date-nav-btn date-nav-btn-today"
+        onClick={() => applyValue(currentMonthValue)}
+        disabled={!canJumpCurrent}
+      >
         {todayLabel}
       </button>
 
@@ -99,7 +133,12 @@ const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento m
               Prev rok
             </button>
             <div className="date-nav-popover-title">{panelYear}</div>
-            <button type="button" className="date-nav-mini-btn" onClick={() => setPanelYear((prev) => prev + 1)}>
+            <button
+              type="button"
+              className="date-nav-mini-btn"
+              onClick={() => setPanelYear((prev) => prev + 1)}
+              disabled={!canShiftPanelYear(1)}
+            >
               Next rok
             </button>
           </div>
@@ -108,11 +147,13 @@ const MonthNavigator = ({ value, onChange, className = "", todayLabel = "Tento m
               const monthNum = idx + 1;
               const monthValue = toMonthValue(panelYear, monthNum);
               const isSelected = monthValue === value;
+              const isDisabled = effectiveMaxMonth && compareMonthValues(monthValue, effectiveMaxMonth) > 0;
               return (
                 <button
                   key={monthValue}
                   type="button"
                   className={`date-nav-grid-btn ${isSelected ? "is-active" : ""}`}
+                  disabled={Boolean(isDisabled)}
                   onClick={() => {
                     applyValue(monthValue);
                     setOpen(false);

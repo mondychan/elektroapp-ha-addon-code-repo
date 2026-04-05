@@ -374,6 +374,12 @@ SOLAR_SERVICE = SolarService(
     get_influx_cfg_fn=get_influx_cfg,
     get_forecast_solar_cfg_fn=get_forecast_solar_cfg,
     safe_query_entity_last_value_fn=INFLUX_SERVICE.safe_query_entity_last_value,
+    get_energy_entities_cfg_fn=get_energy_entities_cfg,
+    query_entity_series_fn=INFLUX_SERVICE.query_entity_series,
+    parse_influx_interval_to_minutes_fn=parse_influx_interval_to_minutes,
+    aggregate_power_points_fn=aggregate_power_points,
+    get_local_tz_fn=get_local_tz,
+    history_file_path_fn=lambda: STORAGE_DIR / "solar-forecast-history.json" if STORAGE_DIR else None,
     logger=logger
 )
 

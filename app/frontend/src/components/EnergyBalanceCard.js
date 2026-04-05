@@ -14,6 +14,7 @@ const EnergyBalanceCard = ({
   anchor,
   onPrev,
   onNext,
+  disableNext = false,
   onPeriodChange,
   data,
   loading,
@@ -27,14 +28,11 @@ const EnergyBalanceCard = ({
   const barConfig = useMemo(() => buildEnergyBalanceBarConfig(points), [points]);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3>Vyroba vs spotreba</h3>
-      </div>
+    <div className="card-content-stack">
       <div className="toolbar">
         <button onClick={onPrev}>Prev</button>
         <div className="toolbar-label">{anchor || "-"}</div>
-        <button onClick={onNext}>Next</button>
+        <button onClick={onNext} disabled={disableNext}>Next</button>
         <select value={period} onChange={(e) => onPeriodChange(e.target.value)}>
           <option value="week">Tyden</option>
           <option value="month">Mesic</option>

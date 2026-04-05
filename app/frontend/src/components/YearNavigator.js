@@ -7,7 +7,16 @@ const parseYear = (value) => {
   return year;
 };
 
-const YearNavigator = ({ value, onChange, className = "", todayLabel = "Tento rok" }) => {
+/**
+ * @param {{
+ *   value: string,
+ *   onChange?: (nextYear: string) => void,
+ *   className?: string,
+ *   todayLabel?: string,
+ *   maxYear?: string | null,
+ * }} props
+ */
+const YearNavigator = ({ value, onChange, className = "", todayLabel = "Tento rok", maxYear = null }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const parsedYear = useMemo(() => parseYear(value), [value]);
@@ -38,12 +47,19 @@ const YearNavigator = ({ value, onChange, className = "", todayLabel = "Tento ro
   }, []);
 
   const applyValue = (nextYear) => {
+    if (typeof onChange !== "function" || !Number.isFinite(nextYear)) return;
+    if (maxYear && nextYear > Number.parseInt(maxYear, 10)) return;
     if (typeof onChange === "function" && Number.isFinite(nextYear)) {
       onChange(String(nextYear));
     }
   };
 
   const years = Array.from({ length: 12 }, (_, idx) => windowStart + idx);
+  const effectiveMaxYear = Number.parseInt(maxYear, 10);
+  const hasMaxYear = Number.isFinite(effectiveMaxYear);
+  const canGoNext = !hasMaxYear || selectedYear < effectiveMaxYear;
+  const canJumpCurrent = !hasMaxYear || fallbackYear <= effectiveMaxYear;
+  const canShiftWindow = (delta) => !hasMaxYear || windowStart + delta <= effectiveMaxYear;
 
   return (
     <div className={`date-nav ${className}`.trim()} ref={rootRef}>
@@ -67,10 +83,10 @@ const YearNavigator = ({ value, onChange, className = "", todayLabel = "Tento ro
           </svg>
         </span>
       </button>
-      <button type="button" className="date-nav-btn" onClick={() => applyValue(selectedYear + 1)}>
+      <button type="button" className="date-nav-btn" onClick={() => applyValue(selectedYear + 1)} disabled={!canGoNext}>
         Next
       </button>
-      <button type="button" className="date-nav-btn date-nav-btn-today" onClick={() => applyValue(fallbackYear)}>
+      <button type="button" className="date-nav-btn date-nav-btn-today" onClick={() => applyValue(fallbackYear)} disabled={!canJumpCurrent}>
         {todayLabel}
       </button>
 
@@ -83,18 +99,25 @@ const YearNavigator = ({ value, onChange, className = "", todayLabel = "Tento ro
             <div className="date-nav-popover-title">
               {windowStart} - {windowStart + 11}
             </div>
-            <button type="button" className="date-nav-mini-btn" onClick={() => setWindowStart((prev) => prev + 12)}>
+            <button
+              type="button"
+              className="date-nav-mini-btn"
+              onClick={() => setWindowStart((prev) => prev + 12)}
+              disabled={!canShiftWindow(12)}
+            >
               +12
             </button>
           </div>
           <div className="date-nav-grid date-nav-grid-years">
             {years.map((year) => {
               const isSelected = year === selectedYear;
+              const isDisabled = hasMaxYear && year > effectiveMaxYear;
               return (
                 <button
                   key={year}
                   type="button"
                   className={`date-nav-grid-btn ${isSelected ? "is-active" : ""}`}
+                  disabled={Boolean(isDisabled)}
                   onClick={() => {
                     applyValue(year);
                     setOpen(false);

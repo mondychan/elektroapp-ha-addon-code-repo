@@ -2,11 +2,11 @@ import React, { useMemo } from "react";
 import DateNavigator from "./DateNavigator";
 import ComboTimeChart from "../charting/components/ComboTimeChart";
 import { buildCostChartConfig, buildCostChartData } from "../charting/builders/costExportBuilder";
-import { formatDate } from "../utils/formatters";
 
 const CostChartCard = ({
   selectedDate,
   setSelectedDate,
+  maxDate,
   costs,
   costsSummary,
   costsError,
@@ -14,16 +14,14 @@ const CostChartCard = ({
   costsCacheFallback,
   showAnnotations = false,
 }) => {
-  const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const costChartData = useMemo(() => buildCostChartData(costs), [costs]);
   const chartConfig = useMemo(() => buildCostChartConfig(costChartData, showAnnotations), [costChartData, showAnnotations]);
 
   return (
-    <div className="card card-spaced-lg">
-      <div className="card-header">
-        <h3>Naklady a nakup - {formatDate(selectedDateObj)}</h3>
+    <div className="card-content-stack">
+      <div className="toolbar toolbar-compact">
+        <DateNavigator value={selectedDate} onChange={setSelectedDate} maxDate={maxDate} />
       </div>
-      <DateNavigator value={selectedDate} onChange={setSelectedDate} />
       {costsError ? (
         <div className="alert error">{costsError}</div>
       ) : !costChartData.length ? (

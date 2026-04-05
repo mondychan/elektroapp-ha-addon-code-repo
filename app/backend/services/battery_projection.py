@@ -7,6 +7,16 @@ from pricing import _safe_float
 
 logger = logging.getLogger("uvicorn.error")
 
+
+def _classify_battery_state(power_w: Optional[float], threshold_w: float) -> str:
+    if power_w is None:
+        return "unknown"
+    if power_w > threshold_w:
+        return "charging"
+    if power_w < -threshold_w:
+        return "discharging"
+    return "idle"
+
 def build_hybrid_battery_projection(
     now_local: datetime,
     soc_percent: Optional[float],
@@ -86,11 +96,12 @@ def build_hybrid_battery_projection(
                 base_pv_power[idx] = next_hour_avg_w
 
     projection_points = []
+    predicted_battery_series = []
+    state_series = []
     eta_to_full_minutes = None
     eta_to_reserve_minutes = None
     eta_to_full_at = None
     eta_to_reserve_at = None
-    state = "idle"
     sim_energy_kwh = current_energy_kwh
     last_pred_battery_w = None
 
@@ -106,12 +117,8 @@ def build_hybrid_battery_projection(
             predicted_battery_w = (predicted_battery_w * (1 - blend_weight)) + (avg_power_w * blend_weight)
 
         last_pred_battery_w = predicted_battery_w
-        if predicted_battery_w > min_power_threshold_w:
-            state = "charging"
-        elif predicted_battery_w < -min_power_threshold_w:
-            state = "discharging"
-        else:
-            state = "idle"
+        predicted_battery_series.append(predicted_battery_w)
+        state_series.append(_classify_battery_state(predicted_battery_w, min_power_threshold_w))
 
         projection_points.append(
             {
@@ -144,22 +151,57 @@ def build_hybrid_battery_projection(
         sim_energy_kwh = next_energy_kwh
 
     confidence = "medium" if (remaining_today_kwh is not None and load_profile and pv_profile) else "low"
-    if last_pred_battery_w is not None:
-        if abs(last_pred_battery_w) < min_power_threshold_w:
-            state = "idle"
-        elif last_pred_battery_w > 0:
-            state = "charging"
-        else:
-            state = "discharging"
+    near_term_window = max(1, min(len(predicted_battery_series), max(1, round(60 / step_minutes))))
+    near_term_avg_w = (
+        sum(predicted_battery_series[:near_term_window]) / near_term_window if predicted_battery_series else None
+    )
+    state = _classify_battery_state(near_term_avg_w, min_power_threshold_w)
+    end_state = _classify_battery_state(last_pred_battery_w, min_power_threshold_w)
+
+    first_transition_at = None
+    first_transition_state = None
+    for idx, point_state in enumerate(state_series[1:], start=1):
+        if state == "idle":
+            if point_state in {"charging", "discharging"}:
+                first_transition_at = projection_points[idx]["time"]
+                first_transition_state = point_state
+                break
+        elif point_state in {"charging", "discharging"} and point_state != state:
+            first_transition_at = projection_points[idx]["time"]
+            first_transition_state = point_state
+            break
+
+    peak_point = max(projection_points, key=lambda item: item.get("soc_percent", 0), default=None)
+    low_point = min(projection_points, key=lambda item: item.get("soc_percent", 0), default=None)
+    eta_to_reserve_after_full_minutes = None
+    eta_to_reserve_after_full_at = None
+    if (
+        eta_to_full_minutes is not None
+        and eta_to_reserve_minutes is not None
+        and eta_to_reserve_minutes > eta_to_full_minutes
+    ):
+        eta_to_reserve_after_full_minutes = eta_to_reserve_minutes
+        eta_to_reserve_after_full_at = eta_to_reserve_at
 
     return {
         "method": "hybrid_forecast_load_profile",
         "confidence": confidence,
         "state": state,
+        "end_state": end_state,
+        "near_term_avg_battery_w": round(near_term_avg_w, 3) if near_term_avg_w is not None else None,
         "eta_to_full_minutes": eta_to_full_minutes,
         "eta_to_reserve_minutes": eta_to_reserve_minutes,
         "eta_to_full_at": eta_to_full_at,
         "eta_to_reserve_at": eta_to_reserve_at,
+        "eta_to_reserve_after_full_minutes": eta_to_reserve_after_full_minutes,
+        "eta_to_reserve_after_full_at": eta_to_reserve_after_full_at,
+        "first_transition_at": first_transition_at,
+        "first_transition_state": first_transition_state,
+        "peak_soc_percent": peak_point.get("soc_percent") if peak_point else None,
+        "peak_soc_at": peak_point.get("time") if peak_point else None,
+        "min_soc_percent": low_point.get("soc_percent") if low_point else None,
+        "min_soc_at": low_point.get("time") if low_point else None,
+        "projected_end_soc_percent": projection_points[-1].get("soc_percent") if projection_points else None,
         "step_minutes": step_minutes,
         "points": projection_points,
         "inputs": {
@@ -190,10 +232,20 @@ def build_battery_projection(
             "method": "trend",
             "confidence": "low",
             "state": "unknown",
+            "end_state": "unknown",
             "eta_to_full_minutes": None,
             "eta_to_reserve_minutes": None,
             "eta_to_full_at": None,
             "eta_to_reserve_at": None,
+            "eta_to_reserve_after_full_minutes": None,
+            "eta_to_reserve_after_full_at": None,
+            "first_transition_at": None,
+            "first_transition_state": None,
+            "peak_soc_percent": None,
+            "peak_soc_at": None,
+            "min_soc_percent": None,
+            "min_soc_at": None,
+            "projected_end_soc_percent": None,
             "points": [],
         }
 
@@ -202,10 +254,20 @@ def build_battery_projection(
             "method": "trend",
             "confidence": "low",
             "state": "idle",
+            "end_state": "idle",
             "eta_to_full_minutes": None,
             "eta_to_reserve_minutes": None,
             "eta_to_full_at": None,
             "eta_to_reserve_at": None,
+            "eta_to_reserve_after_full_minutes": None,
+            "eta_to_reserve_after_full_at": None,
+            "first_transition_at": None,
+            "first_transition_state": None,
+            "peak_soc_percent": None,
+            "peak_soc_at": None,
+            "min_soc_percent": None,
+            "min_soc_at": None,
+            "projected_end_soc_percent": None,
             "points": [],
         }
 
@@ -278,14 +340,27 @@ def build_battery_projection(
             )
             break
 
+    peak_point = max(projection_points, key=lambda item: item.get("soc_percent", 0), default=None)
+    low_point = min(projection_points, key=lambda item: item.get("soc_percent", 0), default=None)
+
     return {
         "method": "trend",
         "confidence": "low",
         "state": state,
+        "end_state": state,
         "eta_to_full_minutes": eta_to_full_minutes,
         "eta_to_reserve_minutes": eta_to_reserve_minutes,
         "eta_to_full_at": eta_to_full_at,
         "eta_to_reserve_at": eta_to_reserve_at,
+        "eta_to_reserve_after_full_minutes": None,
+        "eta_to_reserve_after_full_at": None,
+        "first_transition_at": None,
+        "first_transition_state": None,
+        "peak_soc_percent": peak_point.get("soc_percent") if peak_point else None,
+        "peak_soc_at": peak_point.get("time") if peak_point else None,
+        "min_soc_percent": low_point.get("soc_percent") if low_point else None,
+        "min_soc_at": low_point.get("time") if low_point else None,
+        "projected_end_soc_percent": projection_points[-1].get("soc_percent") if projection_points else None,
         "step_minutes": step_minutes,
         "points": projection_points,
     }

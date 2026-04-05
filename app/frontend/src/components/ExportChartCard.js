@@ -2,11 +2,11 @@ import React, { useMemo } from "react";
 import DateNavigator from "./DateNavigator";
 import ComboTimeChart from "../charting/components/ComboTimeChart";
 import { buildExportChartConfig, buildExportChartData } from "../charting/builders/costExportBuilder";
-import { formatDate } from "../utils/formatters";
 
 const ExportChartCard = ({
   selectedDate,
   setSelectedDate,
+  maxDate,
   exportPoints,
   exportSummary,
   exportError,
@@ -14,16 +14,14 @@ const ExportChartCard = ({
   exportCacheFallback,
   showAnnotations = false,
 }) => {
-  const selectedDateObj = useMemo(() => new Date(`${selectedDate}T00:00:00`), [selectedDate]);
   const exportChartData = useMemo(() => buildExportChartData(exportPoints), [exportPoints]);
   const chartConfig = useMemo(() => buildExportChartConfig(exportChartData, showAnnotations), [exportChartData, showAnnotations]);
 
   return (
-    <div className="card card-spaced-lg">
-      <div className="card-header">
-        <h3>Prodej a export - {formatDate(selectedDateObj)}</h3>
+    <div className="card-content-stack">
+      <div className="toolbar toolbar-compact">
+        <DateNavigator value={selectedDate} onChange={setSelectedDate} maxDate={maxDate} />
       </div>
-      <DateNavigator value={selectedDate} onChange={setSelectedDate} />
       {exportError ? (
         <div className="alert error">{exportError}</div>
       ) : !exportChartData.length ? (

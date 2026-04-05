@@ -6,6 +6,7 @@ import { buildHeatmapChartConfig } from "../charting/builders/heatmapBuilder";
 const HistoryHeatmapCard = ({
   month,
   setMonth,
+  maxMonth,
   metric,
   setMetric,
   heatmapData,
@@ -18,12 +19,9 @@ const HistoryHeatmapCard = ({
   const max = heatmapData?.stats?.max;
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3>Heatmapa historie</h3>
-      </div>
+    <div className="card-content-stack">
       <div className="toolbar">
-        <MonthNavigator value={month} onChange={setMonth} />
+        <MonthNavigator value={month} onChange={setMonth} maxMonth={maxMonth} />
         <select value={metric} onChange={(e) => setMetric(e.target.value)}>
           <option value="buy">Nakup</option>
           <option value="export">Export</option>

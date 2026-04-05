@@ -3,7 +3,12 @@ import { usePlannerData } from "./usePlannerData";
 import { usePrimaryDashboardData } from "./usePrimaryDashboardData";
 import { PageMode } from "../components/layout/AppHeader";
 
-export { getTodayDateStr, normalizeEnergyBalanceAnchor, shiftEnergyBalanceAnchor } from "./dashboardUtils";
+export {
+  getMaxEnergyBalanceAnchor,
+  getTodayDateStr,
+  normalizeEnergyBalanceAnchor,
+  shiftEnergyBalanceAnchor,
+} from "./dashboardUtils";
 
 interface UseDashboardDataProps {
   selectedDate: string;
