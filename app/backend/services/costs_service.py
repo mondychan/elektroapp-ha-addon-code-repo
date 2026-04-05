@@ -25,13 +25,13 @@ class CostsService:
     def get_costs(
         self,
         *,
-        date: str | None,
-        start: str | None,
-        end: str | None,
+        date: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
         cfg: dict[str, Any],
         tzinfo,
     ) -> dict[str, Any]:
-        consumption = self._get_consumption_points(cfg, date, start, end)
+        consumption = self._get_consumption_points(cfg, date=date, start=start, end=end)
         tzinfo = consumption.get("tzinfo") or tzinfo
 
         if not consumption.get("has_series", False):

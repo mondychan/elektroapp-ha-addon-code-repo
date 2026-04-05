@@ -1,11 +1,13 @@
 # Changelog
 
-## 0.1.84
-### ⚡ Hotfix
-- Fix: "Cannot read properties of undefined (reading 'toFixed')" - přidáno globální ošetření pro chybějící data napříč všemi komponentami (Dashboard, Plánovač, Srovnání, Grafy).
-- Vylepšena odolnost aplikace vůči neúplným odpovědím z API.
+## 0.1.85
+### ⚡ Hotfix: Backend Refactor
+- Fix: "TypeError: got an unexpected keyword argument" - oprava kritických chyb v backendu po refaktoringu služeb (Solar, Billing, Costs, Prices).
+- Fix: Oprava nesprávného počtu argumentů při volání služeb Influxu.
+- Fix: Obnovena chybějící funkce `query_recent_slot_profile_by_day_type` pro predikci baterie.
+- Sjednoceno zapojení služeb v `app_service.py` pro bezchybnou inicializaci dashboardu.
 
-## 0.1.83
+## 0.1.84
 ### ⚡ Stabilita
 - Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
 - (Zahrnuje všechny novinky a opravy z verze 0.1.80, která neprošla buildem na GitHubu).

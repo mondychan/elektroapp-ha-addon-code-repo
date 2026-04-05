@@ -32,13 +32,13 @@ class ExportService:
     def get_export(
         self,
         *,
-        date: str | None,
-        start: str | None,
-        end: str | None,
+        date: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
         cfg: dict[str, Any],
         tzinfo,
     ) -> dict[str, Any]:
-        export = self._get_export_points(cfg, date, start, end)
+        export = self._get_export_points(cfg, date=date, start=start, end=end)
         tzinfo = export.get("tzinfo") or tzinfo
 
         if not export.get("has_series", False):

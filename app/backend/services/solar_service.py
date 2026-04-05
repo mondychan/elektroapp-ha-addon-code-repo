@@ -6,16 +6,19 @@ logger = logging.getLogger("uvicorn.error")
 class SolarService:
     def __init__(
         self,
+        get_influx_cfg_fn,
         get_forecast_solar_cfg_fn,
         safe_query_entity_last_value_fn,
         logger=None
     ):
+        self.get_influx_cfg = get_influx_cfg_fn
         self.get_forecast_solar_cfg = get_forecast_solar_cfg_fn
         self.safe_query_entity_last_value = safe_query_entity_last_value_fn
         self.logger = logger or logging.getLogger("uvicorn.error")
 
     def get_solar_forecast(self, cfg):
         solar_cfg = self.get_forecast_solar_cfg(cfg)
+        influx = self.get_influx_cfg(cfg)
         if not solar_cfg.get("enabled"):
             return {"enabled": False}
 
@@ -34,7 +37,7 @@ class SolarService:
 
         for key, entity_id in entities.items():
             if entity_id:
-                val = self.safe_query_entity_last_value(entity_id)
+                val = self.safe_query_entity_last_value(influx, entity_id, label=f"solar_{key}")
                 res["status"][key] = val
 
         return res

@@ -271,17 +271,22 @@ def get_export_points(cfg, date=None, start=None, end=None, cache_ttl=600):
 
 # --- Service Instances ---
 PRICES_SERVICE = PricesService(
-    get_prices_for_date=lambda cfg, d, tz, force=False, neighbor=False: get_prices_for_date(
-        cfg, d, tz, force, neighbor, 
-        load_prices_cache, save_prices_cache, get_cached_price_provider, get_fee_snapshot_for_date
+    get_prices_for_date=lambda cfg, d, tz, force_refresh=False, include_neighbor_live=False: get_prices_for_date(
+        cfg, d, tz, 
+        force_refresh=force_refresh, 
+        include_neighbor_live=include_neighbor_live, 
+        load_prices_cache_fn=load_prices_cache, 
+        save_prices_cache_fn=save_prices_cache, 
+        get_cached_price_provider_fn=get_cached_price_provider, 
+        get_fee_snapshot_for_date_fn=get_fee_snapshot_for_date
     ),
     get_price_provider=get_price_provider,
     clear_prices_cache_for_date=clear_prices_cache_for_date,
 )
 
 COSTS_SERVICE = CostsService(
-    get_consumption_points=lambda cfg, d, s, e: get_consumption_points(
-        cfg, INFLUX_SERVICE, CONSUMPTION_CACHE, get_influx_cfg, get_local_tz, d, s, e
+    get_consumption_points=lambda cfg, date=None, start=None, end=None: get_consumption_points(
+        cfg, date=date, start=start, end=end
     ),
     build_price_map_for_date=lambda cfg, d, tz: build_price_map_for_date(
         cfg, d, tz, PRICES_SERVICE.get_prices
@@ -289,8 +294,8 @@ COSTS_SERVICE = CostsService(
 )
 
 EXPORT_SERVICE = ExportService(
-    get_export_points=lambda cfg, d, s, e: get_export_points(
-        cfg, INFLUX_SERVICE, EXPORT_CACHE, get_influx_cfg, get_local_tz, get_export_entity_id, d, s, e
+    get_export_points=lambda cfg, date=None, start=None, end=None: get_export_points(
+        cfg, date=date, start=start, end=end
     ),
     build_price_map_for_date=lambda cfg, d, tz: build_price_map_for_date(
         cfg, d, tz, PRICES_SERVICE.get_prices
@@ -300,11 +305,11 @@ EXPORT_SERVICE = ExportService(
 )
 
 BILLING_SERVICE = BillingService(
-    get_consumption_points=lambda cfg, d, s, e: get_consumption_points(
-        cfg, INFLUX_SERVICE, CONSUMPTION_CACHE, get_influx_cfg, get_local_tz, d, s, e
+    get_consumption_points=lambda cfg, date=None, start=None, end=None: get_consumption_points(
+        cfg, date=date, start=start, end=end
     ),
-    get_export_points=lambda cfg, d, s, e: get_export_points(
-        cfg, INFLUX_SERVICE, EXPORT_CACHE, get_influx_cfg, get_local_tz, get_export_entity_id, d, s, e
+    get_export_points=lambda cfg, date=None, start=None, end=None: get_export_points(
+        cfg, date=date, start=start, end=end
     ),
     build_price_map_for_date=lambda cfg, d, tz: build_price_map_for_date(
         cfg, d, tz, PRICES_SERVICE.get_prices
@@ -329,8 +334,8 @@ BATTERY_SERVICE = BatteryService(
     average_recent_power=average_recent_power,
     safe_query_entity_last_value=INFLUX_SERVICE.safe_query_entity_last_value,
     parse_influx_interval_to_minutes=parse_influx_interval_to_minutes,
-    query_recent_slot_profile_by_day_type=lambda influx, eid, tz, target, days=28, interval="15m", cand=None: 
-        INFLUX_SERVICE.query_recent_slot_profile_by_day_type(influx, eid, tz, target, days, interval, cand),
+    query_recent_slot_profile_by_day_type=lambda influx, eid, tz, target_date, days=28, interval="15m", measurement_candidates=None: 
+        INFLUX_SERVICE.query_recent_slot_profile_by_day_type(influx, eid, tz, target_date, days, interval, measurement_candidates),
     build_hybrid_battery_projection=build_hybrid_battery_projection,
     build_battery_projection=lambda now, soc, avg, cfg, tz: build_battery_projection(
         now, soc, avg, cfg, tz, parse_influx_interval_to_minutes
@@ -349,11 +354,11 @@ INSIGHTS_SERVICE = InsightsService(
     build_energy_balance_buckets=build_energy_balance_buckets,
     get_prices_for_date=PRICES_SERVICE.get_prices,
     aggregate_hourly_from_price_entries=aggregate_hourly_from_price_entries,
-    get_consumption_points=lambda cfg, d, s, e: get_consumption_points(
-        cfg, INFLUX_SERVICE, CONSUMPTION_CACHE, get_influx_cfg, get_local_tz, d, s, e
+    get_consumption_points=lambda cfg, date=None, start=None, end=None: get_consumption_points(
+        cfg, date=date, start=start, end=end
     ),
-    get_export_points=lambda cfg, d, s, e: get_export_points(
-        cfg, INFLUX_SERVICE, EXPORT_CACHE, get_influx_cfg, get_local_tz, get_export_entity_id, d, s, e
+    get_export_points=lambda cfg, date=None, start=None, end=None: get_export_points(
+        cfg, date=date, start=start, end=end
     ),
     aggregate_hourly_from_kwh_points=aggregate_hourly_from_kwh_points,
     logger=logger,
@@ -366,6 +371,7 @@ ALERTS_SERVICE = AlertsService(logger=logger)
 COMPARISON_SERVICE = ComparisonService(logger=logger)
 
 SOLAR_SERVICE = SolarService(
+    get_influx_cfg_fn=get_influx_cfg,
     get_forecast_solar_cfg_fn=get_forecast_solar_cfg,
     safe_query_entity_last_value_fn=INFLUX_SERVICE.safe_query_entity_last_value,
     logger=logger

@@ -217,3 +217,50 @@ class InfluxService:
         except (HTTPException, requests.RequestException, ValueError, TypeError) as exc:
             self.logger.warning("Optional entity query failed (%s / %s): %s", label or "entity", entity_id, exc)
             return None
+
+    def query_recent_slot_profile_by_day_type(
+        self,
+        influx,
+        entity_id,
+        tzinfo,
+        target_date,
+        days=28,
+        interval="15m",
+        measurement_candidates=None,
+    ):
+        if not entity_id:
+            return {}
+        
+        # Agregujeme průměry po slotech (čas dne HH:MM) pro pracovní dny / víkend
+        is_weekend = target_date.weekday() >= 5
+        
+        end_utc = datetime.now(timezone.utc)
+        start_utc = end_utc - timedelta(days=days)
+        
+        points = self.query_entity_series(
+            influx,
+            entity_id,
+            start_utc,
+            end_utc,
+            interval=interval,
+            tzinfo=tzinfo,
+            numeric=True,
+            measurement_candidates=measurement_candidates
+        )
+        
+        if not points:
+            return {}
+            
+        slots = {} # "HH:MM" -> [values]
+        for p in points:
+            if p["value"] is None:
+                continue
+            dt = datetime.fromisoformat(p["time"])
+            p_is_weekend = dt.weekday() >= 5
+            if p_is_weekend != is_weekend:
+                continue
+            
+            key = dt.strftime("%H:%M")
+            slots.setdefault(key, []).append(p["value"])
+            
+        return {key: sum(vals)/len(vals) for key, vals in slots.items() if vals}
