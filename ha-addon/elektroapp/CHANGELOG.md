@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.82
+### ⚡ Stabilita
+- Fix: ESLint varování vyřešena (použití `useCallback`, odstranění nepoužívaných proměnných). 
+- Nyní by měl CI build na GitHubu projít bez chyb.
+
 ## 0.1.81
 ### ⚡ Stabilita
 - Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
