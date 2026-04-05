@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.87
+- fix regressions after backend refactor in price map and energy balance service contracts
+- restore daily summary, dashboard snapshot price lookups, and energy balance chart loading
+- improve energy balance resilience when one Influx entity query fails and add regression tests
+
 ## 0.1.86
 ### ⚡ Hotfix: Frontend & Backend Synergy
 - Fix: "toFixed is not a function" - opraven pád v komponentě `SolarForecastCard` způsobený nesprávným formátem dat z backendu.
