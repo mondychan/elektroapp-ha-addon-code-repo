@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+- Fix: aktualizace PND testů tak, aby reflektovaly nové skryté sekce UI.
+- Stabilizace CI/CD po restrukturalizaci PND portálu.
+
 ## 0.2.3
 - Fix: odstraněny nepoužívané proměnné v `OverviewPage.tsx`, které blokovaly CI build.
 - Stabilizace produkčního sestavení po refaktoringu navigace.
