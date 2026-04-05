@@ -1,5 +1,4 @@
 import React from "react";
-import { formatCurrency } from "../utils/formatters";
 
 interface ComparisonItemProps {
   label: string;
@@ -10,7 +9,6 @@ interface ComparisonItemProps {
 }
 
 const ComparisonItem: React.FC<ComparisonItemProps> = ({ label, current, previous, diff_pct, unit }) => {
-  const isBetter = diff_pct < 0; // Pro náklady a spotřebu je méně lépe
   const diffClass = diff_pct > 0 ? "text-buy" : (diff_pct < 0 ? "text-sell" : "");
   const icon = diff_pct > 0 ? "↗" : (diff_pct < 0 ? "↘" : "→");
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import AppHeader, { PageMode } from "./components/layout/AppHeader";
 import BottomNav from "./components/layout/BottomNav";
@@ -49,7 +49,7 @@ const shiftMonthValue = (value: string, monthDelta: number) => {
 };
 
 const App: React.FC = () => {
-  const [pageMode, setPageMode] = useState<"overview" | "costs" | "battery" | "settings">("overview");
+  const [pageMode, setPageMode] = useState<PageMode>("overview");
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const [showPlanner, setShowPlanner] = useState(false);
@@ -182,22 +182,22 @@ const App: React.FC = () => {
     return 1 + (Number.isNaN(dphVal) ? 21 : Math.max(0, dphVal)) / 100;
   }, [config?.dph]);
 
-  const mapPrices = (arr: any[]): PriceItem[] => arr.map((p, i) => {
+  const mapPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
     const spotWithDph = p.spot * dphMultiplier;
     return { slot: i, time: formatSlotToTime(i), spot: spotWithDph, extra: p.final - spotWithDph, final: p.final, rawSpot: p.spot };
-  });
+  }), [dphMultiplier]);
 
-  const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, dphMultiplier]);
-  const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, dphMultiplier]);
+  const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapPrices]);
+  const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapPrices]);
   const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
 
   const kpiItems = useMemo(() => {
     const currentPriceItem = Number.isInteger(currentSlot) && currentSlot! >= 0 && currentSlot! < todayData.length ? todayData[currentSlot!] : null;
-    const finals = todayData.map(item => item.final);
+    const finals = todayData.map((item: PriceItem) => item.final);
     const minFinal = finals.length ? Math.min(...finals) : null;
     const maxFinal = finals.length ? Math.max(...finals) : null;
-    const minPriceItem = minFinal != null ? todayData.find(item => item.final === minFinal) : null;
-    const maxPriceItem = maxFinal != null ? todayData.find(item => item.final === maxFinal) : null;
+    const minPriceItem = minFinal != null ? todayData.find((item: PriceItem) => item.final === minFinal) : null;
+    const maxPriceItem = maxFinal != null ? todayData.find((item: PriceItem) => item.final === maxFinal) : null;
     const netTotal = dashboard.todayCostsKpi?.cost_total != null || dashboard.todayExportKpi?.sell_total != null 
       ? (dashboard.todayCostsKpi?.cost_total || 0) - (dashboard.todayExportKpi?.sell_total || 0) : null;
     
