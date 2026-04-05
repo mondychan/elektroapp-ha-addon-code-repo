@@ -122,9 +122,7 @@ interface OverviewPageProps {
 const OverviewPage: React.FC<OverviewPageProps> = (props) => {
   const {
     today,
-    tomorrow,
     todayData,
-    tomorrowData,
     config,
     pinnedSlot,
     setPinnedSlot,
