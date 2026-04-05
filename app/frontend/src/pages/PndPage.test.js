@@ -57,10 +57,16 @@ describe("PndPage", () => {
       expect(elektroappApi.getPndStatus).toHaveBeenCalled();
     });
 
+    // Reveal config form
+    await userEvent.click(screen.getByRole("button", { name: "Konfigurace" }));
+
     await userEvent.click(screen.getByRole("button", { name: "Ulozit PND konfiguraci" }));
     await waitFor(() => {
       expect(elektroappApi.saveConfig).toHaveBeenCalled();
     });
+
+    // Reveal status section
+    await userEvent.click(screen.getByRole("button", { name: "Stav" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Spustit verify" })).toBeInTheDocument();
@@ -120,6 +126,10 @@ describe("PndPage", () => {
     );
 
     expect(await screen.findByText("PND zmenilo strukturu nebo endpoint contract")).toBeInTheDocument();
+    
+    // Reveal diagnostics
+    await userEvent.click(screen.getByRole("button", { name: "Stav" }));
+    
     expect(screen.getByText(/Chybi HTML marker: Namerena data/)).toBeInTheDocument();
     expect(screen.getByText(/Payload keys: result, status/)).toBeInTheDocument();
   });

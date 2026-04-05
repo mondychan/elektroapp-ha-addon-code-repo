@@ -173,6 +173,7 @@ describe("App API states", () => {
       expect(elektroappApi.getPndStatus).toHaveBeenCalled();
     });
 
+    await userEvent.click(screen.getByRole("button", { name: "Konfigurace" }));
     expect(screen.getByText("PND konfigurace")).toBeInTheDocument();
   });
 });
