@@ -134,6 +134,7 @@ class InfluxService:
                     "time": ts_local.isoformat(),
                     "time_utc": to_rfc3339(ts_dt_utc),
                     "value": value,
+                    "unit": used_measurement,
                 }
             )
         return points
@@ -193,6 +194,7 @@ class InfluxService:
             "time_utc": to_rfc3339(ts_dt_utc),
             "value": value,
             "raw_value": raw_value,
+            "unit": used_measurement,
         }
 
     def safe_query_entity_last_value(

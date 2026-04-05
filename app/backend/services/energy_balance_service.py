@@ -129,9 +129,15 @@ def _parse_point_time(point: Dict[str, Any], tzinfo) -> Optional[datetime]:
     return None
 
 
-def _power_value_to_kwh(value: float, interval_minutes: int) -> float:
+def _power_value_to_kwh(value: float, interval_minutes: int, unit: Optional[str] = None) -> float:
     interval_hours = max(interval_minutes, 1) / 60.0
-    # Home Assistant power entities are usually in W, but some setups store kW.
+    u_lower = (unit or "").lower()
+    if u_lower == "w":
+        return (value / 1000.0) * interval_hours
+    if u_lower == "kw":
+        return value * interval_hours
+
+    # Fallback heuristic for unknown units
     if abs(value) <= 50:
         return value * interval_hours
     return (value / 1000.0) * interval_hours
@@ -147,6 +153,7 @@ def aggregate_power_points(
     totals: Dict[str, float] = {}
     for point in points or []:
         raw_value = point.get("value")
+        unit = point.get("unit")
         if raw_value is None:
             continue
         try:
@@ -163,6 +170,6 @@ def aggregate_power_points(
         else:
             key = dt_local.strftime("%Y-%m-%d")
 
-        totals[key] = totals.get(key, 0.0) + _power_value_to_kwh(value, interval_minutes)
+        totals[key] = totals.get(key, 0.0) + _power_value_to_kwh(value, interval_minutes, unit)
 
     return {key: round(value, 5) for key, value in totals.items()}

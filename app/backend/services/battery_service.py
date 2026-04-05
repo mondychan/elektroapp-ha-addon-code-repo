@@ -100,6 +100,14 @@ class BatteryService:
             numeric=True,
             measurement_candidates=power_measurements,
         )
+
+        def _normalize_points_to_w(ps):
+            for p in ps:
+                if p.get("value") is not None and str(p.get("unit") or "").lower() == "kw":
+                    p["value"] = float(p["value"]) * 1000.0
+            return ps
+
+        power_series = _normalize_points_to_w(power_series)
         history_points = self._build_battery_history_points(soc_series, power_series)
         last_soc_point = self._get_last_non_null_value(soc_series)
         last_power_point = self._get_last_non_null_value(power_series)
@@ -121,6 +129,7 @@ class BatteryService:
                 numeric=True,
                 measurement_candidates=power_measurements,
             )
+            trend_series = _normalize_points_to_w(trend_series)
             avg_power_w = self._average_recent_power(trend_series)
 
         latest_soc = self._safe_query_entity_last_value(
@@ -186,7 +195,12 @@ class BatteryService:
                 label=label,
                 measurement_candidates=measurements,
             )
-            return None if not record else record.get("value")
+            if not record or record.get("value") is None:
+                return None
+            val = float(record["value"])
+            if str(record.get("unit") or "").lower() == "kw":
+                return val * 1000.0
+            return val
 
         def _latest_raw(entity_id, label, measurements=None):
             record = self._safe_query_entity_last_value(
