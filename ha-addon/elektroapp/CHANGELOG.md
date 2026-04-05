@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.79
+## 0.1.79 — Velký update analytiky a UI
+Tento release přináší kompletní přepracování vnitřní architektury, výrazné zrychlení díky paralelnímu snapshotování dat a nové analytické nástroje.
+
+### 🌟 Novinky
+- **Cenové alerty**: Horní banner s upozorněním na extrémní ceny a doporučením spotřeby.
+- **Srovnání výkonu**: Nová sekce zobrazující trend spotřeby a nákladů (včera vs před týdnem, včera vs dnes).
+- **Solární předpověď**: Dashboard pro FVE s odhadem výroby, špičkami a zbývající energií pro dnešek/zítřek.
+- **Cenové prahy v grafu**: Vodorovné čárkované čáry v cenovém grafu pro rychlou identifikaci levných a drahých hodin.
+
+### 📱 Mobilní optimalizace & UI
+- **Bottom Nav**: Nová spodní navigace v mobilní verzi pro pohodlné přepínání mezi přehledem a detailem.
+- **Smooth Transitions**: Animované přechody mezi stránkami a prvky pomocí `framer-motion`.
+- **System Dark Mode**: Automatické přepínání světlého a tmavého režimu podle OS.
+
+### ⚡ Výkon & Stabilita
+- **Dashboard Snapshot API**: Načtení všech dat úvodní obrazovky jediným asynchronním požadavkem.
+- **Paralelizace na backendu**: Služby pro ceny, Influx a analytiku běží v `asyncio.gather` paralelně.
+- **Connection Pooling**: Optimalizace dotazů do InfluxDB pomocí `requests.Session` (pooling spojení).
+- **TypeScript**: Migrace většiny frontendu do TS pro vyšší spolehlivost.
+
+### 🔧 Ostatní
+- Rozpad `app_service.py` a `App.js` na menší, udržovatelné moduly.
+- Vylepšené tabulky a barevné indikace (Netto v denním souhrnu).
+
 ## 0.1.78
 - Vizuální redesign tabulek: odstraněno podbarvení pozadí buněk a nahrazeno čistším barevným odlišením samotného textu.
 - Barvy textu (červená pro nákup/náklady, zelená pro prodej/zisky) jsou optimalizovány pro vysoký kontrast ve světlém i tmavém režimu.
