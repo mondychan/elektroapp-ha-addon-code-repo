@@ -24,13 +24,13 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [costsSummary, setCostsSummary] = useState<CostsKpi | null>(null);
   const [costsError, setCostsError] = useState<string | null>(null);
   const [costsFromCache, setCostsFromCache] = useState(false);
-  const [costsCacheFallback, setCostsCacheFallback] = useState(false);
+  const [costsCacheFallback] = useState(false);
 
   const [exportPoints, setExportPoints] = useState<any[]>([]);
   const [exportSummary, setExportSummary] = useState<ExportKpi | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportFromCache, setExportFromCache] = useState(false);
-  const [exportCacheFallback, setExportCacheFallback] = useState(false);
+  const [exportCacheFallback] = useState(false);
 
   const [batteryData, setBatteryData] = useState<BatteryData | null>(null);
   const [batteryLoading, setBatteryLoading] = useState(false);

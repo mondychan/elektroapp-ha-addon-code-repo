@@ -1,5 +1,4 @@
 import React from "react";
-import { formatCurrency } from "../utils/formatters";
 
 interface SolarForecastCardProps {
   solarForecast: {

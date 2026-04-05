@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query, Response
 
 import app_service as svc
 from config_models import AppConfigModel
@@ -152,6 +152,17 @@ def get_alerts(ctx: RequestContext = Depends(get_request_context)):
 @router.get("/comparison")
 def get_comparison(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
     return svc.get_comparison(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/export-csv")
+def export_csv(params: MonthQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    csv_data = svc.export_monthly_csv(month=params.month, cfg=ctx.config, tzinfo=ctx.tzinfo)
+    filename = f"elektroapp-export-{params.month}.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/solar-forecast")

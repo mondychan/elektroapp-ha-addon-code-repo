@@ -123,6 +123,14 @@ body[data-theme="dark"] {
   background: transparent !important;
 }
 
+.row-weekend {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+body[data-theme="dark"] .row-weekend {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
 /* Alert Banner */
 .alert-banner {
   margin: 10px 0 20px;

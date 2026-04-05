@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from services import alert_service
+from config_loader import get_alerts_cfg
 
 class AlertsService:
     def __init__(self, logger=None):
@@ -16,4 +17,8 @@ class AlertsService:
         
         current_slot = int((now_local.hour * 60 + now_local.minute) / 15)
         
-        return alert_service.get_price_alerts(prices, current_slot, tzinfo)
+        alerts_cfg = get_alerts_cfg(cfg)
+        low_threshold = alerts_cfg.get("low_price_threshold", 1.5)
+        high_threshold = alerts_cfg.get("high_price_threshold", 5.0)
+        
+        return alert_service.get_price_alerts(prices, current_slot, tzinfo, low_threshold, high_threshold)

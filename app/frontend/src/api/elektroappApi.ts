@@ -2,11 +2,35 @@ import axios from "axios";
 
 const API_PREFIX = "./api";
 
-const get = (path, params) => axios.get(`${API_PREFIX}${path}`, params ? { params } : undefined).then((res) => res.data);
-const post = (path, payload) => axios.post(`${API_PREFIX}${path}`, payload).then((res) => res.data);
-const put = (path, payload) => axios.put(`${API_PREFIX}${path}`, payload).then((res) => res.data);
+const get = (path: string, params?: any) => axios.get(`${API_PREFIX}${path}`, params ? { params } : undefined).then((res) => res.data);
+const post = (path: string, payload?: any) => axios.post(`${API_PREFIX}${path}`, payload).then((res) => res.data);
+const put = (path: string, payload?: any) => axios.put(`${API_PREFIX}${path}`, payload).then((res) => res.data);
 
-const formatErrorDetail = (detail) => {
+export const elektroappApi = {
+  getPrices: (date?: string) => get("/prices", date ? { date } : undefined),
+  refreshPrices: (payload = {}) => post("/prices/refresh", payload),
+  getConfig: () => get("/config"),
+  getVersion: () => get("/version"),
+  getCacheStatus: () => get("/cache-status"),
+  getCosts: (date: string) => get("/costs", { date }),
+  getExport: (date: string) => get("/export", { date }),
+  getBattery: (date?: string) => get("/battery", date ? { date } : undefined),
+  getDailySummary: (month: string) => get("/daily-summary", { month }),
+  getBillingMonth: (month: string) => get("/billing-month", { month }),
+  getBillingYear: (year: number | string) => get("/billing-year", { year: Number(year) }),
+  getEnergyBalance: (period: string, anchor: string) => get("/energy-balance", { period, anchor }),
+  getHistoryHeatmap: (month: string, metric: string) => get("/history-heatmap", { month, metric }),
+  getFeesHistory: () => get("/fees-history"),
+  saveFeesHistory: (history: any) => put("/fees-history", { history }),
+  getSchedule: (duration: number, count = 3) => get("/schedule", { duration, count }),
+  getAlerts: () => get("/alerts"),
+  getComparison: (date?: string) => get("/comparison", date ? { date } : undefined),
+  getSolarForecast: () => get("/solar-forecast"),
+  getDashboardSnapshot: (date?: string) => get("/dashboard-snapshot", date ? { date } : undefined),
+  getExportCsv: (month: string) => get("/export-csv", { month }),
+};
+
+const formatErrorDetail = (detail: any): string | null => {
   if (detail == null) return null;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -39,30 +63,7 @@ const formatErrorDetail = (detail) => {
   return String(detail);
 };
 
-export const elektroappApi = {
-  getPrices: (date) => get("/prices", date ? { date } : undefined),
-  refreshPrices: (payload = {}) => post("/prices/refresh", payload),
-  getConfig: () => get("/config"),
-  getVersion: () => get("/version"),
-  getCacheStatus: () => get("/cache-status"),
-  getCosts: (date) => get("/costs", { date }),
-  getExport: (date) => get("/export", { date }),
-  getBattery: (date) => get("/battery", date ? { date } : undefined),
-  getDailySummary: (month) => get("/daily-summary", { month }),
-  getBillingMonth: (month) => get("/billing-month", { month }),
-  getBillingYear: (year) => get("/billing-year", { year: Number(year) }),
-  getEnergyBalance: (period, anchor) => get("/energy-balance", { period, anchor }),
-  getHistoryHeatmap: (month, metric) => get("/history-heatmap", { month, metric }),
-  getFeesHistory: () => get("/fees-history"),
-  saveFeesHistory: (history) => put("/fees-history", { history }),
-  getSchedule: (duration, count = 3) => get("/schedule", { duration, count }),
-  getAlerts: () => get("/alerts"),
-  getComparison: (date) => get("/comparison", date ? { date } : undefined),
-  getSolarForecast: () => get("/solar-forecast"),
-  getDashboardSnapshot: (date) => get("/dashboard-snapshot", date ? { date } : undefined),
-};
-
-export const extractApiError = (err) => {
+export const extractApiError = (err: any) => {
   const status = err?.response?.status ?? null;
   const data = err?.response?.data;
   const wrapped = data?.error;
@@ -111,13 +112,13 @@ export const extractApiError = (err) => {
   };
 };
 
-export const formatApiError = (err, fallbackMessage = "Request failed.") => {
+export const formatApiError = (err: any, fallbackMessage = "Request failed.") => {
   const parsed = extractApiError(err);
   const message = parsed.message && parsed.message !== "Network error" ? parsed.message : fallbackMessage;
   return parsed.code ? `${message} [${parsed.code}]` : message;
 };
 
-export const buildInfluxError = (err) => {
+export const buildInfluxError = (err: any) => {
   const parsed = extractApiError(err);
   if (parsed.status === 401) {
     return `Nepodarilo se overit pristup k InfluxDB (401). Zkontroluj uzivatele a heslo. [${parsed.code}]`;

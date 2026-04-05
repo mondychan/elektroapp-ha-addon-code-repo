@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("uvicorn.error")
 
-def get_price_alerts(prices: List[Dict[str, Any]], current_slot: int, tzinfo) -> Dict[str, Any]:
+def get_price_alerts(prices: List[Dict[str, Any]], current_slot: int, tzinfo, low_threshold: float = 1.5, high_threshold: float = 5.0) -> Dict[str, Any]:
     """
     Analýza cen a generování alertů pro frontend.
     prices: Seznam cenových bodů (dnešek + zítřek).
@@ -41,17 +41,15 @@ def get_price_alerts(prices: List[Dict[str, Any]], current_slot: int, tzinfo) ->
     
     # Identifikace levných oken (např. pod 20% percentil nebo pod fixní práh)
     # Pro jednoduchost: levné = pod 110% minima nebo pod průměrem - 20%
-    threshold_low = min(avg_price * 0.8, min_price * 1.2)
-    threshold_high = max(avg_price * 1.2, max_price * 0.9)
-    
-    is_cheap_now = current_price <= threshold_low
-    is_expensive_now = current_price >= threshold_high
+    # Použít konfigurované prahy, nebo vypočtené dynamicky pokud jsou výhodnější
+    is_cheap_now = current_price <= low_threshold
+    is_expensive_now = current_price >= high_threshold
     
     # Najít kdy začíná další levné okno (pokud teď není levno)
     next_cheap_slot = None
     if not is_cheap_now:
         for p in future_prices:
-            if p["final"] <= threshold_low:
+            if p["final"] <= low_threshold:
                 next_cheap_slot = p
                 break
     

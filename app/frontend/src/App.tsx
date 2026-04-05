@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import AppHeader from "./components/layout/AppHeader";
+import AppHeader, { PageMode } from "./components/layout/AppHeader";
 import BottomNav from "./components/layout/BottomNav";
 import KPIScreen from "./components/layout/KPIScreen";
 import OverviewPage from "./pages/OverviewPage";
@@ -49,7 +49,7 @@ const shiftMonthValue = (value: string, monthDelta: number) => {
 };
 
 const App: React.FC = () => {
-  const [pageMode, setPageMode] = useState<"overview" | "detail">("overview");
+  const [pageMode, setPageMode] = useState<"overview" | "costs" | "battery" | "settings">("overview");
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const [showPlanner, setShowPlanner] = useState(false);
@@ -155,8 +155,8 @@ const App: React.FC = () => {
     onRefresh: refreshPrices,
   });
 
-  const handleLoadPlanner = async (durationOverride = plannerDuration) => {
-    const parsed = Number.parseInt(durationOverride, 10);
+  const handleLoadPlanner = async (durationOverride: number | string = plannerDuration): Promise<void> => {
+    const parsed = typeof durationOverride === "number" ? durationOverride : Number.parseInt(durationOverride, 10);
     if (!parsed || parsed <= 0 || parsed > 360) {
       setPlannerValidationError("Okna musí být 1-360 minut.");
       return;
@@ -189,7 +189,7 @@ const App: React.FC = () => {
 
   const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, dphMultiplier]);
   const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, dphMultiplier]);
-  const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, dphMultiplier]);
+  const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
 
   const kpiItems = useMemo(() => {
     const currentPriceItem = Number.isInteger(currentSlot) && currentSlot! >= 0 && currentSlot! < todayData.length ? todayData[currentSlot!] : null;
@@ -246,7 +246,7 @@ const App: React.FC = () => {
   tomorrow.setDate(today.getDate() + 1);
 
   return (
-    <div className={`app ${pageMode === "detail" ? "app--detail" : ""}`.trim()} {...(pullHandlers as any)}>
+    <div className={`app ${pageMode !== "overview" ? "app--detail" : ""}`.trim()} {...(pullHandlers as any)}>
       <div className={`pull-indicator ${pullArmed ? "is-armed" : ""} ${pullRefreshing ? "is-refreshing" : ""}`} style={{ height: pullRefreshing ? 42 : Math.min(42, pullDistance) }}>
         <span>{pullRefreshing ? "Obnovuji ceny..." : pullArmed ? "Uvolni pro obnovení" : "Stáhni pro obnovení"}</span>
       </div>
@@ -256,16 +256,32 @@ const App: React.FC = () => {
       
       <main className="app-main">
         <AnimatePresence mode="wait">
-          {pageMode === "overview" ? (
+          {pageMode === "overview" && (
             <OverviewPage 
               key="overview"
-              {...dashboard} {...{ today, tomorrow, todayData, tomorrowData, pinnedSlot: pinnedSlot as any, setPinnedSlot, effectiveHighlightSlot: effectiveHighlightSlot as any, dateSwipeHandlers, selectedDate, setSelectedDate, showMonthlySummary, setShowMonthlySummary, monthSwipeHandlers, selectedMonth, setSelectedMonth, showBilling, setShowBilling, billingMode, setBillingMode, billingMonth, setBillingMonth, billingYear, setBillingYear, showBatteryPanel: false, setShowBatteryPanel: () => {}, refreshPrices, refreshBattery: dashboard.refreshBattery, showPlanner, handlePlannerToggle, plannerDuration, setPlannerDuration: (d: string) => setPlannerDuration(d), handleLoadPlanner, finalPlannerError: (plannerValidationError || (dashboard as any).plannerError) as any, showConfig, setShowConfig, configRows, cacheRows: [], consumptionCacheRows: [], priceProviderLabel, priceProviderUrl, feesHistory: (dashboard as any).feesHistory, feesHistoryLoading: (dashboard as any).feesHistoryLoading, feesHistoryError: (dashboard as any).feesHistoryError, saveFeesHistory: (dashboard as any).saveFeesHistory, showFeesHistory, setShowFeesHistory, energyBalancePeriod, energyBalanceAnchor, setEnergyBalanceAnchor, setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p), defaultFeesValues: null, thresholds: dashboard.alerts?.thresholds || [] }}
+              {...dashboard} {...{ today, tomorrow, todayData, tomorrowData, pinnedSlot: pinnedSlot as any, setPinnedSlot, effectiveHighlightSlot: effectiveHighlightSlot as any, dateSwipeHandlers, selectedDate, setSelectedDate, showMonthlySummary, setShowMonthlySummary, monthSwipeHandlers, selectedMonth, setSelectedMonth, showBilling, setShowBilling, billingMode, setBillingMode, billingMonth, setBillingMonth, billingYear, setBillingYear, showBatteryPanel: false, setShowBatteryPanel: () => {}, refreshPrices, refreshBattery: dashboard.refreshBattery, showPlanner, handlePlannerToggle, plannerDuration, setPlannerDuration: (d: string) => setPlannerDuration(d), handleLoadPlanner, finalPlannerError: (plannerValidationError || (dashboard as any).plannerError) as any, showConfig, setShowConfig, configRows, cacheRows: [], consumptionCacheRows: [], priceProviderLabel, priceProviderUrl, feesHistory: (dashboard as any).feesHistory, feesHistoryLoading: (dashboard as any).feesHistoryLoading, feesHistoryError: (dashboard as any).feesHistoryError, saveFeesHistory: (dashboard as any).saveFeesHistory, showFeesHistory, setShowFeesHistory, energyBalancePeriod, energyBalanceAnchor, setEnergyBalanceAnchor, setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p), defaultFeesValues: null, thresholds: (dashboard as any).alerts?.thresholds || [] }}
             />
-          ) : (
+          )}
+          {pageMode === "costs" && (
             <DetailPage 
-              key="detail"
+              key="costs"
               {...dashboard} {...{ selectedDate, setSelectedDate, selectedDateObj: new Date(`${selectedDate}T00:00:00`), selectedDatePriceData, selectedDatePricesLoading: dashboard.selectedDatePricesLoading, selectedDatePricesError: dashboard.selectedDatePricesError, effectiveHighlightSlot: effectiveHighlightSlot as any, pinnedSlot: pinnedSlot as any, setPinnedSlot, dateSwipeHandlers, showDetailAnnotations: true, energyBalancePeriod, energyBalanceAnchor, setEnergyBalanceAnchor, setEnergyBalancePeriod, refreshBattery: dashboard.refreshBattery, heatmapMonth, setHeatmapMonth, heatmapMetric, setHeatmapMetric, thresholds: dashboard.alerts?.thresholds || [] }}
             />
+          )}
+          {pageMode === "battery" && (
+            <div key="battery" className="page-battery">
+              {/* placeholder for Battery Page logic */}
+              <OverviewPage 
+                {...dashboard} {...{ today, tomorrow, todayData, tomorrowData, pinnedSlot: pinnedSlot as any, setPinnedSlot, effectiveHighlightSlot: effectiveHighlightSlot as any, dateSwipeHandlers, selectedDate, setSelectedDate, showMonthlySummary: false, setShowMonthlySummary: () => {}, monthSwipeHandlers, selectedMonth, setSelectedMonth, showBilling: false, setShowBilling: () => {}, billingMode, setBillingMode, billingMonth, setBillingMonth, billingYear, setBillingYear, showBatteryPanel: true, setShowBatteryPanel: () => {}, refreshPrices, refreshBattery: dashboard.refreshBattery, showPlanner: false, handlePlannerToggle: () => {}, plannerDuration, setPlannerDuration: () => {}, handleLoadPlanner: async () => {}, finalPlannerError: null, showConfig: false, setShowConfig: () => {}, configRows: [], cacheRows: [], consumptionCacheRows: [], priceProviderLabel, priceProviderUrl, feesHistory: null, feesHistoryLoading: false, feesHistoryError: null, saveFeesHistory: async () => {}, showFeesHistory: false, setShowFeesHistory: () => {}, energyBalancePeriod, energyBalanceAnchor, setEnergyBalanceAnchor, setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p), defaultFeesValues: null, thresholds: [] }}
+              />
+            </div>
+          )}
+          {pageMode === "settings" && (
+             <div key="settings" className="page-settings p-4">
+                <OverviewPage 
+                  {...dashboard} {...{ today, tomorrow, todayData, tomorrowData, pinnedSlot: pinnedSlot as any, setPinnedSlot, effectiveHighlightSlot: effectiveHighlightSlot as any, dateSwipeHandlers, selectedDate, setSelectedDate, showMonthlySummary: false, setShowMonthlySummary: () => {}, monthSwipeHandlers, selectedMonth, setSelectedMonth, showBilling: false, setShowBilling: () => {}, billingMode, setBillingMode, billingMonth, setBillingMonth, billingYear, setBillingYear, showBatteryPanel: false, setShowBatteryPanel: () => {}, refreshPrices, refreshBattery: dashboard.refreshBattery, showPlanner: false, handlePlannerToggle: () => {}, plannerDuration, setPlannerDuration: () => {}, handleLoadPlanner: async () => {}, finalPlannerError: null, showConfig: true, setShowConfig: () => {}, configRows, cacheRows: [], consumptionCacheRows: [], priceProviderLabel, priceProviderUrl, feesHistory: (dashboard as any).feesHistory, feesHistoryLoading: (dashboard as any).feesHistoryLoading, feesHistoryError: (dashboard as any).feesHistoryError, saveFeesHistory: (dashboard as any).saveFeesHistory as any, showFeesHistory: true, setShowFeesHistory, energyBalancePeriod, energyBalanceAnchor, setEnergyBalanceAnchor, setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p), defaultFeesValues: null, thresholds: [] }}
+                />
+             </div>
           )}
         </AnimatePresence>
       </main>

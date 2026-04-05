@@ -87,6 +87,7 @@ from services.schedule_service import ScheduleService
 from services.alerts_service import AlertsService
 from services.comparison_service import ComparisonService
 from services.solar_service import SolarService
+from services.data_export_service import DataExportService
 
 logger = logging.getLogger("uvicorn.error")
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -370,6 +371,8 @@ SOLAR_SERVICE = SolarService(
     logger=logger
 )
 
+EXPORT_DATA_SERVICE = DataExportService(billing_service=BILLING_SERVICE)
+
 # --- Public API Functions (Compatibility) ---
 
 def get_config():
@@ -492,6 +495,10 @@ def get_billing_month(month: str, cfg=None, tzinfo=None):
 def get_billing_year(year: int, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return BILLING_SERVICE.get_billing_year(year=year, cfg=cfg, tzinfo=tzinfo)
+
+def export_monthly_csv(month: str, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    return EXPORT_DATA_SERVICE.generate_monthly_csv(cfg, month, tzinfo)
 
 async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)

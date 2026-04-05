@@ -1,9 +1,11 @@
 import React from "react";
 import ThemeToggle from "../common/ThemeToggle";
 
+export type PageMode = "overview" | "costs" | "battery" | "settings";
+
 interface AppHeaderProps {
-  pageMode: "overview" | "detail";
-  setPageMode: (mode: "overview" | "detail") => void;
+  pageMode: PageMode;
+  setPageMode: (mode: PageMode) => void;
   theme: "light" | "dark" | "system";
   setTheme: (theme: "light" | "dark" | "system") => void;
 }
@@ -13,10 +15,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ pageMode, setPageMode, theme, set
     <header className="app-header">
       <div>
         <h1>Elektroapp</h1>
-        <div className="subhead">Ceny, nakup a prodej energie v realnem case</div>
+        <div className="subhead">Ceny, nákup a prodej energie v reálném čase</div>
       </div>
       <div className="header-toggles">
-        <div className="view-mode-toggle" role="tablist" aria-label="Rezimu stranky">
+        <div className="view-mode-toggle" role="tablist" aria-label="Režim stránky">
           <button
             type="button"
             className={`view-mode-btn ${pageMode === "overview" ? "is-active" : ""}`}
@@ -24,14 +26,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({ pageMode, setPageMode, theme, set
             role="tab"
             aria-selected={pageMode === "overview"}
           >
-            Prehled
+            Přehled
           </button>
           <button
             type="button"
-            className={`view-mode-btn ${pageMode === "detail" ? "is-active" : ""}`}
-            onClick={() => setPageMode("detail")}
+            className={`view-mode-btn ${pageMode === "costs" ? "is-active" : ""}`}
+            onClick={() => setPageMode("costs")}
             role="tab"
-            aria-selected={pageMode === "detail"}
+            aria-selected={pageMode === "costs"}
           >
             Detail
           </button>

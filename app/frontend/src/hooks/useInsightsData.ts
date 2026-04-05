@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { normalizeEnergyBalanceAnchor } from "./dashboardUtils";
 
+import { PageMode } from "../components/layout/AppHeader";
+
 interface UseInsightsDataProps {
   selectedMonth: string;
   showConfig: boolean;
@@ -10,7 +12,7 @@ interface UseInsightsDataProps {
   billingMode: "month" | "year";
   billingMonth: string;
   billingYear: string;
-  pageMode: "overview" | "detail";
+  pageMode: PageMode;
   energyBalancePeriod: "week" | "month" | "year";
   energyBalanceAnchor: string;
   heatmapMonth: string;
@@ -148,12 +150,12 @@ export const useInsightsData = ({
   }, [showConfig, showFeesHistory, fetchFeesHistory]);
 
   useEffect(() => {
-    if (pageMode !== "detail") return;
+    if (pageMode !== "costs") return;
     fetchEnergyBalance();
   }, [pageMode, fetchEnergyBalance]);
 
   useEffect(() => {
-    if (pageMode !== "detail") return;
+    if (pageMode !== "costs") return;
     fetchHeatmap();
   }, [pageMode, fetchHeatmap]);
 
