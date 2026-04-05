@@ -9,6 +9,7 @@ interface DataCardProps {
   empty?: boolean;
   emptyMessage?: string;
   className?: string;
+  bodyClassName?: string;
   children: React.ReactNode;
 }
 
@@ -18,11 +19,12 @@ const DataCard: React.FC<DataCardProps> = ({
   loading,
   error,
   empty,
-  emptyMessage = "Žádná data nejsou k dispozici.",
+  emptyMessage = "Zadna data nejsou k dispozici.",
   className = "",
+  bodyClassName = "",
   children,
 }) => {
-  const errorMessage = typeof error === "string" ? error : error?.message || "Došlo k chybě při načítání.";
+  const errorMessage = typeof error === "string" ? error : error?.message || "Doslo k chybe pri nacitani.";
 
   return (
     <div className={`card ${className}`.trim()}>
@@ -32,8 +34,8 @@ const DataCard: React.FC<DataCardProps> = ({
           {headerActions}
         </div>
       )}
-      
-      <div className="card-body" style={{ position: "relative", minHeight: loading ? "150px" : "auto" }}>
+
+      <div className={`card-body ${bodyClassName}`.trim()} style={{ position: "relative", minHeight: loading ? "150px" : "auto" }}>
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div
@@ -44,7 +46,7 @@ const DataCard: React.FC<DataCardProps> = ({
               className="data-state-container loading-state"
             >
               <div className="spinner" />
-              <p>Načítám...</p>
+              <p>Nacitam...</p>
             </motion.div>
           ) : error ? (
             <motion.div
@@ -74,6 +76,7 @@ const DataCard: React.FC<DataCardProps> = ({
           ) : (
             <motion.div
               key="content"
+              className="card-content"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}

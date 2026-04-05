@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pricing import DEFAULT_PRICE_PROVIDER, normalize_dph_percent, normalize_price_provider, parse_vt_periods
 
@@ -126,6 +126,23 @@ class AlertsConfig(StrictModel):
     high_price_threshold: float = Field(default=5.0, ge=0.0)
 
 
+class PNDConfig(StrictModel):
+    enabled: bool = False
+    username: str | None = None
+    password: str | None = None
+    meter_id: str | None = None
+    verify_on_startup: bool = True
+    nightly_sync_enabled: bool = True
+    nightly_sync_window_start_hour: int = Field(default=2, ge=0, le=23)
+    nightly_sync_window_end_hour: int = Field(default=7, ge=0, le=23)
+
+    @model_validator(mode="after")
+    def validate_window(self):
+        if self.nightly_sync_window_end_hour < self.nightly_sync_window_start_hour:
+            raise ValueError("nightly_sync_window_end_hour must be >= nightly_sync_window_start_hour.")
+        return self
+
+
 class AppConfigModel(StrictModel):
     dph: float = Field(default=0.0, ge=0.0, le=100.0)
     price_provider: Literal["spotovaelektrina", "ote"] = Field(default=DEFAULT_PRICE_PROVIDER)
@@ -138,6 +155,7 @@ class AppConfigModel(StrictModel):
     energy: EnergyConfig = Field(default_factory=EnergyConfig)
     forecast_solar: ForecastSolarConfig = Field(default_factory=ForecastSolarConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
+    pnd: PNDConfig = Field(default_factory=PNDConfig)
 
     @field_validator("dph", mode="before")
     @classmethod

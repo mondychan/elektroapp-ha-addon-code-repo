@@ -5,6 +5,7 @@ import BottomNav from "./components/layout/BottomNav";
 import KPIScreen from "./components/layout/KPIScreen";
 import OverviewPage from "./pages/OverviewPage";
 import DetailPage from "./pages/DetailPage";
+import PndPage from "./pages/PndPage";
 
 import { formatSlotToTime, formatSlotRange, formatCurrency, formatBytes } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
@@ -142,7 +143,7 @@ const App: React.FC = () => {
     isPageVisible,
   });
 
-  const { config, batteryData, refreshPrices } = dashboard;
+  const { config, batteryData, refreshPrices, refreshConfig } = dashboard;
 
   const activePriceProvider = config?.price_provider === "ote" ? "ote" : "spotovaelektrina";
   const priceProviderLabel = activePriceProvider === "ote" ? "OTE (ote-cr.cz + CNB)" : "spotovaelektrina.cz";
@@ -576,6 +577,11 @@ const App: React.FC = () => {
                   thresholds: [],
                 }}
               />
+            </div>
+          )}
+          {pageMode === "pnd" && (
+            <div key="pnd" className="page-pnd">
+              <PndPage config={config} refreshConfig={refreshConfig} />
             </div>
           )}
         </AnimatePresence>

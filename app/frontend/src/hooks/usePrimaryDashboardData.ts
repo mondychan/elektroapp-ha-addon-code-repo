@@ -50,6 +50,16 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
 
+  const refreshConfig = useCallback(async () => {
+    const [configData, versionData] = await Promise.all([
+      elektroappApi.getConfig(),
+      elektroappApi.getVersion(),
+    ]);
+    setConfig(configData);
+    setVersion(versionData?.version ?? null);
+    return configData;
+  }, []);
+
   const fetchDashboardSnapshot = useCallback(async (dateValue: string, options: { silent?: boolean } = {}) => {
     const { silent = false } = options;
     if (!silent) {
@@ -137,10 +147,9 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   // Initial load
   useEffect(() => {
     fetchDashboardSnapshot(selectedDate);
-    
-    elektroappApi.getConfig().then(setConfig).catch(e => console.error("Config fetch error", e));
-    elektroappApi.getVersion().then(d => setVersion(d?.version)).catch(e => console.error("Version fetch error", e));
-  }, [fetchDashboardSnapshot, selectedDate]);
+
+    refreshConfig().catch(e => console.error("Config fetch error", e));
+  }, [fetchDashboardSnapshot, refreshConfig, selectedDate]);
 
   useEffect(() => {
     if (!showConfig) return;
@@ -198,5 +207,6 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     comparisonLoading,
     solarForecast,
     solarForecastLoading,
+    refreshConfig,
   };
 };

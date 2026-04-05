@@ -10,6 +10,7 @@ export const elektroappApi = {
   getPrices: (date?: string) => get("/prices", date ? { date } : undefined),
   refreshPrices: (payload = {}) => post("/prices/refresh", payload),
   getConfig: () => get("/config"),
+  saveConfig: (config: any) => post("/config", config),
   getVersion: () => get("/version"),
   getCacheStatus: () => get("/cache-status"),
   getCosts: (date: string) => get("/costs", { date }),
@@ -28,6 +29,11 @@ export const elektroappApi = {
   getSolarForecast: () => get("/solar-forecast"),
   getDashboardSnapshot: (date?: string) => get("/dashboard-snapshot", date ? { date } : undefined),
   getExportCsv: (month: string) => get("/export-csv", { month }),
+  getPndStatus: () => get("/pnd/status"),
+  getPndCacheStatus: () => get("/pnd/cache-status"),
+  verifyPnd: () => post("/pnd/verify"),
+  backfillPnd: (range: string) => post("/pnd/backfill", { range }),
+  getPndData: (from: string, to: string) => get("/pnd/data", { from, to }),
 };
 
 const formatErrorDetail = (detail: any): string | null => {
@@ -53,6 +59,7 @@ const formatErrorDetail = (detail: any): string | null => {
     return parts.length ? parts.join("; ") : null;
   }
   if (typeof detail === "object") {
+    if (detail.message) return String(detail.message);
     if (detail.msg) return String(detail.msg);
     try {
       return JSON.stringify(detail);
@@ -84,9 +91,10 @@ export const extractApiError = (err: any) => {
   const detail = data?.detail;
   if (detail != null) {
     const detailText = formatErrorDetail(detail);
+    const detailCode = typeof detail === "object" && detail?.code ? String(detail.code) : null;
     return {
       status,
-      code: status ? `HTTP_${status}` : "UNKNOWN_ERROR",
+      code: detailCode ?? (status ? `HTTP_${status}` : "UNKNOWN_ERROR"),
       message: detailText ?? "Request failed.",
       detail,
       requestId: null,

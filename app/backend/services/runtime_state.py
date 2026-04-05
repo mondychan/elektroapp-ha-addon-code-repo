@@ -16,6 +16,12 @@ class RuntimeState:
         self.prefetch_lock_owned = False
         self.prefetch_lock_path: Optional[Path] = None
 
+        # PND scheduler state
+        self.pnd_thread: Optional[threading.Thread] = None
+        self.pnd_thread_guard = threading.Lock()
+        self.pnd_lock_owned = False
+        self.pnd_lock_path: Optional[Path] = None
+
     def mark_ote_unavailable(self, retry_seconds: int):
         self.ote_unavailable_until = time_module.time() + retry_seconds
 

@@ -1,7 +1,7 @@
 import React from "react";
 import ThemeToggle from "../common/ThemeToggle";
 
-export type PageMode = "overview" | "costs" | "battery" | "settings";
+export type PageMode = "overview" | "costs" | "battery" | "pnd" | "settings";
 
 interface AppHeaderProps {
   pageMode: PageMode;
@@ -36,6 +36,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({ pageMode, setPageMode, theme, set
             aria-selected={pageMode === "costs"}
           >
             Detail
+          </button>
+          <button
+            type="button"
+            className={`view-mode-btn ${pageMode === "pnd" ? "is-active" : ""}`}
+            onClick={() => setPageMode("pnd")}
+            role="tab"
+            aria-selected={pageMode === "pnd"}
+          >
+            PND
           </button>
         </div>
         <ThemeToggle theme={theme} setTheme={setTheme} />

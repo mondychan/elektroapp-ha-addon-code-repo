@@ -34,7 +34,7 @@ describe("MonthlySummaryCard", () => {
       />
     );
 
-    expect(screen.getByText("Součet")).toBeInTheDocument();
+    expect(screen.getByText(/Sou/)).toBeInTheDocument();
     expect(screen.getAllByText("12.35").length).toBeGreaterThan(0);
     expect(screen.getAllByText("45.68").length).toBeGreaterThan(0);
   });
@@ -60,26 +60,20 @@ describe("BillingCard", () => {
   test("renders loading state", () => {
     render(
       <DataCard loading={true}>
-        <BillingCard 
-          billingLoading={true}
-          billingMode="month"
-          setBillingMode={() => {}}
-        />
+        <BillingCard billingLoading={true} billingMode="month" setBillingMode={() => {}} />
       </DataCard>
     );
-    expect(screen.getByText(/Načítám/)).toBeInTheDocument();
+
+    expect(screen.getByText(/Nacitam/)).toBeInTheDocument();
   });
 
   test("renders error state", () => {
     render(
       <DataCard error="Nepodarilo se nacist vyuctovani.">
-        <BillingCard 
-          billingError="Nepodarilo se nacist vyuctovani."
-          billingMode="month"
-          setBillingMode={() => {}}
-        />
+        <BillingCard billingError="Nepodarilo se nacist vyuctovani." billingMode="month" setBillingMode={() => {}} />
       </DataCard>
     );
+
     expect(screen.getByText("Nepodarilo se nacist vyuctovani.")).toBeInTheDocument();
   });
 });

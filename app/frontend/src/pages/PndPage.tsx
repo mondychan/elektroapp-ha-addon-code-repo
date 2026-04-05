@@ -1,0 +1,410 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import DataCard from "../components/common/DataCard";
+import { elektroappApi, formatApiError } from "../api/elektroappApi";
+import { Config, PndStatus } from "../types/elektroapp";
+
+interface PndPageProps {
+  config: Config | null;
+  refreshConfig: () => Promise<any>;
+}
+
+interface PndFormState {
+  enabled: boolean;
+  username: string;
+  password: string;
+  meter_id: string;
+  verify_on_startup: boolean;
+  nightly_sync_enabled: boolean;
+  nightly_sync_window_start_hour: number;
+  nightly_sync_window_end_hour: number;
+}
+
+const getYesterday = () => {
+  const now = new Date();
+  now.setDate(now.getDate() - 1);
+  return now.toISOString().slice(0, 10);
+};
+
+const buildFormState = (config: Config | null): PndFormState => ({
+  enabled: Boolean(config?.pnd?.enabled),
+  username: config?.pnd?.username || "",
+  password: config?.pnd?.password || "",
+  meter_id: config?.pnd?.meter_id || "",
+  verify_on_startup: config?.pnd?.verify_on_startup ?? true,
+  nightly_sync_enabled: config?.pnd?.nightly_sync_enabled ?? true,
+  nightly_sync_window_start_hour: config?.pnd?.nightly_sync_window_start_hour ?? 2,
+  nightly_sync_window_end_hour: config?.pnd?.nightly_sync_window_end_hour ?? 7,
+});
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("cs-CZ");
+};
+
+const getStatePresentation = (status: PndStatus | null) => {
+  switch (status?.state) {
+    case "not_configured":
+      return {
+        tone: "warning",
+        title: "PND neni nakonfigurovano",
+        description: status.state_message || "Dopln uzivatelske jmeno, heslo a meter_id.",
+      };
+    case "login_failed":
+      return {
+        tone: "error",
+        title: "Prihlaseni do PND selhalo",
+        description: status.state_message || "Zkontroluj prihlasovaci udaje do portalu PND.",
+      };
+    case "portal_changed":
+      return {
+        tone: "error",
+        title: "PND zmenilo strukturu nebo endpoint contract",
+        description: status.state_message || "Verify nedokaze potvrdit ocekavane HTML markery nebo datovy payload.",
+      };
+    case "yesterday_not_available":
+      return {
+        tone: "warning",
+        title: "Vcerejsi data jeste nejsou publikovana",
+        description: status.state_message || "Nocni sync bude zkouset PND znovu mezi 02:00 a 07:00.",
+      };
+    case "cache_ready":
+      return {
+        tone: "success",
+        title: "PND cache je pripravena",
+        description: status.state_message || "Prvni data jsou dostupna v lokalni cache.",
+      };
+    case "verified":
+      return {
+        tone: "info",
+        title: "Verify probehlo uspesne",
+        description: status.state_message || "Pripojeni a request contract jsou overene, cache je zatim prazdna.",
+      };
+    case "disabled":
+      return {
+        tone: "info",
+        title: "PND integrace je vypnuta",
+        description: status.state_message || "Zapni PND v konfiguraci, pokud ji chces pouzivat.",
+      };
+    default:
+      return status
+        ? {
+            tone: "info",
+            title: "Stav PND integrace",
+            description: status.state_message || "PND integrace ceka na dalsi akci.",
+          }
+        : null;
+  }
+};
+
+const formatDiagnosticRows = (status: PndStatus | null) => {
+  const details = status?.last_error?.details;
+  if (!details || typeof details !== "object") return [];
+
+  const rows: string[] = [];
+  if (details.url) rows.push(`Endpoint: ${details.url}`);
+  if (details.missing_html_marker) rows.push(`Chybi HTML marker: ${details.missing_html_marker}`);
+  if (details.status_code) rows.push(`HTTP status: ${details.status_code}`);
+  if (details.meter_id) rows.push(`Meter ID: ${details.meter_id}`);
+  if (details.range?.from && details.range?.to) rows.push(`Rozsah: ${details.range.from} az ${details.range.to}`);
+  if (Array.isArray(details.payload_keys) && details.payload_keys.length) {
+    rows.push(`Payload keys: ${details.payload_keys.join(", ")}`);
+  }
+  if (Array.isArray(details.series_names) && details.series_names.length) {
+    rows.push(`Nezname serie: ${details.series_names.join(", ")}`);
+  }
+  if (Array.isArray(details.recognized_series) && details.recognized_series.length) {
+    rows.push(`Rozpoznane serie: ${details.recognized_series.join(", ")}`);
+  }
+  if (Array.isArray(details.messages) && details.messages.length) {
+    rows.push(`Portal message: ${details.messages.join(" | ")}`);
+  }
+  return rows;
+};
+
+const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
+  const [form, setForm] = useState<PndFormState>(() => buildFormState(config));
+  const [status, setStatus] = useState<PndStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [rangeFrom, setRangeFrom] = useState(getYesterday());
+  const [rangeTo, setRangeTo] = useState(getYesterday());
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [dataPreview, setDataPreview] = useState<any[]>([]);
+
+  const statePresentation = useMemo(() => getStatePresentation(status), [status]);
+  const diagnosticRows = useMemo(() => formatDiagnosticRows(status), [status]);
+
+  useEffect(() => {
+    setForm(buildFormState(config));
+  }, [config]);
+
+  const loadStatus = useCallback(async () => {
+    setStatusLoading(true);
+    setStatusError(null);
+    try {
+      const payload = await elektroappApi.getPndStatus();
+      setStatus(payload);
+      if (payload?.cached_from) setRangeFrom(payload.cached_from);
+      if (payload?.cached_to) setRangeTo(payload.cached_to);
+    } catch (err) {
+      setStatusError(formatApiError(err, "Nepodarilo se nacist stav PND."));
+    } finally {
+      setStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  const mergedConfig = useMemo(() => {
+    const base = config || ({} as Config);
+    return {
+      ...base,
+      pnd: { ...form },
+    };
+  }, [config, form]);
+
+  const handleField = (key: keyof PndFormState, value: string | boolean | number) => {
+    setForm((prev) => {
+      if (key === "nightly_sync_window_start_hour") {
+        const nextStart = Math.max(0, Math.min(23, Number(value)));
+        return {
+          ...prev,
+          nightly_sync_window_start_hour: nextStart,
+          nightly_sync_window_end_hour: Math.max(prev.nightly_sync_window_end_hour, nextStart),
+        };
+      }
+      if (key === "nightly_sync_window_end_hour") {
+        const nextEnd = Math.max(prev.nightly_sync_window_start_hour, Math.min(23, Number(value)));
+        return { ...prev, nightly_sync_window_end_hour: nextEnd };
+      }
+      return { ...prev, [key]: value };
+    });
+  };
+
+  const handleSave = async () => {
+    setSaveLoading(true);
+    setSaveMessage(null);
+    setSaveError(null);
+    try {
+      const response = await elektroappApi.saveConfig(mergedConfig);
+      await refreshConfig();
+      await loadStatus();
+      if (response?.pnd_verify?.ok === false) {
+        const suffix = response?.pnd_verify?.code ? ` [${response.pnd_verify.code}]` : "";
+        setSaveError(`${response.pnd_verify.message || "PND verify po ulozeni selhalo."}${suffix}`);
+      } else {
+        setSaveMessage(response?.pnd_verify?.message || response?.message || "PND konfigurace ulozena.");
+      }
+    } catch (err) {
+      setSaveError(formatApiError(err, "Ulozeni PND konfigurace selhalo."));
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    setActionLoading(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      const response = await elektroappApi.verifyPnd();
+      await loadStatus();
+      setActionMessage(response?.message || "PND verify probehlo uspesne.");
+    } catch (err) {
+      setActionError(formatApiError(err, "PND verify selhalo."));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBackfill = async (range: string) => {
+    setActionLoading(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      const response = await elektroappApi.backfillPnd(range);
+      await loadStatus();
+      setActionMessage(`Backfill '${range}' dokoncen, ulozeno cca ${response?.estimated_days ?? 0} dni.`);
+    } catch (err) {
+      setActionError(formatApiError(err, "Backfill PND selhal."));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLoadData = async () => {
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const response = await elektroappApi.getPndData(rangeFrom, rangeTo);
+      setDataPreview(response?.days || []);
+    } catch (err) {
+      setDataError(formatApiError(err, "Nepodarilo se nacist PND data."));
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  return (
+    <section className="page-pnd">
+      <DataCard title="PND konfigurace" className="card-spaced">
+        <div className="pnd-form-grid">
+          <label className="pnd-field">
+            <span>Uzivatelske jmeno</span>
+            <input value={form.username} onChange={(e) => handleField("username", e.target.value)} placeholder="email@domena.cz" />
+          </label>
+          <label className="pnd-field">
+            <span>Heslo</span>
+            <input type="password" value={form.password} onChange={(e) => handleField("password", e.target.value)} placeholder="heslo do PND" />
+          </label>
+          <label className="pnd-field">
+            <span>Meter ID / ELM</span>
+            <input value={form.meter_id} onChange={(e) => handleField("meter_id", e.target.value)} placeholder="3000012345" />
+          </label>
+        </div>
+        <div className="pnd-toggle-grid">
+          <label><input type="checkbox" checked={form.enabled} onChange={(e) => handleField("enabled", e.target.checked)} /> PND zapnuto</label>
+          <label><input type="checkbox" checked={form.verify_on_startup} onChange={(e) => handleField("verify_on_startup", e.target.checked)} /> Verify pri startu</label>
+          <label><input type="checkbox" checked={form.nightly_sync_enabled} onChange={(e) => handleField("nightly_sync_enabled", e.target.checked)} /> Nocni sync aktivni</label>
+        </div>
+        <div className="pnd-form-grid">
+          <label className="pnd-field">
+            <span>Start nocniho okna (hodina)</span>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={form.nightly_sync_window_start_hour}
+              onChange={(e) => handleField("nightly_sync_window_start_hour", Number(e.target.value || 0))}
+            />
+          </label>
+          <label className="pnd-field">
+            <span>Konec nocniho okna (hodina)</span>
+            <input
+              type="number"
+              min={form.nightly_sync_window_start_hour}
+              max={23}
+              value={form.nightly_sync_window_end_hour}
+              onChange={(e) => handleField("nightly_sync_window_end_hour", Number(e.target.value || 0))}
+            />
+          </label>
+        </div>
+        <div className="config-actions">
+          <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit PND konfiguraci"}</button>
+        </div>
+        {saveMessage ? <div className="config-muted">{saveMessage}</div> : null}
+        {saveError ? <div className="alert error">{saveError}</div> : null}
+      </DataCard>
+
+      <DataCard title="Stav a verify" loading={statusLoading} error={statusError} className="card-spaced">
+        {statePresentation ? (
+          <div className={`alert pnd-state-banner pnd-state-banner--${statePresentation.tone}`}>
+            <strong>{statePresentation.title}</strong>
+            <div>{statePresentation.description}</div>
+          </div>
+        ) : null}
+        <div className="pnd-status-grid">
+          <div><strong>Enabled:</strong> {status?.enabled ? "ano" : "ne"}</div>
+          <div><strong>Configured:</strong> {status?.configured ? "ano" : "ne"}</div>
+          <div><strong>Healthy:</strong> {status?.healthy ? "ano" : "ne"}</div>
+          <div><strong>State:</strong> {status?.state || "-"}</div>
+          <div><strong>Portal version:</strong> {status?.portal_version || "-"}</div>
+          <div><strong>Posledni verify:</strong> {formatDateTime(status?.last_verify_at)}</div>
+          <div><strong>Posledni sync:</strong> {formatDateTime(status?.last_sync_at)}</div>
+        </div>
+        {status?.last_error ? (
+          <div className="alert error">
+            <strong>{status.last_error.message}</strong>
+            {status.last_error.code ? ` [${status.last_error.code}]` : ""}
+            {diagnosticRows.length ? (
+              <ul className="pnd-diagnostics-list">
+                {diagnosticRows.map((row) => (
+                  <li key={row}>{row}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : (
+          <div className="config-muted">Posledni chyba neni evidovana.</div>
+        )}
+        <div className="config-actions">
+          <button onClick={handleVerify} disabled={actionLoading}>{actionLoading ? "Overuji..." : "Spustit verify"}</button>
+        </div>
+        {actionMessage ? <div className="config-muted">{actionMessage}</div> : null}
+        {actionError ? <div className="alert error">{actionError}</div> : null}
+      </DataCard>
+
+      <DataCard title="Feed a backfill" className="card-spaced">
+        <div className="toolbar">
+          <button onClick={() => handleBackfill("yesterday")} disabled={actionLoading}>Vcera</button>
+          <button onClick={() => handleBackfill("week")} disabled={actionLoading}>7 dni</button>
+          <button onClick={() => handleBackfill("month")} disabled={actionLoading}>Mesic</button>
+          <button onClick={() => handleBackfill("year")} disabled={actionLoading}>Rok</button>
+          <button onClick={() => handleBackfill("max")} disabled={actionLoading}>Maximum</button>
+        </div>
+        <div className="config-muted">
+          Nocni sync zkousi stahnout vcerejsi data mezi {String(form.nightly_sync_window_start_hour).padStart(2, "0")}:00 a {String(form.nightly_sync_window_end_hour).padStart(2, "0")}:59, kazdou hodinu.
+        </div>
+      </DataCard>
+
+      <DataCard title="Cache a data" className="card-spaced">
+        <div className="pnd-status-grid">
+          <div><strong>Cached from:</strong> {status?.cached_from || "-"}</div>
+          <div><strong>Cached to:</strong> {status?.cached_to || "-"}</div>
+          <div><strong>Pocet dni:</strong> {status?.days_count ?? 0}</div>
+        </div>
+        <div className="pnd-range-grid">
+          <label className="pnd-field">
+            <span>Od</span>
+            <input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+          </label>
+          <label className="pnd-field">
+            <span>Do</span>
+            <input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+          </label>
+          <div className="config-actions">
+            <button onClick={handleLoadData} disabled={dataLoading}>{dataLoading ? "Nacitam..." : "Nacist data"}</button>
+          </div>
+        </div>
+        {dataError ? <div className="alert error">{dataError}</div> : null}
+        {dataPreview.length ? (
+          <table className="data-table table-spaced">
+            <thead>
+              <tr>
+                <th>Den</th>
+                <th>Spotreba</th>
+                <th>Vyroba</th>
+                <th>Intervaly</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dataPreview.map((day) => (
+                <tr key={day.date}>
+                  <td>{day.date}</td>
+                  <td>{day.totals?.consumption_kwh?.toFixed?.(2) ?? "-"}</td>
+                  <td>{day.totals?.production_kwh?.toFixed?.(2) ?? "-"}</td>
+                  <td>{day.intervals?.length ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="config-muted">Preview dat se zobrazi po rucnim nacteni rozsahu.</div>
+        )}
+      </DataCard>
+    </section>
+  );
+};
+
+export default PndPage;

@@ -46,6 +46,16 @@ export interface Config {
     enabled?: boolean;
     power_now_entity_id?: string;
   };
+  pnd?: {
+    enabled?: boolean;
+    username?: string;
+    password?: string;
+    meter_id?: string;
+    verify_on_startup?: boolean;
+    nightly_sync_enabled?: boolean;
+    nightly_sync_window_start_hour?: number;
+    nightly_sync_window_end_hour?: number;
+  };
 }
 
 export interface PriceItem {
@@ -172,4 +182,26 @@ export interface DashboardSnapshot {
   alerts: any;
   comparison: any;
   solar: any;
+}
+
+export interface PndStatus {
+  enabled: boolean;
+  configured: boolean;
+  healthy: boolean;
+  state?: string | null;
+  state_message?: string | null;
+  last_verify_at?: string | null;
+  last_sync_at?: string | null;
+  last_error?: {
+    at?: string;
+    code?: string;
+    message?: string;
+    stage?: string;
+    details?: any;
+  } | null;
+  portal_version?: string | null;
+  cached_from?: string | null;
+  cached_to?: string | null;
+  days_count?: number;
+  last_job?: any;
 }

@@ -9,6 +9,7 @@ jest.mock("./api/elektroappApi", () => ({
     getPrices: jest.fn(),
     refreshPrices: jest.fn(),
     getConfig: jest.fn(),
+    saveConfig: jest.fn(),
     getVersion: jest.fn(),
     getCacheStatus: jest.fn(),
     getCosts: jest.fn(),
@@ -24,6 +25,11 @@ jest.mock("./api/elektroappApi", () => ({
     getSchedule: jest.fn(),
     getDashboardSnapshot: jest.fn(),
     getSolarForecast: jest.fn(),
+    getPndStatus: jest.fn(),
+    getPndCacheStatus: jest.fn(),
+    verifyPnd: jest.fn(),
+    backfillPnd: jest.fn(),
+    getPndData: jest.fn(),
   },
   extractApiError: (err) => {
     const status = err?.response?.status ?? null;
@@ -64,6 +70,7 @@ describe("App API states", () => {
       tarif: { vt_periods: [] },
     });
     elektroappApi.getVersion.mockResolvedValue({ version: "test" });
+    elektroappApi.saveConfig.mockResolvedValue({ status: "ok" });
     elektroappApi.getCosts.mockRejectedValue({ response: { status: 401 } });
     elektroappApi.getExport.mockResolvedValue({ points: [], summary: null });
     elektroappApi.getBattery.mockResolvedValue({ enabled: false });
@@ -88,6 +95,11 @@ describe("App API states", () => {
       version: "test"
     });
     elektroappApi.getSolarForecast.mockResolvedValue(null);
+    elektroappApi.getPndStatus.mockResolvedValue({ enabled: false, configured: false, healthy: false, days_count: 0 });
+    elektroappApi.getPndCacheStatus.mockResolvedValue({});
+    elektroappApi.verifyPnd.mockResolvedValue({ ok: true, message: "verify ok" });
+    elektroappApi.backfillPnd.mockResolvedValue({ accepted: true, estimated_days: 1 });
+    elektroappApi.getPndData.mockResolvedValue({ days: [] });
   });
 
   afterEach(() => {
@@ -138,5 +150,17 @@ describe("App API states", () => {
     await waitFor(() => {
       expect(screen.getByText(/Vybrano:.*60 min/i)).toBeInTheDocument();
     });
+  });
+
+  test("renders PND page and loads its status", async () => {
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "PND" }));
+
+    await waitFor(() => {
+      expect(elektroappApi.getPndStatus).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText("PND konfigurace")).toBeInTheDocument();
   });
 });

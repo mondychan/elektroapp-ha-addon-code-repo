@@ -11,6 +11,7 @@ class AppConfig:
     cache_dir: Path
     consumption_cache_dir: Path
     export_cache_dir: Path
+    pnd_cache_dir: Path
     options_backup_file: Path
     fees_history_file: Path
 
@@ -33,6 +34,7 @@ def build_container() -> AppContainer:
     cache_dir = storage_dir / "prices-cache"
     consumption_cache_dir = storage_dir / "consumption-cache"
     export_cache_dir = storage_dir / "export-cache"
+    pnd_cache_dir = storage_dir / "pnd-cache"
     options_backup_file = storage_dir / "options.json"
     fees_history_file = storage_dir / "fees-history.json"
 
@@ -44,6 +46,7 @@ def build_container() -> AppContainer:
             cache_dir=cache_dir,
             consumption_cache_dir=consumption_cache_dir,
             export_cache_dir=export_cache_dir,
+            pnd_cache_dir=pnd_cache_dir,
             options_backup_file=options_backup_file,
             fees_history_file=fees_history_file,
         )

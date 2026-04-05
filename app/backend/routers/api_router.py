@@ -34,6 +34,34 @@ def get_cache_status():
     return svc.get_cache_status()
 
 
+@router.get("/pnd/status")
+def get_pnd_status(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_pnd_status(cfg=ctx.config)
+
+
+@router.get("/pnd/cache-status")
+def get_pnd_cache_status():
+    return svc.get_pnd_cache_status()
+
+
+@router.post("/pnd/verify")
+def verify_pnd(ctx: RequestContext = Depends(get_request_context)):
+    return svc.verify_pnd(cfg=ctx.config)
+
+
+@router.post("/pnd/backfill")
+def backfill_pnd(payload: dict = Body(...), ctx: RequestContext = Depends(get_request_context)):
+    return svc.backfill_pnd(range_name=str(payload.get("range") or ""), cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/pnd/data")
+def get_pnd_data(
+    from_date: str = Query(..., alias="from", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    to_date: str = Query(..., alias="to", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+):
+    return svc.get_pnd_data(from_date=from_date, to_date=to_date)
+
+
 @router.get("/version")
 def get_version():
     return svc.get_version()

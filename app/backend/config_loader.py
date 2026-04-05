@@ -310,10 +310,37 @@ def get_alerts_cfg(cfg):
         "high_price_threshold": _safe_float(alerts.get("high_price_threshold", 5.0)),
     }
 
+def get_pnd_cfg(cfg):
+    pnd = cfg.get("pnd", {}) if isinstance(cfg.get("pnd"), dict) else {}
+    username = pnd.get("username")
+    password = pnd.get("password")
+    meter_id = pnd.get("meter_id")
+    start_hour = int(_safe_float(pnd.get("nightly_sync_window_start_hour", 2)) or 2)
+    end_hour = int(_safe_float(pnd.get("nightly_sync_window_end_hour", 7)) or 7)
+    start_hour = max(0, min(23, start_hour))
+    end_hour = max(start_hour, min(23, end_hour))
+    return {
+        "enabled": bool(pnd.get("enabled", False)),
+        "username": str(username).strip() if username else "",
+        "password": str(password) if password else "",
+        "meter_id": str(meter_id).strip() if meter_id else "",
+        "verify_on_startup": bool(pnd.get("verify_on_startup", True)),
+        "nightly_sync_enabled": bool(pnd.get("nightly_sync_enabled", True)),
+        "nightly_sync_window_start_hour": start_hour,
+        "nightly_sync_window_end_hour": end_hour,
+    }
+
+def has_pnd_required_cfg(pnd_cfg):
+    return bool(
+        pnd_cfg.get("enabled")
+        and pnd_cfg.get("username")
+        and pnd_cfg.get("password")
+        and pnd_cfg.get("meter_id")
+    )
+
 def has_battery_required_cfg(battery_cfg):
     return bool(
         battery_cfg.get("soc_entity_id")
         and battery_cfg.get("power_entity_id")
         and battery_cfg.get("usable_capacity_kwh", 0) > 0
     )
-

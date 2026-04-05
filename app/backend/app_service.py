@@ -36,7 +36,9 @@ from config_loader import (
     get_battery_cfg,
     get_energy_entities_cfg,
     get_forecast_solar_cfg,
+    get_pnd_cfg,
     has_battery_required_cfg,
+    has_pnd_required_cfg,
 )
 from services.runtime_state import RuntimeState
 from services.cache_manager import SeriesCache, build_series_cache_key
@@ -74,6 +76,15 @@ from services.scheduler import (
     get_prefetch_lock_path,
     PREFETCH_LOCK_STALE_SECONDS,
 )
+from services.pnd_scheduler import (
+    start_pnd_scheduler as start_pnd_scheduler_fn,
+    schedule_pnd_loop,
+    release_pnd_process_lock,
+    acquire_pnd_process_lock,
+    get_pnd_lock_path,
+    PND_LOCK_STALE_SECONDS,
+)
+from services.pnd_service import PNDService, PNDServiceError
 
 # Re-exporting injected services (for main.py and others)
 from services.influx_service import InfluxService
@@ -99,6 +110,7 @@ STORAGE_DIR = None
 CACHE_DIR = None
 CONSUMPTION_CACHE_DIR = None
 EXPORT_CACHE_DIR = None
+PND_CACHE_DIR = None
 OPTIONS_BACKUP_FILE = None
 FEES_HISTORY_FILE = None
 
@@ -109,6 +121,7 @@ INFLUX_SERVICE = InfluxService(logger=logger)
 # Cache Instances (initialized in main.py wiring)
 CONSUMPTION_CACHE: Optional[SeriesCache] = None
 EXPORT_CACHE: Optional[SeriesCache] = None
+PND_SERVICE: Optional[PNDService] = None
 
 # --- Price Cache Helpers ---
 def load_prices_cache(date_str):
@@ -401,7 +414,22 @@ def save_config(new_config: dict = Body(...)):
         STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         with open(STORAGE_DIR / "options.json", "w", encoding="utf-8") as f:
             json.dump(new_config, f)
-    return {"status": "ok", "message": "Konfigurace ulozena"}
+    response = {"status": "ok", "message": "Konfigurace ulozena"}
+    if PND_SERVICE:
+        pnd_cfg = get_pnd_cfg(new_config)
+        if has_pnd_required_cfg(pnd_cfg):
+            try:
+                response["pnd_verify"] = PND_SERVICE.verify(pnd_cfg)
+            except PNDServiceError as exc:
+                PND_SERVICE.record_error(exc, job_type="config-verify")
+                response["pnd_verify"] = {
+                    "ok": False,
+                    "code": exc.code,
+                    "stage": exc.stage,
+                    "message": exc.message,
+                    "details": exc.details,
+                }
+    return response
 
 def get_fees_history(cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg=cfg, tzinfo=tzinfo)
@@ -418,17 +446,20 @@ def update_fees_history(payload: dict = Body(...), cfg=None, tzinfo=None):
     return {"history": normalized}
 
 def finalize_initialization():
-    global CONSUMPTION_CACHE, EXPORT_CACHE
+    global CONSUMPTION_CACHE, EXPORT_CACHE, PND_SERVICE
     if CONSUMPTION_CACHE_DIR:
         CONSUMPTION_CACHE = SeriesCache("consumption", CONSUMPTION_CACHE_DIR, 600)
     if EXPORT_CACHE_DIR:
         EXPORT_CACHE = SeriesCache("export", EXPORT_CACHE_DIR, 600)
+    if PND_CACHE_DIR:
+        PND_SERVICE = PNDService(PND_CACHE_DIR, logger=logger)
 
 def get_cache_status():
     return {
         "prices": cache_status_for_dir(CACHE_DIR, "prices"),
         "consumption": CONSUMPTION_CACHE.get_status() if CONSUMPTION_CACHE else {},
         "export": EXPORT_CACHE.get_status() if EXPORT_CACHE else {},
+        "pnd": PND_SERVICE.get_cache_status() if PND_SERVICE else {},
     }
 
 def cache_status_for_dir(path, prefix):
@@ -513,6 +544,49 @@ def export_monthly_csv(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return EXPORT_DATA_SERVICE.generate_monthly_csv(cfg, month, tzinfo)
 
+def _require_pnd_service() -> PNDService:
+    if not PND_SERVICE:
+        raise HTTPException(status_code=503, detail="PND service neni inicializovana.")
+    return PND_SERVICE
+
+def _handle_pnd_error(exc: PNDServiceError):
+    raise HTTPException(status_code=exc.status_code, detail=exc.to_detail())
+
+def get_pnd_status(cfg=None):
+    cfg = cfg if isinstance(cfg, dict) else load_config()
+    service = _require_pnd_service()
+    return service.get_status(cfg=cfg, pnd_cfg=get_pnd_cfg(cfg))
+
+def get_pnd_cache_status():
+    return _require_pnd_service().get_cache_status()
+
+def verify_pnd(cfg=None):
+    cfg = cfg if isinstance(cfg, dict) else load_config()
+    pnd_cfg = get_pnd_cfg(cfg)
+    service = _require_pnd_service()
+    try:
+        return service.verify(pnd_cfg)
+    except PNDServiceError as exc:
+        service.record_error(exc, job_type="verify")
+        _handle_pnd_error(exc)
+
+def backfill_pnd(range_name: str, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    pnd_cfg = get_pnd_cfg(cfg)
+    service = _require_pnd_service()
+    try:
+        return service.backfill(pnd_cfg, range_name, tzinfo=tzinfo)
+    except PNDServiceError as exc:
+        service.record_error(exc, job_type="backfill", extra={"range": range_name})
+        _handle_pnd_error(exc)
+
+def get_pnd_data(from_date: str, to_date: str):
+    service = _require_pnd_service()
+    try:
+        return service.get_data(from_date, to_date)
+    except PNDServiceError as exc:
+        _handle_pnd_error(exc)
+
 async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     if not date:
@@ -560,9 +634,23 @@ def start_prefetch_scheduler():
         )
     )
 
+def start_pnd_scheduler():
+    return start_pnd_scheduler_fn(
+        RUNTIME_STATE,
+        STORAGE_DIR,
+        lambda: schedule_pnd_loop(
+            load_config_fn=load_config,
+            resolve_config_and_timezone_fn=resolve_config_and_timezone,
+            get_pnd_cfg_fn=get_pnd_cfg,
+            has_pnd_required_cfg_fn=has_pnd_required_cfg,
+            pnd_service=_require_pnd_service(),
+        ),
+    )
+
 def log_cache_status():
     status = get_cache_status()
     logger.info("Prices cache: %s", status["prices"])
     logger.info("Consumption cache: %s", status["consumption"])
 
 atexit.register(lambda: release_prefetch_process_lock(RUNTIME_STATE))
+atexit.register(lambda: release_pnd_process_lock(RUNTIME_STATE))

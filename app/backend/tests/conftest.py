@@ -23,11 +23,13 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     cache_dir = storage_dir / "prices-cache"
     consumption_cache_dir = storage_dir / "consumption-cache"
     export_cache_dir = storage_dir / "export-cache"
+    pnd_cache_dir = storage_dir / "pnd-cache"
 
     monkeypatch.setattr(backend_main, "STORAGE_DIR", storage_dir)
     monkeypatch.setattr(backend_main, "CACHE_DIR", cache_dir)
     monkeypatch.setattr(backend_main, "CONSUMPTION_CACHE_DIR", consumption_cache_dir)
     monkeypatch.setattr(backend_main, "EXPORT_CACHE_DIR", export_cache_dir)
+    monkeypatch.setattr(backend_main, "PND_CACHE_DIR", pnd_cache_dir)
 
     from services.cache_manager import SeriesCache
     backend_main.CONSUMPTION_CACHE = SeriesCache("consumption", consumption_cache_dir, 3600)
@@ -39,6 +41,9 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     backend_main.RUNTIME_STATE.prefetch_thread = None
     backend_main.RUNTIME_STATE.prefetch_lock_owned = False
     backend_main.RUNTIME_STATE.prefetch_lock_path = None
+    backend_main.RUNTIME_STATE.pnd_thread = None
+    backend_main.RUNTIME_STATE.pnd_lock_owned = False
+    backend_main.RUNTIME_STATE.pnd_lock_path = None
     backend_main.RUNTIME_STATE.ote_unavailable_until_ts = 0.0
 
     return {
@@ -46,4 +51,5 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
         "cache_dir": cache_dir,
         "consumption_cache_dir": consumption_cache_dir,
         "export_cache_dir": export_cache_dir,
+        "pnd_cache_dir": pnd_cache_dir,
     }
