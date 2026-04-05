@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+- Fix: odstraněny nepoužívané proměnné v `OverviewPage.tsx`, které blokovaly CI build.
+- Stabilizace produkčního sestavení po refaktoringu navigace.
+
 ## 0.2.2
 - **PND Srovnání s lokálními daty**: Nová srovnávací tabulka v PND portálu pro přímou kontrolu přesnosti lokálních senzorů proti oficiálním datům z distribuce.
 - **Navigace v detailu**: Možnost posunu o jeden den do budoucnosti v sekci Cena (zobrazení zítřka) s upozorněním na dostupnost dat.
