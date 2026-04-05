@@ -69,11 +69,15 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     }
     
     try {
-      const data = await elektroappApi.getDashboardSnapshot(dateValue);
+      const [data, overviewPricesData, selectedDatePricesData] = await Promise.all([
+        elektroappApi.getDashboardSnapshot(dateValue),
+        elektroappApi.getPrices(),
+        elektroappApi.getPrices(dateValue),
+      ]);
       
       // Update states from snapshot
-      setPrices(data.prices?.prices || []);
-      setSelectedDatePrices(data.prices?.prices || []);
+      setPrices(overviewPricesData?.prices || []);
+      setSelectedDatePrices(selectedDatePricesData?.prices || []);
       setCosts(data.costs?.points || []);
       setCostsSummary(data.costs?.summary || null);
       setCostsFromCache(Boolean(data.costs?.from_cache));

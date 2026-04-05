@@ -128,6 +128,18 @@ describe("App API states", () => {
     });
   });
 
+  test("loads overview prices separately so tomorrow card can use published next-day data", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(elektroappApi.getPrices).toHaveBeenCalledWith();
+    });
+
+    await waitFor(() => {
+      expect(elektroappApi.getPrices).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    });
+  });
+
   test("planner preset button immediately loads matching duration", async () => {
     render(<App />);
 
