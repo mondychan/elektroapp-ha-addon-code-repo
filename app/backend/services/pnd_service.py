@@ -443,7 +443,7 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
     recognized_series: list[str] = []
     unknown_series: list[str] = []
 
-    def process_points(points: list[Any], target_key: str):
+    def process_points(points: list[Any], target_key: str, is_power: bool = False):
         for point in points:
             if not isinstance(point, (list, tuple)) or len(point) < 2:
                 continue
@@ -468,7 +468,18 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
                     "production_kwh": None,
                 },
             )
-            entry[target_key] = float(value)
+            
+            val = float(value)
+            # If the unit is kW (Power), we must convert it to kWh (Energy).
+            # For 15-minute intervals, Energy (kWh) = Power (kW) * 0.25 hours.
+            if is_power:
+                val *= 0.25
+                
+            current = entry.get(target_key)
+            if current is None:
+                entry[target_key] = val
+            else:
+                entry[target_key] = current + val
 
     for item in series:
         if not isinstance(item, dict):
@@ -477,12 +488,24 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
         points = item.get("data", [])
         if not isinstance(points, list):
             continue
+            
+        # Exclude maximum power series (e.g. "Maximální čtvrthodinový činný odběr (+A) [kW]")
+        # these represent peaks, not average power/energy and would distort totals.
+        if any(m in name for m in ("maxim", "max.", "max ")):
+            unknown_series.append(name)
+            continue
+
+        # Detect if the series is in kW (Power). PND API often provides unitY: "kW" 
+        # or it is in the name.
+        unit = str(item.get("unitY") or item.get("unit") or item.get("units") or "").lower()
+        is_power = "kw" in unit or any(u in name for u in ("[kw]", "(kw)", "/kw"))
+
         if "+a" in name:
             recognized_series.append(name)
-            process_points(points, "consumption_kwh")
+            process_points(points, "consumption_kwh", is_power=is_power)
         elif "-a" in name:
             recognized_series.append(name)
-            process_points(points, "production_kwh")
+            process_points(points, "production_kwh", is_power=is_power)
         elif name:
             unknown_series.append(name)
 
@@ -548,10 +571,14 @@ def _normalize_json_series(data: dict[str, Any], *, fetched_at: str, raw_refs: d
 
 
 def _normalize_csv_series(csv_text: str, value_key: str, tz: ZoneInfo) -> dict[str, dict[str, Any]]:
-    reader = csv.reader(csv_text.splitlines(), delimiter=";")
+    lines = csv_text.splitlines()
+    # PND CSV headers often contain the unit in brackets like "Spotreba [kW]"
+    is_power = any("[kw]" in line.lower() or "(kw)" in line.lower() or "/kw" in line.lower() for line in lines[:5])
+    
+    reader = csv.reader(lines, delimiter=";")
     parsed: dict[str, dict[str, Any]] = {}
     for row in reader:
-        if len(row) < 2 or row[0].strip().lower().startswith("datum"):
+        if len(row) < 2 or not row[0].strip() or row[0].strip().lower().startswith("datum"):
             continue
         try:
             interval_end = _parse_pnd_timestamp(row[0], tz)
@@ -560,6 +587,11 @@ def _normalize_csv_series(csv_text: str, value_key: str, tz: ZoneInfo) -> dict[s
         value = _parse_float(row[1])
         if value is None:
             continue
+            
+        val = float(value)
+        if is_power:
+            val *= 0.25  # 15 min = 0.25 h
+            
         interval_start = interval_end - timedelta(minutes=15)
         key = interval_start.isoformat()
         entry = parsed.setdefault(
@@ -571,7 +603,12 @@ def _normalize_csv_series(csv_text: str, value_key: str, tz: ZoneInfo) -> dict[s
                 "production_kwh": None,
             },
         )
-        entry[value_key] = value
+        
+        current = entry.get(value_key)
+        if current is None:
+            entry[value_key] = val
+        else:
+            entry[value_key] = current + val
     return parsed
 
 
