@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.13
+- Privacy: generalizace konfiguračních šablon (odstraněny názvy jako 'drinov', IP adresy a konkrétní entity).
+- Privacy: důsledná kontrola a ujištění, že v repo nejsou žádná hesla ani osobní údaje.
+
 ## 0.2.12
 - Design: KPI dlaždice jsou opět statické (klikatelnost zrušena na přání uživatele).
 
