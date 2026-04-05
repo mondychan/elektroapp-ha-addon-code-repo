@@ -43,10 +43,10 @@ const MonthlySummaryCard = ({
             <tr>
               <th className="cell-left">Den</th>
               <th className="cell-left">Datum</th>
-              <th className="cell-right cell-buy">Nakup (kWh)</th>
-              <th className="cell-right cell-buy">Naklady (Kc)</th>
-              <th className="cell-right cell-sell">Prodej (kWh)</th>
-              <th className="cell-right cell-sell">Trzby (Kc)</th>
+              <th className="cell-right">Nakup (kWh)</th>
+              <th className="cell-right">Naklady (Kc)</th>
+              <th className="cell-right">Prodej (kWh)</th>
+              <th className="cell-right">Trzby (Kc)</th>
               <th className="cell-right">Netto (kWh)</th>
               <th className="cell-right">Netto (Kc)</th>
             </tr>
@@ -71,9 +71,9 @@ const MonthlySummaryCard = ({
                 <tr key={day.date}>
                   <td>{dayName}</td>
                   <td>{formatDate(dt)}</td>
-                  <td className="cell-right cell-buy">{day.kwh_total == null ? "-" : day.kwh_total.toFixed(2)}</td>
+                  <td className="cell-right">{day.kwh_total == null ? "-" : day.kwh_total.toFixed(2)}</td>
                   <td className="cell-right cell-buy">{day.cost_total == null ? "-" : day.cost_total.toFixed(2)}</td>
-                  <td className="cell-right cell-sell">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
+                  <td className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
                   <td className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
                   <td className={`cell-right ${kwhClass}`}>{netKwh == null ? "-" : (netKwh > 0 ? "+" : "") + netKwh.toFixed(2)}</td>
                   <td className={`cell-right ${costClass}`}>{netCost == null ? "-" : (netCost > 0 ? "+" : "") + netCost.toFixed(2)}</td>
@@ -85,9 +85,9 @@ const MonthlySummaryCard = ({
             <tfoot>
               <tr>
                 <td colSpan={2}>Soucet</td>
-                <td className="cell-right cell-buy">{monthlyTotals.kwh_total?.toFixed(2)}</td>
+                <td className="cell-right">{monthlyTotals.kwh_total?.toFixed(2)}</td>
                 <td className="cell-right cell-buy">{monthlyTotals.cost_total?.toFixed(2)}</td>
-                <td className="cell-right cell-sell">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
+                <td className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
                 <td className="cell-right cell-sell">{monthlyTotals.sell_total?.toFixed(2)}</td>
                 <td className={`cell-right ${footerKwhClass}`}>{footerNetKwh == null ? "-" : (footerNetKwh > 0 ? "+" : "") + footerNetKwh.toFixed(2)}</td>
                 <td className={`cell-right ${footerCostClass}`}>{footerNetCost == null ? "-" : (footerNetCost > 0 ? "+" : "") + footerNetCost.toFixed(2)}</td>
