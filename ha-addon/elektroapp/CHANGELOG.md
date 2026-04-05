@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.12
+- Design: KPI dlaždice jsou opět statické (klikatelnost zrušena na přání uživatele).
+
 ## 0.2.11
 - Fix: oprava chyby při buildu (missing tomorowData destructuring).
 - Fix: graf cen na zítřek je nyní plně funkční.
