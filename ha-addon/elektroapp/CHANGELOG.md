@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.90
+- oprava synchronizace konfigurace mezi Elektroapp UI a Home Assistant options, aby se zmeny po restartu nevracely na starsi hodnoty
+- load configu nove vybira nejaktualnejsi variantu mezi HA options a lokalnim backupem a druhou kopii na ni zrcadli
+- doplnene regresni testy pro obousmerny config sync a restartovy scenar
+
 ## 0.1.89
 - nova PND zalozka s oddelenou konfiguraci, verify, backfill, lokalni cache a schedulerem pro nocni sync vcerejsich dat
 - hardening PND adapteru: sjednocene httpx chyby do PNDServiceError, verify login/dashboard/data contractu a detailni diagnostika zmen endpointu nebo HTML/payload struktury
