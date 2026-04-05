@@ -83,9 +83,7 @@ export const buildBatteryChartData = (batteryData) => {
 
       normalizedRow.batteryPower = Number.isFinite(normalizedRow.batteryPower)
         ? normalizedRow.batteryPower
-        : lastHistoryMs && rowTimeMs <= lastHistoryMs
-        ? 0
-        : null;
+        : 0;
       return normalizedRow;
     });
 };
