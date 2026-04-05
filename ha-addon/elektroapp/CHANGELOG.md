@@ -4,6 +4,7 @@
 - Graf cen spravne odecita zapornou variabilni slozku nejdriv od fixni casti; pod nulu jde az kdyz spot plne pokryje vsechny fixni poplatky.
 - Fixni slozka v grafu je stabilni a uz nezahrnuje DPH z variabilni casti; variabilni slozka se naopak zobrazuje jako realna castka vcetne 21% DPH.
 - Tooltipy prehledne rozdeluji fixni slozku, zapornou variabilni slozku a konecnou cenu.
+- Vylepsena interakce grafu: tooltip se nyni zobrazuje pri najeti kamkoliv do sloupce casoveho slotu (nemusi se jiz zamerovat primo na barevny blok).
 - Opraveno zobrazeni meny z `-Kc` na `-Kč`.
 - Vypocet pro cenovy graf je presunut do frontendu, aby nakup i prodej energie pouzivaly konzistentni datovou logiku.
 
