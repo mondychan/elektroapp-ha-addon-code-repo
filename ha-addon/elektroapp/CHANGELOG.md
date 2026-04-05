@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.80
+### 🌟 Novinky
+- **Export do CSV**: Do tabulky měsíčního souhrnu přidáno tlačítko pro stažení dat ve formátu CSV.
+- **Konfigurovatelné prahy**: V nastavení (`config.yaml`) lze nyní upravit prahy pro nízkou a vysokou cenu, které se promítají do alertů a grafů.
+
+### 📱 UI & UX
+- **Rozšířená navigace**: Spodní lišta nyní nabízí jasné přepínání mezi Dashboardem, Náklady, Baterií a Nastavením.
+- **Vylepšené tabulky**: 
+    - Zvýraznění víkendů pro lepší orientaci v historii.
+    - Barevné odlišení Netto hodnot (kWh i Kč) podle bilance (zelená pro zisk/prodej, červená pro nákup/náklady).
+    - Oprava řazení a sjednocení vizuálního stylu bez podbarvení buněk.
+
+### ⚡ Stabilita
+- **TypeScript**: Dokončena migrace klíčových komponent (`App.tsx`, `MonthlySummaryCard.tsx`) a API vrstvy na striktní TypeScript.
+- **CI/CD**: Oprava buildovacího procesu, který blokoval předchozí release.
+- **Refaktorizace**: Výrazné zmenšení hlavního souboru `App.tsx` a rozdělení logiky do hooků.
+
 ## 0.1.79
 ## 0.1.79 — Velký update analytiky a UI
 Tento release přináší kompletní přepracování vnitřní architektury, výrazné zrychlení díky paralelnímu snapshotování dat a nové analytické nástroje.
