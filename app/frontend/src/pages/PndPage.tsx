@@ -428,7 +428,7 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
               ) : null}
             </div>
           ) : (
-            <div className="config-muted" style={{ marginTop: "8px" }}>Posledni chyba neni evidovana.</div>
+            <div className="config-muted" style={{ marginTop: "8px" }}>Nebyla zaznamenána žádná chyba.</div>
           )}
           <div className="config-actions">
             <button onClick={handleVerify} disabled={actionLoading}>{actionLoading ? "Overuji..." : "Spustit verify"}</button>
