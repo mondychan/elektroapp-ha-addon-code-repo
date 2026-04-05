@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.10
+- Fix: vrácen graf cen pro zítřek na hlavní obrazovku. Graf se zobrazuje automaticky pouze tehdy, když jsou data pro další den k dispozici.
+- Fix: stabilizace rozvržení hlavní stránky (tlačítka už neodskakují při otevírání panelů).
+
 ## 0.2.8
 - Fix: moduly (Statistiky, Baterie, atd.) se nyní otevírají přímo pod svým tlačítkem pro lepší UX.
 - Feature: dlaždice KPI (Baterie, Ceny, Náklady) jsou nyní klikatelné a aktivují příslušné sekce nebo pohledy.
