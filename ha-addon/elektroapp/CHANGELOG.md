@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.81
+### ⚡ Stabilita
+- Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
+- (Zahrnuje všechny novinky a opravy z verze 0.1.80, která neprošla buildem na GitHubu).
+
 ## 0.1.80
 ### 🌟 Novinky
 - **Export do CSV**: Do tabulky měsíčního souhrnu přidáno tlačítko pro stažení dat ve formátu CSV.
