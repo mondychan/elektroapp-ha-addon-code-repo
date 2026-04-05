@@ -39,6 +39,11 @@ def test_start_pnd_scheduler_starts_only_once_per_process(monkeypatch, backend_m
 
     monkeypatch.setattr(
         backend_main,
+        "load_config",
+        lambda: {"pnd": {"enabled": True, "username": "user", "password": "pass", "meter_id": "3000012345"}},
+    )
+    monkeypatch.setattr(
+        backend_main,
         "start_pnd_scheduler_fn",
         lambda runtime_state, storage_dir, schedule_loop_target: calls.append("pnd-scheduler") is None and len(calls) == 1,
     )
@@ -50,6 +55,26 @@ def test_start_pnd_scheduler_starts_only_once_per_process(monkeypatch, backend_m
     assert started_first is True
     assert started_second is False
     assert calls == ["pnd-scheduler", "pnd-scheduler"]
+
+
+def test_start_pnd_scheduler_does_not_start_without_required_config(monkeypatch, backend_main, isolated_storage):
+    calls = []
+
+    monkeypatch.setattr(
+        backend_main,
+        "load_config",
+        lambda: {"pnd": {"enabled": False, "username": "", "password": "", "meter_id": ""}},
+    )
+    monkeypatch.setattr(
+        backend_main,
+        "start_pnd_scheduler_fn",
+        lambda runtime_state, storage_dir, schedule_loop_target: calls.append("pnd-scheduler") is None and True,
+    )
+
+    started = backend_main.start_pnd_scheduler()
+
+    assert started is False
+    assert calls == []
 
 
 def test_acquire_prefetch_process_lock_is_exclusive(backend_main, isolated_storage):

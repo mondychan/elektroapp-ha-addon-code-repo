@@ -403,6 +403,12 @@ EXPORT_DATA_SERVICE = DataExportService(billing_service=BILLING_SERVICE)
 def get_config():
     return load_config()
 
+
+def _can_start_pnd_scheduler(cfg: Optional[dict[str, Any]] = None) -> bool:
+    effective_cfg = cfg if isinstance(cfg, dict) else load_config()
+    pnd_cfg = get_pnd_cfg(effective_cfg)
+    return bool(pnd_cfg.get("enabled") and has_pnd_required_cfg(pnd_cfg))
+
 def save_config(new_config: dict = Body(...)):
     if isinstance(new_config, dict):
         new_config["price_provider"] = normalize_price_provider(new_config.get("price_provider"))
@@ -429,6 +435,7 @@ def save_config(new_config: dict = Body(...)):
                     "message": exc.message,
                     "details": exc.details,
                 }
+            start_pnd_scheduler()
     return response
 
 def get_fees_history(cfg=None, tzinfo=None):
@@ -635,6 +642,9 @@ def start_prefetch_scheduler():
     )
 
 def start_pnd_scheduler():
+    if not _can_start_pnd_scheduler():
+        logger.info("PND scheduler not started because PND is disabled or missing required credentials.")
+        return False
     return start_pnd_scheduler_fn(
         RUNTIME_STATE,
         STORAGE_DIR,

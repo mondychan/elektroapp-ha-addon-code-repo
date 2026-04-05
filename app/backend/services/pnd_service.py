@@ -16,6 +16,7 @@ import httpx
 PND_DASHBOARD_URL = "https://pnd.cezdistribuce.cz/cezpnd2/external/dashboard/view"
 PND_DATA_ENDPOINT = "https://pnd.cezdistribuce.cz/cezpnd2/external/data"
 DEFAULT_TZ = "Europe/Prague"
+PND_LOGIN_PLACEHOLDERS = ("Zadejte svůj e-mail", "Zadejte své heslo", 'name="username"', 'name="password"', 'id="loginForm"')
 PND_DASHBOARD_MARKERS = ("NamÄ›Ĺ™enĂˇ data", "Naměřená data", "Namerena data")
 
 
@@ -207,13 +208,17 @@ class HttpSessionPNDPortalClient:
                         details={"status_code": login_response.status_code},
                         status_code=401,
                     )
-                if not _is_login_success(login_response.text):
+                if _is_login_form_present(login_response.text):
                     portal_message = _extract_login_error(login_response.text)
                     raise PNDServiceError(
                         "PND_LOGIN_FAILED",
                         "Nepodarilo se prihlasit do PND.",
                         stage="login",
-                        details={"portal_message": portal_message},
+                        details={
+                            "portal_message": portal_message,
+                            "final_url": str(login_response.url),
+                            "response_excerpt": login_response.text[:500],
+                        },
                         status_code=401,
                     )
                 return client
@@ -343,7 +348,23 @@ def _is_login_success(html: str) -> bool:
     return any(marker in html for marker in PND_DASHBOARD_MARKERS)
 
 
+def _is_login_form_present(html: str) -> bool:
+    return any(marker in html for marker in PND_LOGIN_PLACEHOLDERS)
+
+
 def _ensure_dashboard_contract(html: str, *, stage: str):
+    if _is_login_form_present(html):
+        portal_message = _extract_login_error(html)
+        raise PNDServiceError(
+            "PND_LOGIN_FAILED",
+            "PND po prihlaseni stale vraci login stranku, session neni navazana.",
+            stage=stage,
+            details={
+                "portal_message": portal_message,
+                "missing_html_marker": "Namerena data",
+            },
+            status_code=401,
+        )
     if any(marker in html for marker in PND_DASHBOARD_MARKERS):
         return
     raise PNDServiceError(
@@ -358,6 +379,8 @@ def _ensure_dashboard_contract(html: str, *, stage: str):
 def _extract_login_error(html: str) -> str | None:
     for pattern in (
         r'class="alertWidget__content">([^<]+)<',
+        r'class="formError">([^<]+)<',
+        r'<div[^>]*class="[^"]*errors[^"]*"[^>]*>([^<]+)<',
         r'<div[^>]*class="[^"]*alert[^"]*"[^>]*>([^<]+)<',
     ):
         match = re.search(pattern, html)

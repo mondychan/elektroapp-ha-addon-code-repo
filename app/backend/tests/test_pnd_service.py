@@ -149,6 +149,27 @@ def test_http_adapter_verify_checks_dashboard_and_data_contract(monkeypatch):
     assert stub.calls[-1][2]["json"]["electrometerId"] == "3000012345"
 
 
+def test_http_adapter_accepts_post_login_redirect_without_dashboard_marker(monkeypatch):
+    stub = StubHttpxClient(
+        [
+            StubResponse(text='<input type="hidden" name="execution" value="token-123">'),
+            StubResponse(text="<html><body>OAuth redirect in progress</body></html>", url="https://pnd.cezdistribuce.cz/cezpnd2/login/oauth2/code/mepas-external"),
+            StubResponse(text="NamÄ›Ĺ™enĂˇ data<div>Verze aplikace: 1.2.3</div>"),
+            StubResponse(text='{"series":[]}', json_data=VALID_JSON_PAYLOAD),
+        ]
+    )
+    monkeypatch.setattr(pnd_module.httpx, "Client", lambda **kwargs: stub)
+
+    client = HttpSessionPNDPortalClient()
+    result = client.verify(
+        {"enabled": True, "username": "user", "password": "pass", "meter_id": "3000012345"},
+        date(2026, 4, 4),
+    )
+
+    assert result["ok"] is True
+    assert result["details"]["portal_version"] == "1.2.3"
+
+
 def test_http_adapter_maps_timeout_to_pnd_service_error(monkeypatch):
     stub = StubHttpxClient(
         [
@@ -169,6 +190,28 @@ def test_http_adapter_maps_timeout_to_pnd_service_error(monkeypatch):
 
     assert exc_info.value.code == "PND_NETWORK_TIMEOUT"
     assert exc_info.value.stage == "fetch"
+
+
+def test_http_adapter_returns_login_failed_when_dashboard_still_shows_login_form(monkeypatch):
+    login_form_html = '<section id="loginForm"><input name="username"/><input name="password"/><div class="formError">Neplatné přihlašovací údaje</div></section>'
+    stub = StubHttpxClient(
+        [
+            StubResponse(text='<input type="hidden" name="execution" value="token-123">'),
+            StubResponse(text="<html><body>OAuth redirect in progress</body></html>", url="https://pnd.cezdistribuce.cz/cezpnd2/login/oauth2/code/mepas-external"),
+            StubResponse(text=login_form_html, url="https://cas.cez.cz/cas/login"),
+        ]
+    )
+    monkeypatch.setattr(pnd_module.httpx, "Client", lambda **kwargs: stub)
+
+    client = HttpSessionPNDPortalClient()
+    with pytest.raises(PNDServiceError) as exc_info:
+        client.verify(
+            {"enabled": True, "username": "user", "password": "pass", "meter_id": "3000012345"},
+            date(2026, 4, 4),
+        )
+
+    assert exc_info.value.code == "PND_LOGIN_FAILED"
+    assert exc_info.value.details["portal_message"] == "Neplatné přihlašovací údaje"
 
 
 def test_pnd_service_verify_fetch_and_query_data(tmp_path):
