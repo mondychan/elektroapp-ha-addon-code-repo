@@ -34,6 +34,7 @@ export const elektroappApi = {
   verifyPnd: () => post("/pnd/verify"),
   backfillPnd: (range: string) => post("/pnd/backfill", { range }),
   getPndData: (from: string, to: string) => get("/pnd/data", { from, to }),
+  purgePndCache: () => post("/pnd/purge-cache"),
 };
 
 const formatErrorDetail = (detail: any): string | null => {

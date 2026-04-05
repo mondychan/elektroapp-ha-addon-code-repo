@@ -256,6 +256,25 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
     }
   };
 
+  const handlePurgeCache = async () => {
+    if (!window.confirm("Opravdu chcete smazat celou lokalni cache PND? Data budou muset byt stazena znovu.")) {
+      return;
+    }
+    setActionLoading(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      const response = await elektroappApi.purgePndCache();
+      await loadStatus();
+      setActionMessage(`PND cache promazana (smazano ${response?.purged_files ?? 0} souboru).`);
+      setDataPreview([]);
+    } catch (err) {
+      setActionError(formatApiError(err, "Nepodarilo se promazat PND cache."));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <section className="page-pnd">
       <DataCard title="PND konfigurace" className="card-spaced">
@@ -375,6 +394,14 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
           </label>
           <div className="config-actions">
             <button onClick={handleLoadData} disabled={dataLoading}>{dataLoading ? "Nacitam..." : "Nacist data"}</button>
+            <button
+              className="danger-button"
+              onClick={handlePurgeCache}
+              disabled={actionLoading}
+              title="Smaze vsechny lokalni soubory v pnd-cache vcetne raw zaloh."
+            >
+              Smazat cache
+            </button>
           </div>
         </div>
         {dataError ? <div className="alert error">{dataError}</div> : null}

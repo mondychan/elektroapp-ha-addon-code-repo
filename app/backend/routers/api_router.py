@@ -54,6 +54,11 @@ def backfill_pnd(payload: dict = Body(...), ctx: RequestContext = Depends(get_re
     return svc.backfill_pnd(range_name=str(payload.get("range") or ""), cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
+@router.post("/pnd/purge-cache")
+def purge_pnd_cache():
+    return svc.purge_pnd_cache()
+
+
 @router.get("/pnd/data")
 def get_pnd_data(
     from_date: str = Query(..., alias="from", pattern=r"^\d{4}-\d{2}-\d{2}$"),

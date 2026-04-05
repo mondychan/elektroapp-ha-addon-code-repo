@@ -928,6 +928,34 @@ class PNDService:
             }
         )
 
+    def purge_cache(self) -> dict[str, Any]:
+        count = 0
+        # Delete normalized files
+        for item in self.normalized_dir.glob("*.json"):
+            try:
+                item.unlink()
+                count += 1
+            except OSError as exc:
+                self.logger.error(f"Failed to delete cached file {item}: {exc}")
+
+        # Delete raw files
+        for item in self.raw_dir.glob("*"):
+            try:
+                item.unlink()
+                count += 1
+            except OSError as exc:
+                self.logger.error(f"Failed to delete raw file {item}: {exc}")
+
+        # Update status
+        status = self._load_status()
+        status["days_count"] = 0
+        status["cached_from"] = None
+        status["cached_to"] = None
+        status["size_bytes"] = 0
+        self._save_status(status)
+
+        return {"ok": True, "purged_files": count}
+
     def get_data(self, start_date: str, end_date: str) -> dict[str, Any]:
         start = datetime.strptime(start_date, "%Y-%m-%d").date()
         end = datetime.strptime(end_date, "%Y-%m-%d").date()

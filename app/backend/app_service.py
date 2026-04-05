@@ -593,6 +593,9 @@ def get_pnd_data(from_date: str, to_date: str):
     except PNDServiceError as exc:
         _handle_pnd_error(exc)
 
+def purge_pnd_cache():
+    return _require_pnd_service().purge_cache()
+
 async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     if not date:

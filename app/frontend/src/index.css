@@ -1351,6 +1351,12 @@ input {
 .danger-button {
   border-color: #d46a6a;
   color: #d46a6a;
+  transition: all 0.2s;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #d46a6a;
+  color: #fff;
 }
 
 .danger-button.is-ready {
