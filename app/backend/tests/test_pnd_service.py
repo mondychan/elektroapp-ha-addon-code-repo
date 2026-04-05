@@ -59,7 +59,7 @@ class BundleClient:
                 "portal_version": "1.2.3",
                 "meter_id": pnd_cfg["meter_id"],
                 "probe_date": probe_date.isoformat(),
-                "recognized_series": ["+a spotreba", "-a vyroba"],
+                "recognized_series": ["+a spotreba (unit: , is_power: False)", "-a vyroba (unit: , is_power: False)"],
                 "unknown_series": [],
                 "interval_count": 2,
             },
@@ -144,7 +144,10 @@ def test_http_adapter_verify_checks_dashboard_and_data_contract(monkeypatch):
     assert result["ok"] is True
     assert result["details"]["portal_version"] == "1.2.3"
     assert result["details"]["meter_id"] == "3000012345"
-    assert result["details"]["recognized_series"] == ["+a spotreba", "-a vyroba"]
+    assert result["details"]["recognized_series"] == [
+        "+a spotreba (unit: , is_power: False)",
+        "-a vyroba (unit: , is_power: False)",
+    ]
     assert stub.calls[-1][1] == pnd_module.PND_DATA_ENDPOINT
     assert stub.calls[-1][2]["json"]["electrometerId"] == "3000012345"
 
