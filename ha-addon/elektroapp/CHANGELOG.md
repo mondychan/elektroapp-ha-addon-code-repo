@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+- velky release 0.2.0 s klicovymi opravami presnosti dat
+- oprava PND (Portalu namerenych dat): korektni prevod kW na kWh (4x presnejsi data)
+- nova funkce "Smazat cache" v UI pro rucni reset PND dat
+- oprava Energeticke bilance: zavedena presna detekce jednotek W/kW z InfluxDB (odstraneni astronomickych chyb u nizkych odberu)
+- sjednocena logika vypoctu napric celou aplikaci (BatteryService, Insights, Energeticka bilance)
+
 ## 0.1.95
 - oprava Energeticke bilance: zavedena detekce jednotek (W vs kW) primo z InfluxDB
 - odstranena nespolehliva heuristika, ktery zpusobovala astronomicke hodnoty u Wattovych senzoru s nizkym prikonem
