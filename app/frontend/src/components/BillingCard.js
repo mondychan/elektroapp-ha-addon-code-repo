@@ -51,8 +51,8 @@ const BillingCard = ({
         <table className="data-table table-spaced">
           <tbody>
             <tr>
-              <td className="cell-buy">Nakup</td>
-              <td className="cell-right cell-buy">
+              <td>Nakup</td>
+              <td className="cell-right">
                 {actual.kwh_total == null ? "-" : `${actual.kwh_total.toFixed(2)} kWh`}
               </td>
             </tr>
@@ -69,8 +69,8 @@ const BillingCard = ({
               <td className="cell-right cell-sell">{formatCurrency(actual.sell_total)}</td>
             </tr>
             <tr>
-              <td className="cell-buy">{actualLabel}</td>
-              <td className="cell-right cell-buy">{formatCurrency(actual.total_cost)}</td>
+              <td className={(actual.total_cost || 0) > 0 ? "cell-buy" : ((actual.total_cost || 0) < 0 ? "cell-sell" : "")}>{actualLabel}</td>
+              <td className={`cell-right ${(actual.total_cost || 0) > 0 ? "cell-buy" : ((actual.total_cost || 0) < 0 ? "cell-sell" : "")}`}>{formatCurrency(actual.total_cost)}</td>
             </tr>
             {!pastMonth && (
               <tr>
@@ -92,28 +92,32 @@ const BillingCard = ({
         <thead>
           <tr>
             <th className="cell-left">Mesic</th>
-            <th className="cell-right cell-buy">Naklady mesice</th>
+            <th className="cell-right">Naklady mesice</th>
             {showProjectionColumn && <th className="cell-right">Projekce mesice (po prodeji)</th>}
           </tr>
         </thead>
         <tbody>
-          {billingData.months.map((item) => (
-            <tr key={item.month}>
-              <td>{formatMonthLabel(item.month)}</td>
-              <td className="cell-right cell-buy">{formatCurrency(item.actual?.total_cost)}</td>
-              {showProjectionColumn && (
-                <td className="cell-right">
-                  {isPastMonth(item.month) ? "-" : formatCurrency(item.projected?.net_total ?? item.projected?.total_cost)}
-                </td>
-              )}
-            </tr>
-          ))}
+          {billingData.months.map((item) => {
+            const cost = item.actual?.total_cost || 0;
+            const costClass = cost > 0 ? "cell-buy" : (cost < 0 ? "cell-sell" : "");
+            return (
+              <tr key={item.month}>
+                <td>{formatMonthLabel(item.month)}</td>
+                <td className={`cell-right ${costClass}`}>{formatCurrency(item.actual?.total_cost)}</td>
+                {showProjectionColumn && (
+                  <td className="cell-right">
+                    {isPastMonth(item.month) ? "-" : formatCurrency(item.projected?.net_total ?? item.projected?.total_cost)}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
         {billingData.totals && (
           <tfoot>
             <tr>
               <td>Soucet</td>
-              <td className="cell-right cell-buy">
+              <td className={`cell-right ${(billingData.totals.actual?.total_cost || 0) > 0 ? "cell-buy" : ((billingData.totals.actual?.total_cost || 0) < 0 ? "cell-sell" : "")}`}>
                 {formatCurrency(billingData.totals.actual?.total_cost)}
               </td>
               {showProjectionColumn && (

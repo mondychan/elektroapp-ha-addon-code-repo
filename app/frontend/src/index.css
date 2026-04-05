@@ -20,8 +20,8 @@ body[data-theme="light"] {
   --accent-2: #2d7ff9;
   --link: #2d7ff9;
   --shadow: 0 12px 30px rgba(16, 24, 40, 0.12);
-  --buy-bg: rgba(255, 213, 97, 0.28);
-  --sell-bg: rgba(96, 209, 130, 0.22);
+  --buy-text: #d44a4a;
+  --sell-text: #2f8f49;
 }
 
 body[data-theme="dark"] {
@@ -36,8 +36,8 @@ body[data-theme="dark"] {
   --accent-2: #7cc4ff;
   --link: #7cc4ff;
   --shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
-  --buy-bg: rgba(245, 197, 66, 0.22);
-  --sell-bg: rgba(76, 199, 127, 0.2);
+  --buy-text: #ff8a8a;
+  --sell-text: #4cc77f;
 }
 
 code {
@@ -708,12 +708,12 @@ input {
   white-space: nowrap;
 }
 
-.cell-buy {
-  background: var(--buy-bg);
+.cell-buy { color: var(--buy-text);
+  /* background removed */
 }
 
-.cell-sell {
-  background: var(--sell-bg);
+.cell-sell { color: var(--sell-text);
+  /* background removed */
 }
 
 .cell-wrap {
