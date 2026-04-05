@@ -236,210 +236,198 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </DataCard>
       )}
 
-
-
-      {!showBatteryPanel && !showConfig && (
-        <section className="section">
-          <DataCard
-            loading={pricesLoading}
-            title={`Cena elektřiny (Kč/kWh) | Dnes (${formatDate(today)})`}
-            headerActions={
-              Number.isInteger(pinnedSlot) ? (
-                <button onClick={() => setPinnedSlot(null)} className="ghost-button">
-                  Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
-                </button>
-              ) : undefined
-            }
-          >
-            <PriceChartCard
-              chartData={todayData}
-              fallbackMessage="Načítám data..."
-              vtPeriods={config?.tarif?.vt_periods}
-              highlightSlot={effectiveHighlightSlot}
-              pinnedSlot={pinnedSlot}
-              onPinSlot={setPinnedSlot}
-              className=""
-              thresholds={alerts}
-            />
-          </DataCard>
-        </section>
-      )}
-
-      {!showBatteryPanel && !showConfig && (
-        <section className="section swipe-zone" {...dateSwipeHandlers}>
-          <DataCard title={`Spotřeba a náklady | ${selectedDateLabel}`} loading={costsLoading} error={costsError}>
-            <CostChartCard
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              maxDate={maxDate}
-              costs={costs}
-              costsSummary={costsSummary}
-              costsError={costsError}
-              costsFromCache={costsFromCache}
-              costsCacheFallback={costsCacheFallback}
-              showAnnotations={false}
-            />
-          </DataCard>
-
-          <DataCard title={`Prodej a export | ${selectedDateLabel}`} loading={exportLoading} error={exportError}>
-            <ExportChartCard
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              maxDate={maxDate}
-              exportPoints={exportPoints}
-              exportSummary={exportSummary}
-              exportError={exportError}
-              exportFromCache={exportFromCache}
-              exportCacheFallback={exportCacheFallback}
-              showAnnotations={false}
-            />
-          </DataCard>
-        </section>
-      )}
-
-      {!showBatteryPanel && !showConfig && (
-        <>
-          <button onClick={() => setShowMonthlySummary(!showMonthlySummary)} className="ghost-button">
-            {showMonthlySummary ? "Skrýt souhrn" : "Zobrazit souhrn"}
-          </button>
-
-          {showMonthlySummary && (
-            <section className="section swipe-zone" {...monthSwipeHandlers}>
-              <DataCard title="Měsíční souhrn" loading={monthlyLoading} error={monthlyError}>
-                <MonthlySummaryCard
-                  selectedMonth={selectedMonth}
-                  setSelectedMonth={setSelectedMonth}
-                  maxMonth={maxMonth}
-                  monthlySummary={monthlySummary}
-                  monthlyTotals={monthlyTotals}
-                  monthlyError={monthlyError}
-                />
-              </DataCard>
-            </section>
-          )}
-
-          <button onClick={() => setShowBilling(!showBilling)} className="ghost-button">
-            {showBilling ? "Skrýt vyúčtování" : "Odhad vyúčtování"}
-          </button>
-
-          {showBilling && (
-            <DataCard title="Odhad vyúčtování" loading={billingLoading} error={billingError}>
-              <BillingCard
-                billingMode={billingMode}
-                setBillingMode={setBillingMode}
-                billingMonth={billingMonth}
-                setBillingMonth={setBillingMonth}
-                billingYear={billingYear}
-                setBillingYear={setBillingYear}
-                maxMonth={maxBillingMonth}
-                maxYear={maxBillingYear}
-                billingData={billingData}
-                billingLoading={billingLoading}
-                billingError={billingError}
-              />
-            </DataCard>
-          )}
-        </>
-      )}
-
-      {!showConfig && (
-        <>
-          <button onClick={() => setShowBatteryPanel(!showBatteryPanel)} className="ghost-button">
-            {showBatteryPanel ? "Skrýt baterii a projekci" : "Baterie a projekce"}
-          </button>
-
-          {showBatteryPanel && (
-            <DataCard title="Baterie a projekce" loading={batteryLoading} error={batteryError}>
-              <BatteryProjectionCard
-                batteryData={batteryData}
-                batteryLoading={batteryLoading}
-                batteryError={batteryError}
-                onRefresh={refreshBattery}
-              />
-            </DataCard>
-          )}
-        </>
-      )}
-
-      <button onClick={() => setShowStats(!showStats)} className="ghost-button">
-        {showStats ? "Skrýt statistiky" : "Zobrazit statistiky"}
-      </button>
-
-      {showStats && (
-        <section className="section">
-          <DataCard title="Srovnání výkonu" loading={comparisonLoading}>
-            <ComparisonCard comparison={comparison} loading={comparisonLoading} />
-          </DataCard>
-
-          <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
-            <EnergyBalanceCard
-              period={energyBalancePeriod}
-              anchor={currentEnergyBalanceAnchor}
-              onPrev={() =>
-                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
-              }
-              onNext={() =>
-                setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
-              }
-              disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
-              onPeriodChange={(value: any) => {
-                setEnergyBalancePeriod(value as any);
-                setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
-              }}
-              data={energyBalanceData}
-              loading={energyBalanceLoading}
-              error={energyBalanceError}
-            />
-          </DataCard>
-        </section>
-      )}
-
-      <button onClick={handlePlannerToggle} className="ghost-button">
-        {showPlanner ? "Skrýt plánovač" : "Zobrazit plánovač"}
-      </button>
-
-      {showPlanner && (
-        <DataCard title="Plánovač" loading={plannerLoading}>
-          <PlannerCard
-            plannerDuration={plannerDuration}
-            setPlannerDuration={setPlannerDuration}
-            loadPlanner={handleLoadPlanner}
-            plannerError={finalPlannerError}
-            plannerLoading={plannerLoading}
-            plannerNote={plannerNote}
-            plannerResults={plannerResults}
+      <section className="section">
+        <DataCard
+          loading={pricesLoading}
+          title={`Cena elektřiny (Kč/kWh) | Dnes (${formatDate(today)})`}
+          headerActions={
+            Number.isInteger(pinnedSlot) ? (
+              <button onClick={() => setPinnedSlot(null)} className="ghost-button">
+                Zrušit pin ({formatSlotToTime(pinnedSlot as number)})
+              </button>
+            ) : undefined
+          }
+        >
+          <PriceChartCard
+            chartData={todayData}
+            fallbackMessage="Načítám data..."
+            vtPeriods={config?.tarif?.vt_periods}
+            highlightSlot={effectiveHighlightSlot}
+            pinnedSlot={pinnedSlot}
+            onPinSlot={setPinnedSlot}
+            className=""
+            thresholds={alerts}
           />
         </DataCard>
-      )}
+      </section>
 
-      <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">
-        {showConfig ? "Skrýt konfiguraci" : "Zobrazit konfiguraci"}
-      </button>
-
-      {showConfig && (
-        <DataCard title="Konfigurace systému">
-          <ConfigCard
-            configRows={configRows}
-            cacheRows={cacheRows}
-            consumptionCacheRows={consumptionCacheRows}
-            exportCacheRows={exportCacheRows}
-            cacheStatus={cacheStatus}
-            showFeesHistory={showFeesHistory}
-            onToggleFeesHistory={() => setShowFeesHistory((prev: boolean) => !prev)}
-            feesHistory={feesHistory}
-            feesHistoryLoading={feesHistoryLoading}
-            feesHistoryError={feesHistoryError}
-            onSaveFeesHistory={saveFeesHistory}
-            defaultFeesValues={props.defaultFeesValues}
-            priceProviderLabel={priceProviderLabel}
-            priceProviderUrl={priceProviderUrl}
-            onRefreshPrices={refreshPrices}
-            refreshingPrices={pricesRefreshLoading}
-            pricesRefreshMessage={pricesRefreshMessage}
-            pricesRefreshError={pricesRefreshError}
+      <section className="section swipe-zone" {...dateSwipeHandlers}>
+        <DataCard title={`Spotřeba a náklady | ${selectedDateLabel}`} loading={costsLoading} error={costsError}>
+          <CostChartCard
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            maxDate={maxDate}
+            costs={costs}
+            costsSummary={costsSummary}
+            costsError={costsError}
+            costsFromCache={costsFromCache}
+            costsCacheFallback={costsCacheFallback}
+            showAnnotations={false}
           />
         </DataCard>
-      )}
+
+        <DataCard title={`Prodej a export | ${selectedDateLabel}`} loading={exportLoading} error={exportError}>
+          <ExportChartCard
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            maxDate={maxDate}
+            exportPoints={exportPoints}
+            exportSummary={exportSummary}
+            exportError={exportError}
+            exportFromCache={exportFromCache}
+            exportCacheFallback={exportCacheFallback}
+            showAnnotations={false}
+          />
+        </DataCard>
+      </section>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+        <button onClick={() => setShowMonthlySummary(!showMonthlySummary)} className="ghost-button">
+          {showMonthlySummary ? "Skrýt souhrn" : "Zobrazit souhrn"}
+        </button>
+
+        {showMonthlySummary && (
+          <section className="section swipe-zone" {...monthSwipeHandlers}>
+            <DataCard title="Měsíční souhrn" loading={monthlyLoading} error={monthlyError}>
+              <MonthlySummaryCard
+                selectedMonth={selectedMonth}
+                setSelectedMonth={setSelectedMonth}
+                maxMonth={maxMonth}
+                monthlySummary={monthlySummary}
+                monthlyTotals={monthlyTotals}
+                monthlyError={monthlyError}
+              />
+            </DataCard>
+          </section>
+        )}
+
+        <button onClick={() => setShowBilling(!showBilling)} className="ghost-button">
+          {showBilling ? "Skrýt vyúčtování" : "Odhad vyúčtování"}
+        </button>
+
+        {showBilling && (
+          <DataCard title="Odhad vyúčtování" loading={billingLoading} error={billingError}>
+            <BillingCard
+              billingMode={billingMode}
+              setBillingMode={setBillingMode}
+              billingMonth={billingMonth}
+              setBillingMonth={setBillingMonth}
+              billingYear={billingYear}
+              setBillingYear={setBillingYear}
+              maxMonth={maxBillingMonth}
+              maxYear={maxBillingYear}
+              billingData={billingData}
+              billingLoading={billingLoading}
+              billingError={billingError}
+            />
+          </DataCard>
+        )}
+
+        <button onClick={() => setShowBatteryPanel(!showBatteryPanel)} className="ghost-button">
+          {showBatteryPanel ? "Skrýt baterii a projekci" : "Baterie a projekce"}
+        </button>
+
+        {showBatteryPanel && (
+          <DataCard title="Baterie a projekce" loading={batteryLoading} error={batteryError}>
+            <BatteryProjectionCard
+              batteryData={batteryData}
+              batteryLoading={batteryLoading}
+              batteryError={batteryError}
+              onRefresh={refreshBattery}
+            />
+          </DataCard>
+        )}
+
+        <button onClick={() => setShowStats(!showStats)} className="ghost-button">
+          {showStats ? "Skrýt statistiky" : "Zobrazit statistiky"}
+        </button>
+
+        {showStats && (
+          <section className="section">
+            <DataCard title="Srovnání výkonu" loading={comparisonLoading}>
+              <ComparisonCard comparison={comparison} loading={comparisonLoading} />
+            </DataCard>
+
+            <DataCard title="Energetická bilance" loading={energyBalanceLoading} error={energyBalanceError}>
+              <EnergyBalanceCard
+                period={energyBalancePeriod}
+                anchor={currentEnergyBalanceAnchor}
+                onPrev={() =>
+                  setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))
+                }
+                onNext={() =>
+                  setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))
+                }
+                disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
+                onPeriodChange={(value: any) => {
+                  setEnergyBalancePeriod(value as any);
+                  setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
+                }}
+                data={energyBalanceData}
+                loading={energyBalanceLoading}
+                error={energyBalanceError}
+              />
+            </DataCard>
+          </section>
+        )}
+
+        <button onClick={handlePlannerToggle} className="ghost-button">
+          {showPlanner ? "Skrýt plánovač" : "Zobrazit plánovač"}
+        </button>
+
+        {showPlanner && (
+          <DataCard title="Plánovač" loading={plannerLoading}>
+            <PlannerCard
+              plannerDuration={plannerDuration}
+              setPlannerDuration={setPlannerDuration}
+              loadPlanner={handleLoadPlanner}
+              plannerError={finalPlannerError}
+              plannerLoading={plannerLoading}
+              plannerNote={plannerNote}
+              plannerResults={plannerResults}
+            />
+          </DataCard>
+        )}
+
+        <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">
+          {showConfig ? "Skrýt konfiguraci" : "Zobrazit konfiguraci"}
+        </button>
+
+        {showConfig && (
+          <DataCard title="Konfigurace systému">
+            <ConfigCard
+              configRows={configRows}
+              cacheRows={cacheRows}
+              consumptionCacheRows={consumptionCacheRows}
+              exportCacheRows={exportCacheRows}
+              cacheStatus={cacheStatus}
+              showFeesHistory={showFeesHistory}
+              onToggleFeesHistory={() => setShowFeesHistory((prev: boolean) => !prev)}
+              feesHistory={feesHistory}
+              feesHistoryLoading={feesHistoryLoading}
+              feesHistoryError={feesHistoryError}
+              onSaveFeesHistory={saveFeesHistory}
+              defaultFeesValues={props.defaultFeesValues}
+              priceProviderLabel={priceProviderLabel}
+              priceProviderUrl={priceProviderUrl}
+              onRefreshPrices={refreshPrices}
+              refreshingPrices={pricesRefreshLoading}
+              pricesRefreshMessage={pricesRefreshMessage}
+              pricesRefreshError={pricesRefreshError}
+            />
+          </DataCard>
+        )}
+      </div>
     </motion.div>
   );
 };
