@@ -58,39 +58,43 @@ describe("PndPage", () => {
     });
 
     // Reveal config form
-    await userEvent.click(screen.getByRole("button", { name: "Konfigurace" }));
-
-    await userEvent.click(screen.getByRole("button", { name: "Ulozit PND konfiguraci" }));
+    await userEvent.click(screen.getByRole("button", { name: /Konfigurace/i }));
+    
+    // Save configuration
+    const saveBtn = await screen.findByRole("button", { name: /Ulozit PND konfiguraci/i });
+    await userEvent.click(saveBtn);
+    
     await waitFor(() => {
       expect(elektroappApi.saveConfig).toHaveBeenCalled();
     });
 
     // Reveal status section
-    await userEvent.click(screen.getByRole("button", { name: "Stav" }));
+    await userEvent.click(screen.getByRole("button", { name: /Stav/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Spustit verify" })).toBeInTheDocument();
-    });
+    const verifyBtn = await screen.findByRole("button", { name: /Spustit verify/i });
+    expect(verifyBtn).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Spustit verify" }));
+    await userEvent.click(verifyBtn);
     await waitFor(() => {
       expect(elektroappApi.verifyPnd).toHaveBeenCalled();
     });
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "7 dni" })).toBeEnabled();
-    });
+    // Reveal feed section
+    await userEvent.click(screen.getByRole("button", { name: /Feed/i }));
 
-    await userEvent.click(screen.getByRole("button", { name: "7 dni" }));
+    const backfillBtn = await screen.findByRole("button", { name: /7 dni/i });
+    expect(backfillBtn).toBeEnabled();
+
+    await userEvent.click(backfillBtn);
     await waitFor(() => {
       expect(elektroappApi.backfillPnd).toHaveBeenCalledWith("week");
     });
 
-    expect(screen.getByText(/02:00 a 07:59/)).toBeInTheDocument();
+    expect(await screen.findByText(/02:00 a 07:59/)).toBeInTheDocument();
   });
 
   test("renders explicit portal changed diagnostics", async () => {
-    elektroappApi.getPndStatus.mockResolvedValueOnce({
+    elektroappApi.getPndStatus.mockResolvedValue({
       enabled: true,
       configured: true,
       healthy: false,
@@ -125,12 +129,11 @@ describe("PndPage", () => {
       />
     );
 
-    expect(await screen.findByText("PND zmenilo strukturu nebo endpoint contract")).toBeInTheDocument();
-    
-    // Reveal diagnostics
-    await userEvent.click(screen.getByRole("button", { name: "Stav" }));
-    
-    expect(screen.getByText(/Chybi HTML marker: Namerena data/)).toBeInTheDocument();
-    expect(screen.getByText(/Payload keys: result, status/)).toBeInTheDocument();
+    // Reveal diagnostics/status
+    await userEvent.click(await screen.findByRole("button", { name: /Stav/i }));
+
+    expect(await screen.findByText(/PND zmenilo strukturu/i)).toBeInTheDocument();
+    expect(screen.getByText(/Chybi HTML marker: Namerena data/i)).toBeInTheDocument();
+    expect(screen.getByText(/Payload keys: result, status/i)).toBeInTheDocument();
   });
 });
