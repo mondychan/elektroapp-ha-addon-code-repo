@@ -443,6 +443,8 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
     recognized_series: list[str] = []
     unknown_series: list[str] = []
 
+    global_unit = str(data.get("unitY") or data.get("unit") or "").lower()
+    
     def process_points(points: list[Any], target_key: str, is_power: bool = False):
         for point in points:
             if not isinstance(point, (list, tuple)) or len(point) < 2:
@@ -457,7 +459,10 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
                     interval_end = _parse_pnd_timestamp(ts_value, tz)
             except ValueError:
                 continue
-            interval_start = interval_end - timedelta(minutes=15)
+            
+            # Assume 15-minute intervals for these standard PND data requests
+            interval_minutes = 15
+            interval_start = interval_end - timedelta(minutes=interval_minutes)
             key = interval_start.isoformat()
             entry = merged.setdefault(
                 key,
@@ -471,9 +476,9 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
             
             val = float(value)
             # If the unit is kW (Power), we must convert it to kWh (Energy).
-            # For 15-minute intervals, Energy (kWh) = Power (kW) * 0.25 hours.
+            # Energy (kWh) = Average Power (kW) * (Interval in minutes / 60) hours.
             if is_power:
-                val *= 0.25
+                val *= (interval_minutes / 60.0)
                 
             current = entry.get(target_key)
             if current is None:
@@ -496,15 +501,15 @@ def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DE
             continue
 
         # Detect if the series is in kW (Power). PND API often provides unitY: "kW" 
-        # or it is in the name.
-        unit = str(item.get("unitY") or item.get("unit") or item.get("units") or "").lower()
+        # either in the series item itself or as a global unit in the root data object.
+        unit = str(item.get("unitY") or item.get("unit") or item.get("units") or global_unit).lower()
         is_power = "kw" in unit or any(u in name for u in ("[kw]", "(kw)", "/kw"))
 
         if "+a" in name:
-            recognized_series.append(name)
+            recognized_series.append(f"{name} (unit: {unit}, is_power: {is_power})")
             process_points(points, "consumption_kwh", is_power=is_power)
         elif "-a" in name:
-            recognized_series.append(name)
+            recognized_series.append(f"{name} (unit: {unit}, is_power: {is_power})")
             process_points(points, "production_kwh", is_power=is_power)
         elif name:
             unknown_series.append(name)
