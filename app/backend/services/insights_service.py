@@ -57,26 +57,43 @@ class InsightsService:
         }
 
         aggregated = {}
+        diagnostics = {}
         for key, entity_id in entity_map.items():
             if not entity_id:
                 aggregated[key] = {}
+                diagnostics[key] = {"status": "missing_entity"}
                 continue
-            points = self._query_entity_series(
-                influx,
-                entity_id,
-                range_info["start_utc"],
-                range_info["end_utc"],
-                interval=interval,
-                tzinfo=tzinfo,
-                numeric=True,
-                measurement_candidates=power_measurements,
-            )
-            aggregated[key] = self._aggregate_power_points(
-                points,
-                interval_minutes,
-                bucket=range_info["bucket"],
-                tzinfo=tzinfo,
-            )
+            try:
+                points = self._query_entity_series(
+                    influx,
+                    entity_id,
+                    range_info["start_utc"],
+                    range_info["end_utc"],
+                    interval=interval,
+                    tzinfo=tzinfo,
+                    numeric=True,
+                    measurement_candidates=power_measurements,
+                )
+                aggregated[key] = self._aggregate_power_points(
+                    points,
+                    interval_minutes,
+                    bucket=range_info["bucket"],
+                    tzinfo=tzinfo,
+                )
+                diagnostics[key] = {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "points": len(points or []),
+                }
+            except (HTTPException, RequestException, ValueError, TypeError) as exc:
+                detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+                self._logger.warning("Energy balance query failed (%s / %s): %s", key, entity_id, detail)
+                aggregated[key] = {}
+                diagnostics[key] = {
+                    "status": "error",
+                    "entity_id": entity_id,
+                    "detail": detail,
+                }
 
         buckets = self._build_energy_balance_buckets(range_info, tzinfo)
         rows = []
@@ -102,12 +119,14 @@ class InsightsService:
             "period": range_info["period"],
             "anchor": range_info["anchor"],
             "bucket": range_info["bucket"],
+            "partial": any(item.get("status") == "error" for item in diagnostics.values()),
             "range": {
                 "start": range_info["start_local"].isoformat(),
                 "end": range_info["end_local"].isoformat(),
             },
             "interval": interval,
             "entities": entity_map,
+            "diagnostics": diagnostics,
             "points": rows,
             "totals": {k: round(v, 5) for k, v in totals.items()},
         }

@@ -422,7 +422,13 @@ def get_prices_for_date(
     return apply_fee_snapshot(entries, cfg, fee_snapshot)
 
 def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
-    entries = get_prices_for_date_fn(cfg=cfg, date=date_str, tzinfo=tzinfo)
+    try:
+        entries = get_prices_for_date_fn(cfg=cfg, date=date_str, tzinfo=tzinfo)
+    except TypeError as exc:
+        message = str(exc)
+        if "unexpected keyword argument" not in message and "positional argument" not in message:
+            raise
+        entries = get_prices_for_date_fn(cfg, date_str, tzinfo)
     price_map = {}
     price_map_utc = {}
     for entry in entries:
@@ -434,4 +440,3 @@ def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
         price_map[key_local] = {"spot": entry["spot"], "final": entry["final"]}
         price_map_utc[key_utc] = {"spot": entry["spot"], "final": entry["final"]}
     return price_map, price_map_utc
-

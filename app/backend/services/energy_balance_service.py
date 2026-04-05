@@ -5,15 +5,22 @@ from api import get_local_tz, to_rfc3339
 
 logger = logging.getLogger("uvicorn.error")
 
+def _parse_energy_anchor(period: str, anchor: Optional[str], tzinfo) -> Optional[datetime]:
+    if not anchor:
+        return None
+    try:
+        if period == "month":
+            return datetime.strptime(anchor, "%Y-%m").replace(tzinfo=tzinfo)
+        if period == "year":
+            return datetime.strptime(anchor, "%Y").replace(tzinfo=tzinfo)
+        return datetime.fromisoformat(anchor.replace("Z", "+00:00")).astimezone(tzinfo)
+    except ValueError:
+        return None
+
+
 def build_energy_balance_range(period: str, anchor: Optional[str], tzinfo) -> Dict[str, Any]:
     now_local = datetime.now(tzinfo)
-    if anchor:
-        try:
-            anchor_dt = datetime.fromisoformat(anchor.replace("Z", "+00:00")).astimezone(tzinfo)
-        except ValueError:
-            anchor_dt = now_local
-    else:
-        anchor_dt = now_local
+    anchor_dt = _parse_energy_anchor(period, anchor, tzinfo) or now_local
 
     if period == "month":
         start_local = anchor_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -101,8 +108,61 @@ def aggregate_hourly_from_kwh_points(points: List[Dict[str, Any]]) -> List[Optio
         has_any[hour] = True
     return [round(hours[idx], 5) if has_any[idx] else None for idx in range(24)]
 
-def aggregate_power_points(points: List[Dict[str, Any]]) -> Optional[float]:
-    values = [p["value"] for p in points if p.get("value") is not None]
-    if not values:
-        return None
-    return round(sum(values) / len(values), 5)
+def _parse_point_time(point: Dict[str, Any], tzinfo) -> Optional[datetime]:
+    time_raw = point.get("time")
+    if isinstance(time_raw, str):
+        try:
+            dt_local = datetime.fromisoformat(time_raw)
+            if dt_local.tzinfo is None and tzinfo is not None:
+                dt_local = dt_local.replace(tzinfo=tzinfo)
+            return dt_local if tzinfo is None else dt_local.astimezone(tzinfo)
+        except ValueError:
+            pass
+
+    time_utc_raw = point.get("time_utc")
+    if isinstance(time_utc_raw, str):
+        try:
+            dt_utc = datetime.fromisoformat(time_utc_raw.replace("Z", "+00:00"))
+            return dt_utc if tzinfo is None else dt_utc.astimezone(tzinfo)
+        except ValueError:
+            return None
+    return None
+
+
+def _power_value_to_kwh(value: float, interval_minutes: int) -> float:
+    interval_hours = max(interval_minutes, 1) / 60.0
+    # Home Assistant power entities are usually in W, but some setups store kW.
+    if abs(value) <= 50:
+        return value * interval_hours
+    return (value / 1000.0) * interval_hours
+
+
+def aggregate_power_points(
+    points: List[Dict[str, Any]],
+    interval_minutes: int = 15,
+    *,
+    bucket: str = "day",
+    tzinfo=None,
+) -> Dict[str, float]:
+    totals: Dict[str, float] = {}
+    for point in points or []:
+        raw_value = point.get("value")
+        if raw_value is None:
+            continue
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+
+        dt_local = _parse_point_time(point, tzinfo)
+        if dt_local is None:
+            continue
+
+        if bucket == "month":
+            key = dt_local.strftime("%Y-%m")
+        else:
+            key = dt_local.strftime("%Y-%m-%d")
+
+        totals[key] = totals.get(key, 0.0) + _power_value_to_kwh(value, interval_minutes)
+
+    return {key: round(value, 5) for key, value in totals.items()}
