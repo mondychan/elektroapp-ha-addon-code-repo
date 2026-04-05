@@ -56,6 +56,10 @@ export const elektroappApi = {
   getFeesHistory: () => get("/fees-history"),
   saveFeesHistory: (history) => put("/fees-history", { history }),
   getSchedule: (duration, count = 3) => get("/schedule", { duration, count }),
+  getAlerts: () => get("/alerts"),
+  getComparison: (date) => get("/comparison", date ? { date } : undefined),
+  getSolarForecast: () => get("/solar-forecast"),
+  getDashboardSnapshot: (date) => get("/dashboard-snapshot", date ? { date } : undefined),
 };
 
 export const extractApiError = (err) => {

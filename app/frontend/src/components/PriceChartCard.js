@@ -12,6 +12,7 @@ const PriceChartCard = ({
   highlightSlot,
   pinnedSlot,
   onPinSlot,
+  thresholds,
 }) => {
   const chartConfig = useMemo(
     () =>
@@ -22,8 +23,9 @@ const PriceChartCard = ({
         highlightSlot,
         pinnedSlot,
         fallbackMessage,
+        thresholds,
       }),
-    [chartData, title, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage]
+    [chartData, title, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds]
   );
 
   if (!chartData.length && !fallbackMessage) {

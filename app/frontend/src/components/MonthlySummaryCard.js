@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import MonthNavigator from "./MonthNavigator";
 import { formatDate, formatMonthLabel } from "../utils/formatters";
 
@@ -9,6 +9,58 @@ const MonthlySummaryCard = ({
   monthlyTotals,
   monthlyError,
 }) => {
+  const [sortConfig, setSortConfig] = useState({ key: "date", direction: "asc" });
+
+  const sortedData = useMemo(() => {
+    let sortableData = [...monthlySummary].map(day => {
+      const kwhBought = day.kwh_total || 0;
+      const kwhSold = day.export_kwh_total || 0;
+      const netKwh = (day.kwh_total != null || day.export_kwh_total != null) ? kwhBought - kwhSold : null;
+      
+      const costBought = day.cost_total || 0;
+      const costSold = day.sell_total || 0;
+      const netCost = (day.cost_total != null || day.sell_total != null) ? costBought - costSold : null;
+
+      return {
+        ...day,
+        netKwh,
+        netCost
+      };
+    });
+
+    if (sortConfig.key) {
+      sortableData.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+
+        if (aVal < bVal) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (aVal > bVal) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableData;
+  }, [monthlySummary, sortConfig]);
+
+  const requestSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return "↕";
+    return sortConfig.direction === "asc" ? "↑" : "↓";
+  };
+
   let footerNetKwh = null;
   let footerNetCost = null;
   let footerKwhClass = "";
@@ -30,42 +82,46 @@ const MonthlySummaryCard = ({
     }
   }
 
-  let content = null;
-  if (monthlyError) {
-    content = <div className="alert error">{monthlyError}</div>;
-  } else if (!monthlySummary.length) {
-    content = <div className="muted-note">Mesicni souhrn neni k dispozici.</div>;
-  } else {
-    content = (
-      <div className="table-responsive">
+  if (monthlyError) return null; // Handled by DataCard wrapper
+  if (!monthlySummary.length && !monthlyError) return null; // Handled by DataCard wrapper
+
+  return (
+    <div className="summary-card-inner">
+      <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} />
+      <div className="table-responsive sticky-container" style={{ maxHeight: "400px" }}>
         <table className="data-table table-spaced">
-          <thead>
+          <thead className="sticky-header">
             <tr>
-              <th className="cell-left">Den</th>
+              <th className="cell-left sortable" onClick={() => requestSort("date")}>
+                Den {getSortIcon("date")}
+              </th>
               <th className="cell-left">Datum</th>
-              <th className="cell-right">Nakup (kWh)</th>
-              <th className="cell-right">Naklady (Kc)</th>
-              <th className="cell-right">Prodej (kWh)</th>
-              <th className="cell-right">Trzby (Kc)</th>
-              <th className="cell-right">Netto (kWh)</th>
-              <th className="cell-right">Netto (Kc)</th>
+              <th className="cell-right sortable" onClick={() => requestSort("kwh_total")}>
+                Nákup (kWh) {getSortIcon("kwh_total")}
+              </th>
+              <th className="cell-right sortable" onClick={() => requestSort("cost_total")}>
+                Náklady (Kč) {getSortIcon("cost_total")}
+              </th>
+              <th className="cell-right sortable" onClick={() => requestSort("export_kwh_total")}>
+                Prodej (kWh) {getSortIcon("export_kwh_total")}
+              </th>
+              <th className="cell-right sortable" onClick={() => requestSort("sell_total")}>
+                Tržby (Kč) {getSortIcon("sell_total")}
+              </th>
+              <th className="cell-right sortable" onClick={() => requestSort("netKwh")}>
+                Netto (kWh) {getSortIcon("netKwh")}
+              </th>
+              <th className="cell-right sortable" onClick={() => requestSort("netCost")}>
+                Netto (Kč) {getSortIcon("netCost")}
+              </th>
             </tr>
           </thead>
           <tbody>
-            {monthlySummary.map((day) => {
+            {sortedData.map((day) => {
               const dt = new Date(`${day.date}T00:00:00`);
               const dayName = dt.toLocaleDateString("cs-CZ", { weekday: "short" });
-              
-              const kwhBought = day.kwh_total || 0;
-              const kwhSold = day.export_kwh_total || 0;
-              const netKwh = (day.kwh_total != null || day.export_kwh_total != null) ? kwhBought - kwhSold : null;
-              
-              const costBought = day.cost_total || 0;
-              const costSold = day.sell_total || 0;
-              const netCost = (day.cost_total != null || day.sell_total != null) ? costBought - costSold : null;
-              
-              const kwhClass = netKwh > 0 ? "cell-buy" : (netKwh < 0 ? "cell-sell" : "");
-              const costClass = netCost > 0 ? "cell-buy" : (netCost < 0 ? "cell-sell" : "");
+              const kwhClass = day.netKwh > 0 ? "cell-buy" : (day.netKwh < 0 ? "cell-sell" : "");
+              const costClass = day.netCost > 0 ? "cell-buy" : (day.netCost < 0 ? "cell-sell" : "");
 
               return (
                 <tr key={day.date}>
@@ -75,16 +131,16 @@ const MonthlySummaryCard = ({
                   <td className="cell-right cell-buy">{day.cost_total == null ? "-" : day.cost_total.toFixed(2)}</td>
                   <td className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
                   <td className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
-                  <td className={`cell-right ${kwhClass}`}>{netKwh == null ? "-" : (netKwh > 0 ? "+" : "") + netKwh.toFixed(2)}</td>
-                  <td className={`cell-right ${costClass}`}>{netCost == null ? "-" : (netCost > 0 ? "+" : "") + netCost.toFixed(2)}</td>
+                  <td className={`cell-right ${kwhClass}`}>{day.netKwh == null ? "-" : (day.netKwh > 0 ? "+" : "") + day.netKwh.toFixed(2)}</td>
+                  <td className={`cell-right ${costClass}`}>{day.netCost == null ? "-" : (day.netCost > 0 ? "+" : "") + day.netCost.toFixed(2)}</td>
                 </tr>
               );
             })}
           </tbody>
           {monthlyTotals && (
             <tfoot>
-              <tr>
-                <td colSpan={2}>Soucet</td>
+              <tr className="sticky-footer">
+                <td colSpan={2}>Součet</td>
                 <td className="cell-right">{monthlyTotals.kwh_total?.toFixed(2)}</td>
                 <td className="cell-right cell-buy">{monthlyTotals.cost_total?.toFixed(2)}</td>
                 <td className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
@@ -96,16 +152,6 @@ const MonthlySummaryCard = ({
           )}
         </table>
       </div>
-    );
-  }
-
-  return (
-    <div className="card card-top">
-      <div className="card-header">
-        <h3>Souhrn za mesic - {formatMonthLabel(selectedMonth)}</h3>
-      </div>
-      <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} />
-      {content}
     </div>
   );
 };

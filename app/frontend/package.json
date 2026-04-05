@@ -12,6 +12,7 @@
     "chart.js": "^4.5.1",
     "chartjs-chart-matrix": "^3.0.0",
     "chartjs-plugin-annotation": "^3.1.0",
+    "framer-motion": "^12.38.0",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.1",
     "react-day-picker": "^9.14.0",

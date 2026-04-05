@@ -7,6 +7,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [selectedDatePrices, setSelectedDatePrices] = useState([]);
   const [selectedDatePricesLoading, setSelectedDatePricesLoading] = useState(false);
   const [selectedDatePricesError, setSelectedDatePricesError] = useState(null);
+  
   const [config, setConfig] = useState(null);
   const [cacheStatus, setCacheStatus] = useState(null);
   const [version, setVersion] = useState(null);
@@ -33,90 +34,62 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [pricesRefreshLoading, setPricesRefreshLoading] = useState(false);
   const [pricesRefreshMessage, setPricesRefreshMessage] = useState(null);
   const [pricesRefreshError, setPricesRefreshError] = useState(null);
+  const [alerts, setAlerts] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [solarForecast, setSolarForecast] = useState(null);
+  const [solarForecastLoading, setSolarForecastLoading] = useState(false);
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
 
-  const fetchPrices = useCallback(async () => {
-    try {
-      const data = await elektroappApi.getPrices();
-      setPrices(data?.prices || []);
-    } catch (err) {
-      console.error("Error fetching prices:", err);
-    }
-  }, []);
-
-  const fetchSelectedDatePrices = useCallback(
-    async (dateValue, options = {}) => {
-      const { reset = true } = options;
-      if (reset) {
-        setSelectedDatePrices([]);
-        setSelectedDatePricesError(null);
-      }
+  const fetchDashboardSnapshot = useCallback(async (dateValue, options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
       setSelectedDatePricesLoading(true);
-      try {
-        const data = await elektroappApi.getPrices(dateValue);
-        setSelectedDatePrices(data?.prices || []);
-      } catch (err) {
-        console.error("Error fetching selected-date prices:", err);
-        setSelectedDatePricesError(formatApiError(err, "Nepodarilo se nacist ceny pro vybrany den."));
-      } finally {
-        setSelectedDatePricesLoading(false);
+      setComparisonLoading(true);
+      setSolarForecastLoading(true);
+    }
+    
+    try {
+      const data = await elektroappApi.getDashboardSnapshot(dateValue);
+      
+      // Update states from snapshot
+      setPrices(data.prices?.prices || []);
+      setSelectedDatePrices(data.prices?.prices || []);
+      setCosts(data.costs?.points || []);
+      setCostsSummary(data.costs?.summary || null);
+      setCostsFromCache(Boolean(data.costs?.from_cache));
+      setExportPoints(data.export?.points || []);
+      setExportSummary(data.export?.summary || null);
+      setExportFromCache(Boolean(data.export?.from_cache));
+      setBatteryData(data.battery);
+      setAlerts(data.alerts);
+      setComparison(data.comparison);
+      setSolarForecast(data.solar);
+      
+      if (dateValue === todayDate) {
+        setTodayCostsKpi(data.costs?.summary || null);
+        setTodayExportKpi(data.export?.summary || null);
       }
-    },
-    []
-  );
-
-  const fetchCosts = useCallback(async (dateValue, options = {}) => {
-    const { reset = true } = options;
-    if (reset) {
-      setCosts([]);
-      setCostsSummary(null);
+      
+      setSelectedDatePricesError(null);
       setCostsError(null);
-      setCostsFromCache(false);
-      setCostsCacheFallback(false);
-    }
-    try {
-      const data = await elektroappApi.getCosts(dateValue);
-      setCosts(data?.points || []);
-      setCostsSummary(data?.summary || null);
-      setCostsFromCache(Boolean(data?.from_cache));
-      setCostsCacheFallback(Boolean(data?.cache_fallback));
-    } catch (err) {
-      console.error("Error fetching costs:", err);
-      setCostsError(buildInfluxError(err));
-      setCostsFromCache(false);
-      setCostsCacheFallback(false);
-    }
-  }, []);
-
-  const fetchExport = useCallback(async (dateValue, options = {}) => {
-    const { reset = true } = options;
-    if (reset) {
-      setExportPoints([]);
-      setExportSummary(null);
       setExportError(null);
-      setExportFromCache(false);
-      setExportCacheFallback(false);
-    }
-    try {
-      const data = await elektroappApi.getExport(dateValue);
-      setExportPoints(data?.points || []);
-      setExportSummary(data?.summary || null);
-      setExportFromCache(Boolean(data?.from_cache));
-      setExportCacheFallback(Boolean(data?.cache_fallback));
     } catch (err) {
-      console.error("Error fetching export:", err);
-      setExportError(buildInfluxError(err));
-      setExportFromCache(false);
-      setExportCacheFallback(false);
+      console.error("Error fetching dashboard snapshot:", err);
+      // Fallback to individual calls if snapshot fails? 
+      // For now just set errors
+      setSelectedDatePricesError(formatApiError(err, "Nepodařilo se načíst data dashboardu."));
+    } finally {
+      setSelectedDatePricesLoading(false);
+      setComparisonLoading(false);
+      setSolarForecastLoading(false);
     }
-  }, []);
+  }, [todayDate]);
 
   const refreshBattery = useCallback(async (options = {}) => {
     const { silent = false } = options;
-    if (!silent) {
-      setBatteryLoading(true);
-    }
+    if (!silent) setBatteryLoading(true);
     setBatteryError(null);
     try {
       const data = await elektroappApi.getBattery();
@@ -125,28 +98,9 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       console.error("Error fetching battery data:", err);
       setBatteryError(buildInfluxError(err));
     } finally {
-      if (!silent) {
-        setBatteryLoading(false);
-      }
+      if (!silent) setBatteryLoading(false);
     }
   }, []);
-
-  const fetchTodayKpiSummaries = useCallback(async () => {
-    try {
-      const costsData = await elektroappApi.getCosts(todayDate);
-      setTodayCostsKpi(costsData?.summary || null);
-    } catch (err) {
-      console.error("Error fetching today cost KPI:", err);
-      setTodayCostsKpi(null);
-    }
-    try {
-      const exportData = await elektroappApi.getExport(todayDate);
-      setTodayExportKpi(exportData?.summary || null);
-    } catch (err) {
-      console.error("Error fetching today export KPI:", err);
-      setTodayExportKpi(null);
-    }
-  }, [todayDate]);
 
   const refreshPrices = useCallback(async () => {
     setPricesRefreshLoading(true);
@@ -157,20 +111,10 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       const refreshed = data?.refreshed || [];
       const summary = refreshed.map((item) => `${item.date}: ${item.count} zaznamu`).join(" | ");
       setPricesRefreshMessage(summary || "Ceny byly obnoveny.");
-      await fetchPrices();
-      await fetchSelectedDatePrices(selectedDate, { reset: false });
-      await fetchTodayKpiSummaries();
-      if (selectedDate === todayDate) {
-        await fetchCosts(selectedDate, { reset: false });
-        await fetchExport(selectedDate, { reset: false });
-      }
+      await fetchDashboardSnapshot(selectedDate);
       if (showConfig) {
-        try {
-          const cacheData = await elektroappApi.getCacheStatus();
-          setCacheStatus(cacheData);
-        } catch (err) {
-          console.error("Error fetching cache status:", err);
-        }
+        const cacheData = await elektroappApi.getCacheStatus();
+        setCacheStatus(cacheData);
       }
     } catch (err) {
       console.error("Error refreshing prices:", err);
@@ -178,65 +122,31 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     } finally {
       setPricesRefreshLoading(false);
     }
-  }, [fetchCosts, fetchExport, fetchPrices, fetchSelectedDatePrices, fetchTodayKpiSummaries, selectedDate, showConfig, todayDate]);
+  }, [fetchDashboardSnapshot, selectedDate, showConfig]);
 
+  // Initial load
   useEffect(() => {
-    fetchPrices();
-    fetchTodayKpiSummaries();
-    refreshBattery({ silent: true });
-  }, [fetchPrices, fetchTodayKpiSummaries, refreshBattery]);
-
-  useEffect(() => {
-    elektroappApi
-      .getConfig()
-      .then((data) => setConfig(data))
-      .catch((err) => console.error("Error fetching config:", err));
-  }, []);
-
-  useEffect(() => {
-    elektroappApi
-      .getVersion()
-      .then((data) => setVersion(data?.version || null))
-      .catch((err) => console.error("Error fetching version:", err));
-  }, []);
+    fetchDashboardSnapshot(selectedDate);
+    
+    elektroappApi.getConfig().then(setConfig).catch(e => console.error("Config fetch error", e));
+    elektroappApi.getVersion().then(d => setVersion(d?.version)).catch(e => console.error("Version fetch error", e));
+  }, [fetchDashboardSnapshot, selectedDate]);
 
   useEffect(() => {
     if (!showConfig) return;
-    elektroappApi
-      .getCacheStatus()
-      .then((data) => setCacheStatus(data))
-      .catch((err) => console.error("Error fetching cache status:", err));
+    elektroappApi.getCacheStatus().then(setCacheStatus).catch(e => console.error("Cache status error", e));
   }, [showConfig]);
 
-  useEffect(() => {
-    fetchCosts(selectedDate, { reset: true });
-  }, [fetchCosts, selectedDate]);
-
-  useEffect(() => {
-    fetchExport(selectedDate, { reset: true });
-  }, [fetchExport, selectedDate]);
-
-  useEffect(() => {
-    fetchSelectedDatePrices(selectedDate, { reset: true });
-  }, [fetchSelectedDatePrices, selectedDate]);
-
+  // Auto Refresh
   useEffect(() => {
     if (!autoRefreshEnabled || !isPageVisible) return;
-    const refresh = () => {
-      fetchPrices();
-      fetchSelectedDatePrices(selectedDate, { reset: false });
-      fetchTodayKpiSummaries();
-      if (selectedDate === getTodayDateStr()) {
-        fetchCosts(selectedDate, { reset: false });
-        fetchExport(selectedDate, { reset: false });
-      }
-      refreshBattery({ silent: true });
-    };
-    refresh();
-    const intervalId = setInterval(refresh, 600000);
+    const intervalId = setInterval(() => {
+      fetchDashboardSnapshot(selectedDate, { silent: true });
+    }, 600000); // 10 minutes
     return () => clearInterval(intervalId);
-  }, [autoRefreshEnabled, isPageVisible, selectedDate, fetchCosts, fetchExport, fetchPrices, fetchSelectedDatePrices, fetchTodayKpiSummaries, refreshBattery]);
+  }, [autoRefreshEnabled, isPageVisible, selectedDate, fetchDashboardSnapshot]);
 
+  // Battery Fast Refresh (1 min)
   useEffect(() => {
     if (!autoRefreshEnabled || !isPageVisible) return;
     const intervalId = setInterval(() => {
@@ -273,5 +183,10 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     pricesRefreshLoading,
     pricesRefreshMessage,
     pricesRefreshError,
+    alerts,
+    comparison,
+    comparisonLoading,
+    solarForecast,
+    solarForecastLoading,
   };
 };

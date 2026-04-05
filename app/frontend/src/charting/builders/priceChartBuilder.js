@@ -1,6 +1,7 @@
 import { formatSlotToTime } from "../../utils/formatters";
 import { buildCurrentSlotAnnotations } from "../plugins/currentSlotPlugin";
 import { buildTimeBandAnnotations } from "../plugins/timeBandPlugin";
+import { buildThresholdAnnotations } from "../plugins/thresholdPlugin";
 import { buildCategoryTimeAxis, buildLinearAxis, buildStaticTimeLabels, buildTooltip, colorScale } from "./common";
 
 const getVTStatus = (slot, vtPeriods) =>
@@ -20,6 +21,7 @@ export const buildPriceChartConfig = ({
   highlightSlot,
   pinnedSlot,
   fallbackMessage,
+  thresholds = null,
 }) => {
   if (!chartData?.length) {
     return {
@@ -171,6 +173,10 @@ export const buildPriceChartConfig = ({
           annotations: {
             ...buildTimeBandAnnotations(buildVtBands(vtPeriods)),
             ...buildCurrentSlotAnnotations({ slot: activeSlot }),
+            ...(thresholds ? buildThresholdAnnotations({ 
+              minThreshold: thresholds.min_price_today, 
+              maxThreshold: thresholds.max_price_today 
+            }) : {}),
           },
         },
       },

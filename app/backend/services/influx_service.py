@@ -10,6 +10,15 @@ from influx import build_influx_from_clause_for_measurement
 class InfluxService:
     def __init__(self, logger):
         self.logger = logger
+        self.session = requests.Session()
+        # Nastavení pooling - 10 spojení v poolu, retry mechanismus
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10, 
+            pool_maxsize=20,
+            max_retries=3
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
     def influx_query(self, influx, query):
         host = influx["host"]
@@ -22,7 +31,8 @@ class InfluxService:
         auth = None
         if username and password and password != "CHANGE_ME":
             auth = (username, password)
-        r = requests.get(url, params=params, auth=auth, timeout=10)
+        
+        r = self.session.get(url, params=params, auth=auth, timeout=15)
         r.raise_for_status()
         data = r.json()
         if data.get("results") and data["results"][0].get("error"):

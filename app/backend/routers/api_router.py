@@ -142,3 +142,23 @@ def get_billing_month(params: MonthQuery = Depends(), ctx: RequestContext = Depe
 @router.get("/billing-year")
 def get_billing_year(year: int = Query(..., ge=2000, le=2100), ctx: RequestContext = Depends(get_request_context)):
     return svc.get_billing_year(year=year, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/alerts")
+def get_alerts(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_alerts(cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/comparison")
+def get_comparison(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_comparison(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/solar-forecast")
+def get_solar_forecast(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_solar_forecast(cfg=ctx.config)
+
+
+@router.get("/dashboard-snapshot")
+async def get_dashboard_snapshot(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return await svc.get_dashboard_snapshot(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)

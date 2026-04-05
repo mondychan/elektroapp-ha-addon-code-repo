@@ -22,6 +22,7 @@ def _wire_service_from_container():
     app_service.EXPORT_CACHE_DIR = cfg.export_cache_dir
     app_service.OPTIONS_BACKUP_FILE = cfg.options_backup_file
     app_service.FEES_HISTORY_FILE = cfg.fees_history_file
+    app_service.finalize_initialization()
     return container
 
 
