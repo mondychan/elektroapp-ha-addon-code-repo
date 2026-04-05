@@ -115,8 +115,8 @@ const buildComboConfig = ({
         return {
           title: point.time,
           sections: [
-            { label: barLabel, value: `${point[barKey].toFixed(3)} kWh`, color: barColor },
-            { label: lineLabel, value: `${point[lineKey].toFixed(2)},-Kc`, color: lineColor },
+            { label: barLabel, value: `${point[barKey]?.toFixed(3) ?? "-"} kWh`, color: barColor },
+            { label: lineLabel, value: `${point[lineKey]?.toFixed(2) ?? "-"},-Kc`, color: lineColor },
           ],
         };
       }),

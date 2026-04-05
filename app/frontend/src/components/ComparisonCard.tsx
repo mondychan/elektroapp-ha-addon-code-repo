@@ -16,11 +16,11 @@ const ComparisonItem: React.FC<ComparisonItemProps> = ({ label, current, previou
     <div className="comparison-item">
       <div className="comparison-label">{label}</div>
       <div className="comparison-values">
-        <div className="comparison-current">{current.toFixed(2)} {unit}</div>
-        <div className="comparison-previous">Vloni/Včera: {previous.toFixed(2)} {unit}</div>
+        <div className="comparison-current">{current?.toFixed(2) ?? "-"} {unit}</div>
+        <div className="comparison-previous">Vloni/Včera: {previous?.toFixed(2) ?? "-"} {unit}</div>
       </div>
       <div className={`comparison-diff ${diffClass}`}>
-        {icon} {Math.abs(diff_pct)}%
+        {diff_pct != null ? `${icon} ${Math.abs(diff_pct)}%` : "- %"}
       </div>
     </div>
   );

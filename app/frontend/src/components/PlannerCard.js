@@ -107,8 +107,8 @@ const PlannerCard = ({
           {plannerResults.map((item, idx) => (
             <li key={`${item.start}-${idx}`}>
               {formatDate(new Date(item.start.replace(" ", "T")))}: {item.start.slice(11, 16)} -{" "}
-              {item.end.slice(11, 16)} ({formatOffset(item.start)}) | prumer {item.avg_price.toFixed(2)} Kc/kWh | odhad{" "}
-              {item.total_cost.toFixed(2)} Kc
+              {item.end.slice(11, 16)} ({formatOffset(item.start)}) | prumer {item.avg_price?.toFixed(2) ?? "-"} Kc/kWh | odhad{" "}
+              {item.total_cost?.toFixed(2) ?? "-"} Kc
             </li>
           ))}
         </ul>

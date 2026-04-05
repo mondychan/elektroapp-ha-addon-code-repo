@@ -1,13 +1,11 @@
 # Changelog
 
-## 0.1.83
-### ⚡ Stabilita & Testy
-- Fix: Oprava selhávajících unit testů (`App.api` a `MonthlyAndBilling`).
-- Fix: Sjednocení chybových hlášení napříč aplikací při pádu API snapshotu.
-- Fix: Defenzivní ošetření v `AlertBanner` proti neočekávaným pádům.
-- **Všechny testy i linty nyní procházejí (100% PASS).**
+## 0.1.84
+### ⚡ Hotfix
+- Fix: "Cannot read properties of undefined (reading 'toFixed')" - přidáno globální ošetření pro chybějící data napříč všemi komponentami (Dashboard, Plánovač, Srovnání, Grafy).
+- Vylepšena odolnost aplikace vůči neúplným odpovědím z API.
 
-## 0.1.82
+## 0.1.83
 ### ⚡ Stabilita
 - Fix: Synchronizace `package-lock.json` pro úspěšný CI/CD build. 
 - (Zahrnuje všechny novinky a opravy z verze 0.1.80, která neprošla buildem na GitHubu).

@@ -153,16 +153,16 @@ export const buildPriceChartConfig = ({
           }
           
           const sections = [
-            { label: "Fixní složka", value: `${point.extra.toFixed(2)},-Kč`, color: "rgba(45, 127, 249, 0.88)" }
+            { label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"},-Kč`, color: "rgba(45, 127, 249, 0.88)" }
           ];
-
+          
           if (point.spot < 0) {
-            sections.push({ label: "Záporná var. složka", value: `${point.spot.toFixed(2)},-Kč`, color: "rgba(45, 127, 249, 0.6)" });
+            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"},-Kč`, color: "rgba(45, 127, 249, 0.6)" });
           } else {
-            sections.push({ label: "Variabilní složka", value: `${point.spot.toFixed(2)},-Kč`, color: "rgba(255, 122, 89, 0.84)" });
+            sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"},-Kč`, color: "rgba(255, 122, 89, 0.84)" });
           }
-
-          sections.push({ label: "Konečná cena", value: `${point.final.toFixed(2)},-Kč`, color: "rgba(255, 255, 255, 0.92)" });
+          
+          sections.push({ label: "Konečná cena", value: `${point.final?.toFixed(2) ?? "-"},-Kč`, color: "rgba(255, 255, 255, 0.92)" });
 
           return {
             title: `${formatSlotToTime(point.slot)} (${getVTStatus(point.slot, vtPeriods)})`,
