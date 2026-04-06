@@ -13,6 +13,11 @@ Toto je metadata repo pro Home Assistant Add-on Store.
 ## Aktualni core zmeny
 
 - Solarni forecast umi doplnit historickou kalibraci z InfluxDB, aby po update nebylo nutne cekat na nove dny v cache.
+- Solarni forecast nyni pouziva i hodinovy bias a zobrazuje vedle raw Forecast.Solar i systemove upraveny odhad dnes a zitra.
+
+## Poznamka k forecastu
+
+- Pro presnejsi profil jsou podporovany i Forecast.Solar entity `power_production_next_hour`, `power_production_next_12hours` a `power_production_next_24hours`.
 
 ## Poznamka
 

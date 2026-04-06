@@ -61,6 +61,9 @@ energy:
 forecast_solar:
   enabled: true
   power_now_entity_id: sensor.power_production_now
+  power_next_hour_entity_id: sensor.power_production_next_hour
+  power_next_12hours_entity_id: sensor.power_production_next_12hours
+  power_next_24hours_entity_id: sensor.power_production_next_24hours
   energy_current_hour_entity_id: sensor.energy_current_hour
   energy_next_hour_entity_id: sensor.energy_next_hour
   energy_production_today_entity_id: sensor.energy_production_today

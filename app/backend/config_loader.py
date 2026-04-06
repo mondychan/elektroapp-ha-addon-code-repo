@@ -330,6 +330,9 @@ def get_forecast_solar_cfg(cfg):
     return {
         "enabled": bool(forecast.get("enabled", False)),
         "power_now_entity_id": forecast.get("power_now_entity_id"),
+        "power_next_hour_entity_id": forecast.get("power_next_hour_entity_id"),
+        "power_next_12hours_entity_id": forecast.get("power_next_12hours_entity_id"),
+        "power_next_24hours_entity_id": forecast.get("power_next_24hours_entity_id"),
         "energy_current_hour_entity_id": forecast.get("energy_current_hour_entity_id"),
         "energy_next_hour_entity_id": forecast.get("energy_next_hour_entity_id"),
         "energy_production_today_entity_id": forecast.get("energy_production_today_entity_id"),

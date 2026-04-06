@@ -7,7 +7,7 @@ Elektroapp je pokročilý Home Assistant add-on pro komplexní sledování energ
 - **Náklady a tržby**: Výpočet v reálném čase podle dat z InfluxDB (např. ze Solaxu).
 - **PND Integrace**: Automatický import dat z Portálu naměřených dat (ČEZ Distribuce).
 - **Srovnání dat**: Unikátní možnost porovnání "oficiálních" dat z elektroměru (PND) s lokálními senzory střídače pro odhalení nepřesností.
-- **Solární předpověď**: Hybridní odhad výroby (Forecast.Solar) kalibrovaný podle reálného chování vašeho systému, včetně historického backfillu z InfluxDB pro rychlejší rozjezd kalibrace po nasazení.
+- **Solární předpověď**: Hybridní odhad výroby (Forecast.Solar) kalibrovaný podle reálného chování vašeho systému, včetně historického backfillu z InfluxDB, hodinového biasu a systémově upraveného odhadu zítřka.
 - **Baterie**: Detailní monitoring SoC, výkonu a inteligentní projekce času nabití/vybití.
 - **Interaktivní Dashboard**: Moderní, modulární UI s toggle-sekcemi (Statistiky, Detailní grafy) a responsivní heatmapou cen.
 

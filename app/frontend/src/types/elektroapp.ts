@@ -45,6 +45,9 @@ export interface Config {
   forecast_solar?: {
     enabled?: boolean;
     power_now_entity_id?: string;
+    power_next_hour_entity_id?: string;
+    power_next_12hours_entity_id?: string;
+    power_next_24hours_entity_id?: string;
   };
   pnd?: {
     enabled?: boolean;
@@ -108,6 +111,14 @@ export interface SolarForecast {
   status?: {
     power_now?: number | null;
     power_now_w?: number | null;
+    power_next_hour?: number | null;
+    power_next_12hours?: number | null;
+    power_next_24hours?: number | null;
+    power_production_next_hour_w?: number | null;
+    power_production_next_12hours_w?: number | null;
+    power_production_next_24hours_w?: number | null;
+    power_production_next_12hours_w_by_hour?: Array<number | null>;
+    power_production_next_24hours_w_by_hour?: Array<number | null>;
     energy_current_hour?: number | null;
     energy_current_hour_kwh?: number | null;
     energy_next_hour?: number | null;
@@ -130,20 +141,37 @@ export interface SolarForecast {
     samples_today?: number | null;
   };
   comparison?: {
+    model_version?: string | null;
     forecast_so_far_kwh?: number | null;
     delta_so_far_kwh?: number | null;
     power_delta_w?: number | null;
     live_ratio?: number | null;
     historical_bias_ratio?: number | null;
+    remaining_hourly_bias_ratio?: number | null;
     effective_bias_ratio?: number | null;
     adjusted_projection_today_kwh?: number | null;
     projection_delta_to_forecast_kwh?: number | null;
+    adjusted_projection_tomorrow_kwh?: number | null;
+    projection_delta_to_forecast_tomorrow_kwh?: number | null;
+    adjusted_current_hour_kwh?: number | null;
+    adjusted_next_hour_kwh?: number | null;
+    adjusted_today_hourly_profile_kwh_by_hour?: Array<number | null>;
+    adjusted_tomorrow_hourly_profile_kwh_by_hour?: Array<number | null>;
+    future_profile_source?: string | null;
   };
   history?: {
     days_tracked?: number;
+    cache_days?: number;
+    hourly_slots_tracked?: number;
     median_ratio?: number | null;
     avg_ratio?: number | null;
     last_completed_date?: string | null;
+    profile_sources_available?: {
+      historical_hourly?: boolean;
+      live_next_hour?: boolean;
+      live_next_12hours?: boolean;
+      live_next_24hours?: boolean;
+    };
     recent_days?: Array<{
       date: string;
       actual_total_kwh: number;

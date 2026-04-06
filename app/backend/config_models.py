@@ -112,6 +112,9 @@ class EnergyConfig(StrictModel):
 class ForecastSolarConfig(StrictModel):
     enabled: bool = False
     power_now_entity_id: str | None = None
+    power_next_hour_entity_id: str | None = None
+    power_next_12hours_entity_id: str | None = None
+    power_next_24hours_entity_id: str | None = None
     energy_current_hour_entity_id: str | None = None
     energy_next_hour_entity_id: str | None = None
     energy_production_today_entity_id: str | None = None
