@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.16
+- solarni forecast nyni umi doplnit historickou kalibraci z InfluxDB bez cekani na nove dny v runtime cache
+- backfill preferuje forecast "zitra" z predchoziho dne a pada zpet na denni last/max u `energy_production_today`
+- release flow nyni pri vydani pripomina kontrolu `README.md` a `ha-addon/README.md` u novych nebo zasadne zmenenych core funkci
+
 ## 0.2.13
 - Privacy: generalizace konfiguračních šablon (odstraněny názvy jako 'drinov', IP adresy a konkrétní entity).
 - Privacy: důsledná kontrola a ujištění, že v repo nejsou žádná hesla ani osobní údaje.
