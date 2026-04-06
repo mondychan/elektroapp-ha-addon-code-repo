@@ -10,6 +10,10 @@ Toto je metadata repo pro Home Assistant Add-on Store.
 - Zdrojovy kod aplikace:
   - https://github.com/mondychan/elektroapp-ha-addon-code-repo
 
+## Aktualni core zmeny
+
+- Solarni forecast umi doplnit historickou kalibraci z InfluxDB, aby po update nebylo nutne cekat na nove dny v cache.
+
 ## Poznamka
 
 Obsah tohoto repozitare je synchronizovan automaticky z code repa behem release

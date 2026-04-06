@@ -31,6 +31,7 @@ def test_solar_service_uses_measurement_candidates_by_metric(tmp_path):
         get_energy_entities_cfg_fn=lambda cfg: {"pv_power_total_entity_id": None},
         history_file_path_fn=lambda: tmp_path / "solar-history.json",
         now_fn=lambda tzinfo=None: datetime(2026, 4, 5, 12, 0, tzinfo=tzinfo),
+        history_backfill_days=0,
     )
 
     data = service.get_solar_forecast({})
@@ -111,6 +112,7 @@ def test_solar_service_returns_actuals_and_calibrated_projection(tmp_path):
         aggregate_power_points_fn=aggregate_power_points,
         history_file_path_fn=lambda: history_path,
         now_fn=lambda tzinfo=None: datetime(2026, 4, 5, 12, 0, tzinfo=tzinfo),
+        history_backfill_days=0,
     )
 
     data = service.get_solar_forecast({})
@@ -128,3 +130,82 @@ def test_solar_service_returns_actuals_and_calibrated_projection(tmp_path):
 
     saved = json.loads(history_path.read_text(encoding="utf-8"))
     assert any(entry.get("actual_total_kwh") == 5.0 for entry in saved.values())
+
+
+def test_solar_service_backfills_history_from_influx_using_previous_day_tomorrow_forecast(tmp_path):
+    history_path = tmp_path / "solar-history.json"
+
+    def safe_query(_influx, entity_id, **kwargs):
+        values = {
+            "sensor.forecast_power_now": {"value": 2500.0},
+            "sensor.forecast_today": {"value": 12.0},
+            "sensor.forecast_remaining": {"value": 7.0},
+            "sensor.forecast_tomorrow": {"value": 14.0},
+            "sensor.actual_pv": {"value": 2200.0},
+        }
+        return values.get(entity_id)
+
+    def query_series(_influx, entity_id, start_utc, end_utc, **_kwargs):
+        assert start_utc < end_utc
+        if entity_id == "sensor.actual_pv":
+            return [{"time": "2026-04-03T09:00:00+02:00", "value": 1000.0, "unit": "W"}]
+        if entity_id == "sensor.forecast_today":
+            return [
+                {"time": "2026-04-03T18:00:00+02:00", "value": 12.0, "unit": "kWh"},
+                {"time": "2026-04-04T18:00:00+02:00", "value": 13.0, "unit": "kWh"},
+            ]
+        if entity_id == "sensor.forecast_tomorrow":
+            return [
+                {"time": "2026-04-02T20:00:00+02:00", "value": 10.0, "unit": "kWh"},
+                {"time": "2026-04-03T20:00:00+02:00", "value": 10.0, "unit": "kWh"},
+            ]
+        return []
+
+    def aggregate_power_points(points, interval_minutes=15, bucket="day", tzinfo=None):
+        assert interval_minutes == 15
+        assert bucket == "day"
+        assert tzinfo is not None
+        assert points
+        return {"2026-04-03": 8.0, "2026-04-04": 9.0}
+
+    service = SolarService(
+        get_influx_cfg_fn=lambda cfg: {
+            "field": "value",
+            "measurement": "kWh",
+            "interval": "15m",
+            "timezone": "Europe/Prague",
+            **cfg,
+        },
+        get_forecast_solar_cfg_fn=lambda cfg: {
+            "enabled": True,
+            "power_now_entity_id": "sensor.forecast_power_now",
+            "energy_current_hour_entity_id": None,
+            "energy_next_hour_entity_id": None,
+            "energy_production_today_entity_id": "sensor.forecast_today",
+            "energy_production_today_remaining_entity_id": "sensor.forecast_remaining",
+            "energy_production_tomorrow_entity_id": "sensor.forecast_tomorrow",
+            "power_highest_peak_time_today_entity_id": None,
+            "power_highest_peak_time_tomorrow_entity_id": None,
+        },
+        safe_query_entity_last_value_fn=safe_query,
+        get_energy_entities_cfg_fn=lambda cfg: {"pv_power_total_entity_id": "sensor.actual_pv"},
+        query_entity_series_fn=query_series,
+        parse_influx_interval_to_minutes_fn=lambda interval, default_minutes=15: 15,
+        aggregate_power_points_fn=aggregate_power_points,
+        history_file_path_fn=lambda: history_path,
+        now_fn=lambda tzinfo=None: datetime(2026, 4, 5, 12, 0, tzinfo=tzinfo),
+        history_backfill_days=3,
+    )
+
+    data = service.get_solar_forecast({})
+
+    assert data["history"]["days_tracked"] == 2
+    assert data["history"]["median_ratio"] == 0.85
+
+    saved = json.loads(history_path.read_text(encoding="utf-8"))
+    assert saved["2026-04-03"]["actual_total_kwh"] == 8.0
+    assert saved["2026-04-03"]["forecast_today_last_kwh"] == 12.0
+    assert saved["2026-04-03"]["forecast_tomorrow_prev_day_last_kwh"] == 10.0
+    assert saved["2026-04-03"]["forecast_total_kwh"] == 10.0
+    assert saved["2026-04-03"]["forecast_total_source"] == "production_tomorrow_prev_day_last"
+    assert saved["2026-04-04"]["forecast_total_kwh"] == 10.0

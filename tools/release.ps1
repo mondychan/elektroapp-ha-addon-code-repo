@@ -54,6 +54,10 @@ function Get-RelativePathCompat {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $addonConfigRel = "ha-addon/elektroapp/config.yaml"
 $changelogRel = "ha-addon/elektroapp/CHANGELOG.md"
+$docsReviewPaths = @(
+    "README.md",
+    "ha-addon/README.md"
+)
 $addonConfigPath = Join-Path $repoRoot $addonConfigRel
 $changelogPath = Join-Path $repoRoot $changelogRel
 $notesText = ""
@@ -66,6 +70,13 @@ if (-not (Test-Path $addonConfigPath)) {
 }
 if (-not (Test-Path $changelogPath)) {
     throw "Missing file: $changelogPath"
+}
+foreach ($docRel in $docsReviewPaths) {
+    $docPath = Join-Path $repoRoot $docRel
+    if (-not (Test-Path $docPath)) {
+        throw "Missing file: $docPath"
+    }
+    $allowedDirtyPaths[$docRel] = $true
 }
 
 $insideRepo = (& git -C $repoRoot rev-parse --is-inside-work-tree 2>$null)
@@ -113,6 +124,14 @@ if ($unexpectedStatus.Count -gt 0) {
     throw "Working tree is not clean. Commit or stash changes before running release. Unexpected changes:`n$($unexpectedStatus -join "`n")"
 }
 
+Write-Host "Release checklist:"
+Write-Host "- Pokud release pridava novou core funkci, zasadne meni chovani, nebo vyzaduje dokumentaci,"
+Write-Host "  zkontroluj a pripadne aktualizuj README reference v:"
+foreach ($docRel in $docsReviewPaths) {
+    Write-Host "  - $docRel"
+}
+Write-Host "- Drobne internals / fixy bez dopadu na pouziti neni nutne do README zapisovat."
+
 $configRaw = [System.IO.File]::ReadAllText($addonConfigPath)
 $versionRegex = [regex]::new('(?m)^version:\s*".*"$')
 $addonVersionRegex = [regex]::new('(?m)^\s*ADDON_VERSION:\s*".*"$')
@@ -148,7 +167,8 @@ else {
 }
 Write-Utf8NoBom -Path $changelogPath -Content $newChangelog
 
-Invoke-Git -Repo $repoRoot -Args @("add", "--", $addonConfigRel, $changelogRel)
+$pathsToCommit = @($addonConfigRel, $changelogRel) + $docsReviewPaths
+Invoke-Git -Repo $repoRoot -Args (@("add", "--") + $pathsToCommit)
 Invoke-Git -Repo $repoRoot -Args @("commit", "-m", "Release $Version")
 
 $tagName = "v$Version"

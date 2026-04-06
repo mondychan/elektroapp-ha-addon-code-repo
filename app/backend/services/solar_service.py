@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median
 from typing import Any, Dict, Optional
@@ -36,6 +36,7 @@ class SolarService:
         history_file_path_fn=None,
         now_fn=None,
         logger=None,
+        history_backfill_days: int = 60,
     ):
         self.get_influx_cfg = get_influx_cfg_fn
         self.get_forecast_solar_cfg = get_forecast_solar_cfg_fn
@@ -52,6 +53,8 @@ class SolarService:
         self.now_fn = now_fn or (lambda tzinfo=None: datetime.now(tzinfo))
         self.safe_query_entity_last_value = safe_query_entity_last_value_fn
         self.logger = logger or logging.getLogger("uvicorn.error")
+        self.history_backfill_days = max(0, min(int(history_backfill_days or 0), 90))
+        self._backfill_completed_for_date: Optional[str] = None
 
     def _load_history(self) -> Dict[str, Dict[str, Any]]:
         path = self.get_history_file_path()
@@ -110,6 +113,217 @@ class SolarService:
             "last_completed_date": recent[-1]["date"] if recent else None,
             "recent_days": recent,
         }
+
+    def _point_time_to_local(self, point: Dict[str, Any], tzinfo) -> Optional[datetime]:
+        time_raw = point.get("time")
+        if isinstance(time_raw, str):
+            try:
+                dt_local = datetime.fromisoformat(time_raw)
+                if dt_local.tzinfo is None and tzinfo is not None:
+                    dt_local = dt_local.replace(tzinfo=tzinfo)
+                return dt_local if tzinfo is None else dt_local.astimezone(tzinfo)
+            except ValueError:
+                pass
+
+        time_utc_raw = point.get("time_utc")
+        if isinstance(time_utc_raw, str):
+            try:
+                dt_utc = datetime.fromisoformat(time_utc_raw.replace("Z", "+00:00"))
+                return dt_utc if tzinfo is None else dt_utc.astimezone(tzinfo)
+            except ValueError:
+                return None
+        return None
+
+    def _normalize_energy_value(self, value: Any, unit: Optional[str]) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        unit_lower = (unit or "").lower()
+        if unit_lower == "wh":
+            numeric /= 1000.0
+        return round(numeric, 5)
+
+    def _collect_daily_energy_stats(
+        self,
+        points,
+        tzinfo,
+        *,
+        day_shift: int = 0,
+    ) -> Dict[str, Dict[str, Any]]:
+        daily: Dict[str, Dict[str, Any]] = {}
+        for point in points or []:
+            dt_local = self._point_time_to_local(point, tzinfo)
+            if dt_local is None:
+                continue
+
+            normalized = self._normalize_energy_value(point.get("value"), point.get("unit"))
+            if normalized is None:
+                continue
+
+            target_dt = dt_local + timedelta(days=day_shift)
+            day_key = target_dt.strftime("%Y-%m-%d")
+            bucket = daily.setdefault(day_key, {"last": None, "max": None, "samples": 0})
+            bucket["last"] = normalized
+            bucket["max"] = normalized if bucket["max"] is None else max(bucket["max"], normalized)
+            bucket["samples"] += 1
+        return daily
+
+    def _pick_forecast_value(self, daily_stats: Optional[Dict[str, Any]]) -> tuple[Optional[float], Optional[str]]:
+        if not isinstance(daily_stats, dict):
+            return None, None
+        if daily_stats.get("last") is not None:
+            return round(float(daily_stats["last"]), 5), "last"
+        if daily_stats.get("max") is not None:
+            return round(float(daily_stats["max"]), 5), "max"
+        return None, None
+
+    def _backfill_history_from_influx(
+        self,
+        history: Dict[str, Dict[str, Any]],
+        influx: Dict[str, Any],
+        solar_cfg: Dict[str, Any],
+        energy_cfg: Dict[str, Any],
+        tzinfo,
+        now_local: datetime,
+        interval: str,
+        interval_minutes: int,
+    ) -> Dict[str, Dict[str, Any]]:
+        today_key = now_local.strftime("%Y-%m-%d")
+        if self.history_backfill_days <= 0 or self._backfill_completed_for_date == today_key:
+            return history
+
+        power_measurements = ["W", "kW"]
+        energy_measurements = ["kWh", "Wh"]
+        today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        history_start_local = today_start_local - timedelta(days=self.history_backfill_days)
+        history_end_local = today_start_local
+        dirty = False
+
+        actuals_by_day: Dict[str, float] = {}
+        forecast_today_stats: Dict[str, Dict[str, Any]] = {}
+        forecast_tomorrow_prev_day_stats: Dict[str, Dict[str, Any]] = {}
+
+        actual_entity_id = energy_cfg.get("pv_power_total_entity_id")
+        if actual_entity_id:
+            try:
+                actual_points = self.query_entity_series(
+                    influx,
+                    actual_entity_id,
+                    history_start_local.astimezone(timezone.utc),
+                    history_end_local.astimezone(timezone.utc),
+                    interval=interval,
+                    tzinfo=tzinfo,
+                    numeric=True,
+                    measurement_candidates=power_measurements,
+                )
+                actuals_by_day = self.aggregate_power_points(
+                    actual_points,
+                    interval_minutes,
+                    bucket="day",
+                    tzinfo=tzinfo,
+                )
+            except Exception as exc:
+                self.logger.warning("Solar history actual backfill failed: %s", exc)
+
+        production_today_entity_id = solar_cfg.get("energy_production_today_entity_id")
+        if production_today_entity_id:
+            try:
+                forecast_today_points = self.query_entity_series(
+                    influx,
+                    production_today_entity_id,
+                    history_start_local.astimezone(timezone.utc),
+                    history_end_local.astimezone(timezone.utc),
+                    interval=interval,
+                    tzinfo=tzinfo,
+                    numeric=True,
+                    measurement_candidates=energy_measurements,
+                )
+                forecast_today_stats = self._collect_daily_energy_stats(forecast_today_points, tzinfo)
+            except Exception as exc:
+                self.logger.warning("Solar history production_today backfill failed: %s", exc)
+
+        production_tomorrow_entity_id = solar_cfg.get("energy_production_tomorrow_entity_id")
+        if production_tomorrow_entity_id:
+            try:
+                forecast_tomorrow_points = self.query_entity_series(
+                    influx,
+                    production_tomorrow_entity_id,
+                    (history_start_local - timedelta(days=1)).astimezone(timezone.utc),
+                    history_end_local.astimezone(timezone.utc),
+                    interval=interval,
+                    tzinfo=tzinfo,
+                    numeric=True,
+                    measurement_candidates=energy_measurements,
+                )
+                forecast_tomorrow_prev_day_stats = self._collect_daily_energy_stats(
+                    forecast_tomorrow_points,
+                    tzinfo,
+                    day_shift=1,
+                )
+            except Exception as exc:
+                self.logger.warning("Solar history production_tomorrow backfill failed: %s", exc)
+
+        current_day = history_start_local
+        while current_day < history_end_local:
+            day_key = current_day.strftime("%Y-%m-%d")
+            entry = history.get(day_key, {}) if isinstance(history.get(day_key), dict) else {}
+            updated_entry = dict(entry)
+
+            actual_total = actuals_by_day.get(day_key)
+            if actual_total is not None:
+                updated_entry["actual_total_kwh"] = round(float(actual_total), 5)
+
+            same_day_stats = forecast_today_stats.get(day_key)
+            if same_day_stats:
+                if same_day_stats.get("last") is not None:
+                    updated_entry["forecast_today_last_kwh"] = round(float(same_day_stats["last"]), 5)
+                if same_day_stats.get("max") is not None:
+                    updated_entry["forecast_today_max_kwh"] = round(float(same_day_stats["max"]), 5)
+
+            prev_day_tomorrow_stats = forecast_tomorrow_prev_day_stats.get(day_key)
+            if prev_day_tomorrow_stats:
+                if prev_day_tomorrow_stats.get("last") is not None:
+                    updated_entry["forecast_tomorrow_prev_day_last_kwh"] = round(
+                        float(prev_day_tomorrow_stats["last"]),
+                        5,
+                    )
+                if prev_day_tomorrow_stats.get("max") is not None:
+                    updated_entry["forecast_tomorrow_prev_day_max_kwh"] = round(
+                        float(prev_day_tomorrow_stats["max"]),
+                        5,
+                    )
+
+            chosen_forecast = None
+            chosen_source = None
+            prev_day_value, prev_day_pick = self._pick_forecast_value(prev_day_tomorrow_stats)
+            if prev_day_value is not None:
+                chosen_forecast = prev_day_value
+                chosen_source = f"production_tomorrow_prev_day_{prev_day_pick}"
+            else:
+                same_day_value, same_day_pick = self._pick_forecast_value(same_day_stats)
+                if same_day_value is not None:
+                    chosen_forecast = same_day_value
+                    chosen_source = f"production_today_{same_day_pick}"
+
+            if chosen_forecast is not None:
+                updated_entry["forecast_total_kwh"] = round(float(chosen_forecast), 5)
+                updated_entry["forecast_total_source"] = chosen_source
+
+            if updated_entry != entry:
+                updated_entry["backfilled_at"] = now_local.isoformat()
+                history[day_key] = updated_entry
+                dirty = True
+
+            current_day += timedelta(days=1)
+
+        if dirty:
+            self._save_history(history)
+        self._backfill_completed_for_date = today_key
+        return history
 
     def _read_numeric_entity(
         self,
@@ -281,6 +495,16 @@ class SolarService:
             live_ratio = round(float(actual_total) / float(forecast_so_far), 5)
 
         history = self._load_history()
+        history = self._backfill_history_from_influx(
+            history,
+            influx,
+            solar_cfg,
+            energy_cfg,
+            tzinfo,
+            now_local,
+            interval,
+            interval_minutes,
+        )
         history_summary = self._summarize_history(history, date_str)
         history_bias = history_summary.get("median_ratio")
 
