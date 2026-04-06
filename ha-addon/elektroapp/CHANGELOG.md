@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.18
+- fix solar forecast timezone handling so hourly history/backfill respects configured Influx timezone on Linux/CI
+- add regression test for UTC host with Europe/Prague forecast data
+- run backend and frontend tests inside release flow before version bump, tag and push
+
 ## 0.2.17
 - solarni forecast v2 pridava hodinovy bias z historickych dat a systemove upraveny odhad dnes i zitra
 - forecast karta nyni ukazuje raw Forecast.Solar vedle lokálně kalibrovanych hodnot a diagnostiku zdroje profilu
