@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.19
+- fix overnight solar forecast handling so `forecast so far` stays unknown until the first real PV samples arrive
+- avoid misleading early-morning `delta so far` when the forecast provider reports `remaining today = 0`
+- add regression coverage for the midnight/no-samples scenario
+
 ## 0.2.18
 - fix solar forecast timezone handling so hourly history/backfill respects configured Influx timezone on Linux/CI
 - add regression test for UTC host with Europe/Prague forecast data
