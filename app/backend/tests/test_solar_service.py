@@ -300,3 +300,58 @@ def test_solar_service_default_timezone_uses_configured_influx_timezone(tmp_path
 
     saved = json.loads(history_path.read_text(encoding="utf-8"))
     assert saved["2026-04-03"]["forecast_hourly_kwh_by_hour"][9] == 2.0
+
+
+def test_solar_service_does_not_treat_zero_remaining_overnight_as_day_complete(tmp_path):
+    history_path = tmp_path / "solar-history.json"
+    history_path.write_text(
+        json.dumps(
+            {
+                "2026-04-03": {"actual_total_kwh": 8.0, "forecast_total_kwh": 10.0},
+                "2026-04-04": {"actual_total_kwh": 9.0, "forecast_total_kwh": 10.0},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def safe_query(_influx, entity_id, **kwargs):
+        values = {
+            "sensor.forecast_power_now": {"value": 0.0},
+            "sensor.forecast_power_next_hour": {"value": 0.0},
+            "sensor.forecast_power_next_12hours": {"value": 7160.0},
+            "sensor.forecast_power_next_24hours": {"value": 0.0},
+            "sensor.forecast_energy_current_hour": {"value": 0.0},
+            "sensor.forecast_energy_next_hour": {"value": 0.0},
+            "sensor.forecast_today": {"value": 24.18},
+            "sensor.forecast_remaining": {"value": 0.0},
+            "sensor.forecast_tomorrow": {"value": 53.88},
+            "sensor.actual_pv": {"value": 0.0},
+        }
+        return values.get(entity_id)
+
+    service = SolarService(
+        get_influx_cfg_fn=lambda cfg: {
+            "field": "value",
+            "measurement": "kWh",
+            "interval": "15m",
+            "timezone": "Europe/Prague",
+            **cfg,
+        },
+        get_forecast_solar_cfg_fn=lambda cfg: _forecast_cfg(),
+        safe_query_entity_last_value_fn=safe_query,
+        get_energy_entities_cfg_fn=lambda cfg: {"pv_power_total_entity_id": "sensor.actual_pv"},
+        query_entity_series_fn=lambda *_args, **_kwargs: [],
+        parse_influx_interval_to_minutes_fn=lambda interval, default_minutes=15: 15,
+        aggregate_power_points_fn=lambda *_args, **_kwargs: {},
+        history_file_path_fn=lambda: history_path,
+        now_fn=lambda tzinfo=None: datetime(2026, 4, 7, 0, 15, tzinfo=tzinfo),
+        history_backfill_days=0,
+    )
+
+    data = service.get_solar_forecast({})
+
+    assert data["actual"]["production_today_kwh"] is None
+    assert data["actual"].get("samples_today") is None
+    assert data["comparison"]["forecast_so_far_kwh"] is None
+    assert data["comparison"]["delta_so_far_kwh"] is None
+    assert data["comparison"]["adjusted_projection_today_kwh"] == 20.553

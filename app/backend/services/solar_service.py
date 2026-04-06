@@ -750,10 +750,19 @@ class SolarService:
         forecast_next_hour = res["status"].get("energy_next_hour")
         forecast_tomorrow_total = res["status"].get("production_tomorrow")
         actual_total = res["actual"].get("production_today_kwh")
+        samples_today = res["actual"].get("samples_today")
 
         forecast_so_far = None
         if forecast_total is not None and forecast_remaining is not None:
-            forecast_so_far = max(0.0, float(forecast_total) - float(forecast_remaining))
+            remaining_value = float(forecast_remaining)
+            # Some forecast providers report "remaining today = 0" overnight before the
+            # first PV samples arrive. In that state, treating the whole daily forecast as
+            # "forecast so far" is misleading, so keep the metric unknown until the day has
+            # real production samples.
+            if not samples_today and actual_total is None and abs(remaining_value) < 1e-9:
+                forecast_so_far = None
+            else:
+                forecast_so_far = max(0.0, float(forecast_total) - remaining_value)
 
         live_ratio = None
         if actual_total is not None and forecast_so_far not in (None, 0):
