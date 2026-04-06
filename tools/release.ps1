@@ -35,6 +35,18 @@ function Invoke-Git {
     }
 }
 
+function Invoke-CheckedCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][scriptblock]$Script
+    )
+    Write-Host "Running $Label..."
+    & $Script
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Label failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Get-RelativePathCompat {
     param(
         [Parameter(Mandatory = $true)][string]$BasePath,
@@ -131,6 +143,26 @@ foreach ($docRel in $docsReviewPaths) {
     Write-Host "  - $docRel"
 }
 Write-Host "- Drobne internals / fixy bez dopadu na pouziti neni nutne do README zapisovat."
+
+Invoke-CheckedCommand -Label "backend tests" -Script {
+    python -m pytest -q app/backend/tests
+}
+
+$frontendDir = Join-Path $repoRoot "app/frontend"
+if (Test-Path $frontendDir) {
+    $previousCi = $env:CI
+    try {
+        $env:CI = "true"
+        Push-Location $frontendDir
+        Invoke-CheckedCommand -Label "frontend tests" -Script {
+            npm test -- --watchAll=false
+        }
+    }
+    finally {
+        Pop-Location
+        $env:CI = $previousCi
+    }
+}
 
 $configRaw = [System.IO.File]::ReadAllText($addonConfigPath)
 $versionRegex = [regex]::new('(?m)^version:\s*".*"$')

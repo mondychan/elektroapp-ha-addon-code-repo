@@ -1,6 +1,8 @@
 import json
 
-from datetime import datetime
+from datetime import datetime, timezone
+
+import services.solar_service as solar_service_module
 
 from services.solar_service import SolarService
 
@@ -229,3 +231,72 @@ def test_solar_service_backfills_daily_and_hourly_history_from_influx(tmp_path):
     assert saved["2026-04-03"]["forecast_hourly_kwh_by_hour"][9] == 2.0
     assert saved["2026-04-03"]["forecast_hourly_kwh_by_hour"][10] == 3.0
     assert saved["2026-04-03"]["actual_hourly_kwh_by_hour"][9] is not None
+
+
+def test_solar_service_default_timezone_uses_configured_influx_timezone(tmp_path, monkeypatch):
+    history_path = tmp_path / "solar-history.json"
+
+    class FakeDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is not None:
+                return cls(2026, 4, 5, 12, 0, tzinfo=tz)
+            return cls(2026, 4, 5, 10, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(solar_service_module, "datetime", FakeDateTime)
+
+    def safe_query(_influx, entity_id, **kwargs):
+        values = {
+            "sensor.forecast_power_now": {"value": 2500.0},
+            "sensor.forecast_power_next_hour": {"value": 1800.0},
+            "sensor.forecast_power_next_12hours": {"value": 1500.0},
+            "sensor.forecast_power_next_24hours": {"value": 400.0},
+            "sensor.forecast_energy_current_hour": {"value": 1.5},
+            "sensor.forecast_energy_next_hour": {"value": 2.0},
+            "sensor.forecast_today": {"value": 12.0},
+            "sensor.forecast_remaining": {"value": 7.0},
+            "sensor.forecast_tomorrow": {"value": 14.0},
+            "sensor.actual_pv": {"value": 2200.0},
+        }
+        return values.get(entity_id)
+
+    def query_series(_influx, entity_id, start_utc, end_utc, **_kwargs):
+        assert start_utc < end_utc
+        if entity_id == "sensor.actual_pv":
+            return [{"time": "2026-04-03T09:00:00+02:00", "value": 1000.0, "unit": "W"}]
+        if entity_id == "sensor.forecast_tomorrow":
+            return [{"time": "2026-04-02T20:00:00+02:00", "value": 10.0, "unit": "kWh"}]
+        if entity_id == "sensor.forecast_energy_current_hour":
+            return [{"time": "2026-04-03T09:45:00+02:00", "value": 2.0, "unit": "kWh"}]
+        return []
+
+    def aggregate_power_points(points, interval_minutes=15, bucket="day", tzinfo=None):
+        assert interval_minutes == 15
+        assert bucket == "day"
+        assert tzinfo is not None
+        assert points
+        return {"2026-04-03": 8.0}
+
+    service = SolarService(
+        get_influx_cfg_fn=lambda cfg: {
+            "field": "value",
+            "measurement": "kWh",
+            "interval": "15m",
+            "timezone": "Europe/Prague",
+            **cfg,
+        },
+        get_forecast_solar_cfg_fn=lambda cfg: _forecast_cfg(),
+        safe_query_entity_last_value_fn=safe_query,
+        get_energy_entities_cfg_fn=lambda cfg: {"pv_power_total_entity_id": "sensor.actual_pv"},
+        query_entity_series_fn=query_series,
+        parse_influx_interval_to_minutes_fn=lambda interval, default_minutes=15: 15,
+        aggregate_power_points_fn=aggregate_power_points,
+        history_file_path_fn=lambda: history_path,
+        now_fn=lambda tzinfo=None: FakeDateTime(2026, 4, 5, 12, 0, tzinfo=tzinfo),
+        history_backfill_days=3,
+    )
+
+    service.get_solar_forecast({})
+
+    saved = json.loads(history_path.read_text(encoding="utf-8"))
+    assert saved["2026-04-03"]["forecast_hourly_kwh_by_hour"][9] == 2.0

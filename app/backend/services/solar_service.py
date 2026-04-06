@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -77,6 +78,13 @@ def _power_value_to_kwh(value: float, interval_minutes: int, unit: Optional[str]
     return (value / 1000.0) * interval_hours
 
 
+def _default_get_local_tz(tz_name=None):
+    try:
+        return ZoneInfo(tz_name) if tz_name else datetime.now().astimezone().tzinfo
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        return datetime.now().astimezone().tzinfo
+
+
 class SolarService:
     def __init__(
         self,
@@ -103,7 +111,7 @@ class SolarService:
         self.aggregate_power_points = aggregate_power_points_fn or (
             lambda points, interval_minutes=15, bucket="day", tzinfo=None: {}
         )
-        self.get_local_tz = get_local_tz_fn or (lambda tz_name=None: datetime.now().astimezone().tzinfo)
+        self.get_local_tz = get_local_tz_fn or _default_get_local_tz
         self.get_history_file_path = history_file_path_fn or (lambda: None)
         self.now_fn = now_fn or (lambda tzinfo=None: datetime.now(tzinfo))
         self.safe_query_entity_last_value = safe_query_entity_last_value_fn
