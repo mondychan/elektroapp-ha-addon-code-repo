@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.17
+- solarni forecast v2 pridava hodinovy bias z historickych dat a systemove upraveny odhad dnes i zitra
+- forecast karta nyni ukazuje raw Forecast.Solar vedle lokálně kalibrovanych hodnot a diagnostiku zdroje profilu
+- podpora novych Forecast.Solar entit `power_production_next_hour`, `power_production_next_12hours` a `power_production_next_24hours`
+
 ## 0.2.16
 - solarni forecast nyni umi doplnit historickou kalibraci z InfluxDB bez cekani na nove dny v runtime cache
 - backfill preferuje forecast "zitra" z predchoziho dne a pada zpet na denni last/max u `energy_production_today`
