@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.23
+- **Fix stability (Plánovače)**: Oprava "zaseknutých" zámků po restartu add-onu. Systém nyní detekuje, zda proces držící zámek stále běží, a pokud ne, automaticky jej uvolní. To zajišťuje, že se PND sync a stahování cen spustí okamžitě po každém restartu.
+
 ## 0.2.22
 - **UI (PND portál)**: Změna formátu data v přehledové tabulce z ISO (`RRRR-MM-DD`) na český standard (`DD.MM.RRRR`).
 - **Vylepšení PND (Portálu naměřených dat)**:

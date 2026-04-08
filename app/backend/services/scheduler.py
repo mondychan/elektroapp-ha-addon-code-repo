@@ -13,10 +13,14 @@ logger = logging.getLogger("uvicorn.error")
 
 PREFETCH_LOCK_STALE_SECONDS = 3600
 
-def get_prefetch_lock_path(storage_dir: Optional[Path]):
-    if storage_dir:
-        return storage_dir / "prefetch-scheduler.lock"
-    return Path("/tmp") / "elektroapp-prefetch-scheduler.lock"
+def _is_pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 def _clear_stale_prefetch_lock(lock_path: Path):
     if not lock_path.exists():
@@ -25,7 +29,18 @@ def _clear_stale_prefetch_lock(lock_path: Path):
         age_seconds = max(0.0, time_module.time() - lock_path.stat().st_mtime)
         if age_seconds > PREFETCH_LOCK_STALE_SECONDS:
             lock_path.unlink(missing_ok=True)
-            logger.warning("Removed stale prefetch scheduler lock: %s", lock_path)
+            logger.warning("Removed stale prefetch scheduler lock (age): %s", lock_path)
+            return
+            
+        try:
+            data = json.loads(lock_path.read_text(encoding="utf-8"))
+            pid = data.get("pid")
+            if pid and not _is_pid_alive(pid):
+                lock_path.unlink(missing_ok=True)
+                logger.warning("Removed stale prefetch scheduler lock (dead PID %s): %s", pid, lock_path)
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+            
     except OSError as exc:
         logger.warning("Unable to evaluate stale prefetch lock %s: %s", lock_path, exc)
 
@@ -48,15 +63,19 @@ def acquire_prefetch_process_lock(runtime_state: RuntimeState, storage_dir: Opti
         logger.warning("Cannot create prefetch scheduler lock %s: %s", lock_path, exc)
         return False
 
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "pid": os.getpid(),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
             )
-        )
+    except Exception:
+        lock_path.unlink(missing_ok=True)
+        return False
 
     runtime_state.prefetch_lock_owned = True
     runtime_state.prefetch_lock_path = lock_path

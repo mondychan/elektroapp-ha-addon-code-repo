@@ -21,14 +21,39 @@ def get_pnd_lock_path(storage_dir: Optional[Path]):
     return Path("/tmp") / "elektroapp-pnd-scheduler.lock"
 
 
+def _is_pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
 def _clear_stale_pnd_lock(lock_path: Path):
     if not lock_path.exists():
         return
     try:
         age_seconds = max(0.0, time_module.time() - lock_path.stat().st_mtime)
+        
+        # If older than an hour, it's definitely stale.
         if age_seconds > PND_LOCK_STALE_SECONDS:
             lock_path.unlink(missing_ok=True)
-            logger.warning("Removed stale PND scheduler lock: %s", lock_path)
+            logger.warning("Removed stale PND scheduler lock (age): %s", lock_path)
+            return
+
+        # Otherwise check if the process is still running.
+        try:
+            data = json.loads(lock_path.read_text(encoding="utf-8"))
+            pid = data.get("pid")
+            if pid and not _is_pid_alive(pid):
+                lock_path.unlink(missing_ok=True)
+                logger.warning("Removed stale PND scheduler lock (dead PID %s): %s", pid, lock_path)
+        except (json.JSONDecodeError, OSError, ValueError):
+            # If the file is corrupted, we don't remove it unless it's old (to avoid race during write).
+            pass
+            
     except OSError as exc:
         logger.warning("Unable to evaluate stale PND lock %s: %s", lock_path, exc)
 
@@ -41,18 +66,31 @@ def acquire_pnd_process_lock(runtime_state: RuntimeState, storage_dir: Optional[
         logger.warning("Cannot create PND lock directory (%s): %s", lock_path.parent, exc)
         return False
 
+    # Attempt cleanup of dead/old locks before trying to acquire.
     _clear_stale_pnd_lock(lock_path)
+    
     try:
+        # We use os.open with O_EXCL for atomic creation.
         fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
+        # If it still exists after _clear_stale_pnd_lock, it means another process just created it
+        # or it is indeed alive and active.
         logger.info("PND scheduler lock already held by another process: %s", lock_path)
         return False
     except OSError as exc:
         logger.warning("Cannot create PND scheduler lock %s: %s", lock_path, exc)
         return False
 
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"pid": os.getpid(), "created_at": datetime.now(timezone.utc).isoformat()}))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "pid": os.getpid(), 
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }))
+    except Exception:
+        # Cleanup if we failed to write the content.
+        lock_path.unlink(missing_ok=True)
+        return False
 
     runtime_state.pnd_lock_owned = True
     runtime_state.pnd_lock_path = lock_path
