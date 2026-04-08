@@ -70,9 +70,13 @@ def build_hybrid_battery_projection(
         return None
 
     base_pv_power = []
+    # If we have a profile, we trust it for all slots. If a slot is missing, it's likely 0 (night/no data).
+    # Only if the entire profile is missing, we might consider current_pv_w as a fallback.
+    profile_available = bool(pv_profile)
     for dt_local in future_steps:
         slot = get_slot_index_for_dt(dt_local)
-        base_pv_power.append(float(pv_profile.get(slot, current_pv_w or power_now_w or 0.0)))
+        default_pv = 0.0 if profile_available else (current_pv_w or power_now_w or 0.0)
+        base_pv_power.append(float(pv_profile.get(slot, default_pv)))
 
     # Scale historical PV shape to today's remaining Forecast.Solar energy (if available).
     if remaining_today_kwh is not None and remaining_today_kwh >= 0:

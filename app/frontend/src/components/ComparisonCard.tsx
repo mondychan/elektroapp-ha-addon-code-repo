@@ -6,9 +6,10 @@ interface ComparisonItemProps {
   previous: number;
   diff_pct: number;
   unit: string;
+  prevLabel: string;
 }
 
-const ComparisonItem: React.FC<ComparisonItemProps> = ({ label, current, previous, diff_pct, unit }) => {
+const ComparisonItem: React.FC<ComparisonItemProps> = ({ label, current, previous, diff_pct, unit, prevLabel }) => {
   const diffClass = diff_pct > 0 ? "text-buy" : (diff_pct < 0 ? "text-sell" : "");
   const icon = diff_pct > 0 ? "↗" : (diff_pct < 0 ? "↘" : "→");
 
@@ -17,7 +18,7 @@ const ComparisonItem: React.FC<ComparisonItemProps> = ({ label, current, previou
       <div className="comparison-label">{label}</div>
       <div className="comparison-values">
         <div className="comparison-current">{current?.toFixed(2) ?? "-"} {unit}</div>
-        <div className="comparison-previous">Vloni/Včera: {previous?.toFixed(2) ?? "-"} {unit}</div>
+        <div className="comparison-previous">{prevLabel}: {previous?.toFixed(2) ?? "-"} {unit}</div>
       </div>
       <div className={`comparison-diff ${diffClass}`}>
         {diff_pct != null ? `${icon} ${Math.abs(diff_pct)}%` : "- %"}
@@ -47,7 +48,8 @@ const ComparisonCard: React.FC<ComparisonCardProps> = ({ comparison, loading }) 
           current={comparison.today.cost} 
           previous={comparison.yesterday.cost} 
           diff_pct={comparison.yesterday.diff_cost_pct} 
-          unit="Kč" 
+          unit="Kč"
+          prevLabel="Včera"
         />
         <ComparisonItem 
           label="Spotřeba" 
@@ -55,6 +57,7 @@ const ComparisonCard: React.FC<ComparisonCardProps> = ({ comparison, loading }) 
           previous={comparison.yesterday.kwh} 
           diff_pct={comparison.yesterday.diff_kwh_pct} 
           unit="kWh" 
+          prevLabel="Včera"
         />
       </div>
       
@@ -66,6 +69,7 @@ const ComparisonCard: React.FC<ComparisonCardProps> = ({ comparison, loading }) 
           previous={comparison.last_week.cost} 
           diff_pct={comparison.last_week.diff_cost_pct} 
           unit="Kč" 
+          prevLabel="Minulý týden"
         />
         <ComparisonItem 
           label="Spotřeba" 
@@ -73,6 +77,7 @@ const ComparisonCard: React.FC<ComparisonCardProps> = ({ comparison, loading }) 
           previous={comparison.last_week.kwh} 
           diff_pct={comparison.last_week.diff_kwh_pct} 
           unit="kWh" 
+          prevLabel="Minulý týden"
         />
       </div>
     </div>

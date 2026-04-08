@@ -1,4 +1,12 @@
 # Changelog
+...
+## 0.2.20
+- **Oprava Odhadu vyúčtování**: V historii i v aktuálním přehledu se nyní zobrazuje "čistý" náklad (Náklady měsíce), který již zahrnuje odečet tržeb z prodeje energie.
+- **Fix Baterie a projekce**: Opravena chyba v klíčích historických profilů, která způsobovala, že predikce nákupu/výroby ignorovala denní dobu a používala fixní hodnoty.
+- **Vylepšení Srovnání výkonu**:
+    *   Srovnání dneška probíhá vůči stejnému času včera a minulý týden (např. do 11:00 vs 11:00), což přináší smysluplná procenta.
+    *   Opraveny popisky srovnávaných období (původní "Vloni/Včera" nahrazeno konkrétními názvy).
+    *   Opraven výpočet procentuální změny při přechodu mezi náklady a tržbami (zápornými hodnotami).
 
 ## 0.2.19
 - fix overnight solar forecast handling so `forecast so far` stays unknown until the first real PV samples arrive

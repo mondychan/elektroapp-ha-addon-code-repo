@@ -5,6 +5,7 @@ import requests
 
 from api import to_rfc3339
 from influx import build_influx_from_clause_for_measurement
+from battery import get_slot_index_for_dt
 
 
 class InfluxService:
@@ -233,7 +234,7 @@ class InfluxService:
         if not entity_id:
             return {}
         
-        # Agregujeme průměry po slotech (čas dne HH:MM) pro pracovní dny / víkend
+        # Agregujeme průměry po slotech (index 0-95) pro pracovní dny / víkend
         is_weekend = target_date.weekday() >= 5
         
         end_utc = datetime.now(timezone.utc)
@@ -253,7 +254,7 @@ class InfluxService:
         if not points:
             return {}
             
-        slots = {} # "HH:MM" -> [values]
+        slots = {} # slot_index -> [values]
         for p in points:
             if p["value"] is None:
                 continue
@@ -262,7 +263,7 @@ class InfluxService:
             if p_is_weekend != is_weekend:
                 continue
             
-            key = dt.strftime("%H:%M")
-            slots.setdefault(key, []).append(p["value"])
+            slot = get_slot_index_for_dt(dt)
+            slots.setdefault(slot, []).append(p["value"])
             
-        return {key: sum(vals)/len(vals) for key, vals in slots.items() if vals}
+        return {slot: sum(vals)/len(vals) for slot, vals in slots.items() if vals}
