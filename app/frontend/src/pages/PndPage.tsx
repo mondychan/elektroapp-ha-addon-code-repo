@@ -36,6 +36,15 @@ const buildFormState = (config: Config | null): PndFormState => ({
   nightly_sync_window_end_hour: config?.pnd?.nightly_sync_window_end_hour ?? 7,
 });
 
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "-";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -107,7 +116,7 @@ const formatDiagnosticRows = (status: PndStatus | null) => {
   if (details.missing_html_marker) rows.push(`Chybi HTML marker: ${details.missing_html_marker}`);
   if (details.status_code) rows.push(`HTTP status: ${details.status_code}`);
   if (details.meter_id) rows.push(`Meter ID: ${details.meter_id}`);
-  if (details.range?.from && details.range?.to) rows.push(`Rozsah: ${details.range.from} az ${details.range.to}`);
+  if (details.range?.from && details.range?.to) rows.push(`Rozsah: ${formatDate(details.range.from)} az ${formatDate(details.range.to)}`);
   if (Array.isArray(details.payload_keys) && details.payload_keys.length) {
     rows.push(`Payload keys: ${details.payload_keys.join(", ")}`);
   }
@@ -283,8 +292,8 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
     <section className="page-pnd">
       <DataCard title="Cache a data" className="card-spaced">
         <div className="pnd-status-grid">
-          <div><strong>Cached from:</strong> {status?.cached_from || "-"}</div>
-          <div><strong>Cached to:</strong> {status?.cached_to || "-"}</div>
+          <div><strong>Cached from:</strong> {formatDate(status?.cached_from)}</div>
+          <div><strong>Cached to:</strong> {formatDate(status?.cached_to)}</div>
           <div><strong>Pocet dni:</strong> {status?.days_count ?? 0}</div>
         </div>
         <div className="pnd-range-grid">
@@ -343,7 +352,7 @@ const PndPage: React.FC<PndPageProps> = ({ config, refreshConfig }) => {
 
                   return (
                     <tr key={day.date} style={{ borderBottom: "1px solid var(--border-light)" }}>
-                      <td style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{day.date}</td>
+                      <td style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{formatDate(day.date)}</td>
                       <td style={{ textAlign: "right" }}>{localBuy.toFixed(2)}</td>
                       <td style={{ textAlign: "right" }}>{pndBuy.toFixed(2)}</td>
                       <td style={{ textAlign: "right", fontWeight: "500", color: Math.abs(diffBuy) > 0.05 ? "var(--error)" : "inherit" }}>

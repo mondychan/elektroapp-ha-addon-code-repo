@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.22
+- **UI (PND portál)**: Změna formátu data v přehledové tabulce z ISO (`RRRR-MM-DD`) na český standard (`DD.MM.RRRR`).
+- **Vylepšení PND (Portálu naměřených dat)**:
+    *   Automatické doplňování historie: Plánovač nyní dokáže detekovat mezery v datech a stáhnout až 31 dní historie najednou (původně zkoušel jen včerejšek).
+    *   Okamžitý catch-up po startu: Pokud v datech chybí včerejšek, systém se pokusí o stažení hned po startu add-onu, nečeká se na noční okno.
+    *   Zvýšení robustnosti detekce "zaseknutého" plánovače.
+- **Oprava Odhadu vyúčtování**: V historii i v aktuálním přehledu se nyní zobrazuje "čistý" náklad (Náklady měsíce), který již zahrnuje odečet tržeb z prodeje energie.
+- **Fix Baterie a projekce**: Opravena chyba v klíčích historických profilů, která způsobovala, že predikce nákupu/výroby ignorovala denní dobu a používala fixní hodnoty.
+- **Vylepšení Srovnání výkonu**:
+    *   Srovnání dneška probíhá vůči stejnému času včera a minulý týden (např. do 11:00 vs 11:00), což přináší smysluplná procenta.
+    *   Opraveny popisky srovnávaných období (původní "Vloni/Včera" nahrazeno konkrétními názvy).
+    *   Opraven výpočet procentuální změny při přechodu mezi náklady a tržbami (zápornými hodnotami).
+
 ## 0.2.21
 - **Vylepšení PND (Portálu naměřených dat)**:
     *   Automatické doplňování historie: Plánovač nyní dokáže detekovat mezery v datech a stáhnout až 31 dní historie najednou (původně zkoušel jen včerejšek).
