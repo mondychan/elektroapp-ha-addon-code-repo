@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.24
+- **Hotfix (Plánovače)**: Oprava kritické chyby (Undefined name) v plánovači cen, která znemožňovala start add-onu ve verzi 0.2.23.
+
 ## 0.2.23
 - **Fix stability (Plánovače)**: Oprava "zaseknutých" zámků po restartu add-onu. Systém nyní detekuje, zda proces držící zámek stále běží, a pokud ne, automaticky jej uvolní. To zajišťuje, že se PND sync a stahování cen spustí okamžitě po každém restartu.
 

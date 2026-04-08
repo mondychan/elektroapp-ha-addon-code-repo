@@ -13,6 +13,12 @@ logger = logging.getLogger("uvicorn.error")
 
 PREFETCH_LOCK_STALE_SECONDS = 3600
 
+def get_prefetch_lock_path(storage_dir: Optional[Path]):
+    if storage_dir:
+        return storage_dir / "prefetch-scheduler.lock"
+    return Path("/tmp") / "elektroapp-prefetch-scheduler.lock"
+
+
 def _is_pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
