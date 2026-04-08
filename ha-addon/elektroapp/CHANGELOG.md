@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.26
+- Fix: vrácena exkluzivita process locku schedulerů; čerstvý lock se už nemaže jen kvůli shodnému PID.
+- Fix: PND scheduler je zpět kompatibilní se službami a test doubles bez `find_first_missing_date`, takže CI opět prochází.
+- Dependencies: backend aktualizován na `fastapi>=0.128.6` a `starlette>=0.41.1`, čímž mizí `python_multipart` deprecation warning v testech.
+- Repo cleanup: odstraněn zastaralý `future_implementation_plan.md`.
+
 ## 0.2.25
 - **PND a robustnost (Fix)**: Vyřešen problém se "zaseknutými" zámky schedulerů v Docker prostředí (HA Addon). Systém nyní spolehlivěji detekuje a uvolňuje staré zámky i při opakovaném přidělení stejného PID po restartu kontejneru.
 - **PND doplňování historie (Vylepšení)**: Vylepšena logika detekce mezer v datech. Plánovač již nekontroluje pouze včerejšek, ale prohledává celé 31denní okno a automaticky doplňuje chybějící dny od nejstarší nalezené mezery.

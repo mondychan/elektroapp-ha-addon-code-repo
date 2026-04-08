@@ -47,13 +47,6 @@ def _clear_stale_pnd_lock(lock_path: Path):
         try:
             data = json.loads(lock_path.read_text(encoding="utf-8"))
             pid = data.get("pid")
-            
-            # If the PID matches our current PID, but we are just starting (we don't own the lock yet),
-            # it means the lock is from a previous run of the same container/process.
-            if pid == os.getpid():
-                lock_path.unlink(missing_ok=True)
-                logger.warning("Removed stale PND scheduler lock (reused PID %s): %s", pid, lock_path)
-                return
 
             if pid and not _is_pid_alive(pid):
                 lock_path.unlink(missing_ok=True)
@@ -141,6 +134,19 @@ def _next_pnd_window_start(now: datetime, start_hour: int) -> datetime:
     return candidate
 
 
+def _has_recent_pnd_gaps(pnd_service, *, now: datetime, tzinfo) -> bool:
+    find_first_missing_date = getattr(pnd_service, "find_first_missing_date", None)
+    if callable(find_first_missing_date):
+        return find_first_missing_date(max_lookback_days=31, tzinfo=tzinfo) is not None
+
+    has_day = getattr(pnd_service, "has_day", None)
+    if callable(has_day):
+        yesterday = (now - timedelta(days=1)).date().isoformat()
+        return not has_day(yesterday)
+
+    return True
+
+
 def schedule_pnd_loop(
     *,
     load_config_fn,
@@ -170,12 +176,11 @@ def schedule_pnd_loop(
                         logger.warning("PND startup verify failed: %s", exc.message)
                         pnd_service.record_error(exc, job_type="startup-verify")
 
-                yesterday = (now - timedelta(days=1)).date().isoformat()
                 in_window = should_run_pnd_window(now, start_hour=start_hour, end_hour=end_hour)
-                
-                # Check for any gaps in the 31-day window
-                has_gaps = pnd_service.find_first_missing_date(max_lookback_days=31, tzinfo=tzinfo) is not None
-                
+
+                # Prefer full gap detection, but keep compatibility with simpler service doubles.
+                has_gaps = _has_recent_pnd_gaps(pnd_service, now=now, tzinfo=tzinfo)
+
                 # We run nightly sync if:
                 # 1. We are in the nightly window and we have gaps in data.
                 # 2. It's our first run after addon start and we have gaps (catch-up).
