@@ -103,7 +103,7 @@ def schedule_pnd_loop(
     has_pnd_required_cfg_fn,
     pnd_service,
 ):
-    startup_verify_attempted = False
+    initial_run = True
     while True:
         try:
             cfg = load_config_fn()
@@ -114,28 +114,43 @@ def schedule_pnd_loop(
             end_hour = int(pnd_cfg.get("nightly_sync_window_end_hour", 7) or 7)
 
             if not pnd_cfg.get("enabled") or not has_pnd_required_cfg_fn(pnd_cfg):
-                startup_verify_attempted = False
+                initial_run = False
                 next_run = now + timedelta(minutes=15)
             else:
-                if pnd_cfg.get("verify_on_startup", True) and not startup_verify_attempted:
+                if pnd_cfg.get("verify_on_startup", True) and initial_run:
                     try:
                         pnd_service.verify(pnd_cfg)
                     except PNDServiceError as exc:
                         logger.warning("PND startup verify failed: %s", exc.message)
                         pnd_service.record_error(exc, job_type="startup-verify")
-                    startup_verify_attempted = True
 
                 yesterday = (now - timedelta(days=1)).date().isoformat()
-                if pnd_cfg.get("nightly_sync_enabled", True) and should_run_pnd_window(now, start_hour=start_hour, end_hour=end_hour) and not pnd_service.has_day(yesterday):
+                in_window = should_run_pnd_window(now, start_hour=start_hour, end_hour=end_hour)
+                missing_yesterday = not pnd_service.has_day(yesterday)
+                
+                # We run nightly sync if:
+                # 1. We are in the nightly window and yesterday is missing.
+                # 2. It's our first run after addon start and we are missing yesterday (catch-up).
+                should_sync = pnd_cfg.get("nightly_sync_enabled", True) and missing_yesterday and (in_window or initial_run)
+                
+                if should_sync:
                     try:
                         pnd_service.run_nightly_sync(pnd_cfg, tzinfo=tzinfo)
                     except PNDServiceError as exc:
-                        logger.warning("PND nightly sync failed: %s", exc.message)
-                    next_run = (now + timedelta(hours=1)).replace(minute=5, second=0, microsecond=0)
+                        logger.warning("PND sync failed: %s", exc.message)
+                    
+                    # After sync attempt, we wait at least an hour if we are in window,
+                    # or just move to regular window schedule if we were doing catch-up.
+                    if in_window:
+                        next_run = (now + timedelta(hours=1)).replace(minute=5, second=0, microsecond=0)
+                    else:
+                        next_run = _next_pnd_window_start(now, start_hour)
                 else:
                     next_run = _next_pnd_window_start(now, start_hour)
+                
+                initial_run = False
 
-            sleep_seconds = max(30, (next_run - datetime.now(tzinfo)).total_seconds())
+            sleep_seconds = max(60, (next_run - datetime.now(tzinfo)).total_seconds())
         except Exception as exc:
             logger.warning("PND scheduler iteration failed, retrying in 10 minutes: %s", exc)
             sleep_seconds = 600

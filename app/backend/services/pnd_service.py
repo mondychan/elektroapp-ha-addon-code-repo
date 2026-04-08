@@ -772,13 +772,34 @@ class PNDService:
 
     def run_nightly_sync(self, pnd_cfg: dict[str, Any], *, tzinfo=None) -> dict[str, Any]:
         tz = tzinfo or ZoneInfo(DEFAULT_TZ)
-        target_date = datetime.now(tz).date() - timedelta(days=1)
-        if self.has_day(target_date.isoformat()):
-            return {"ok": True, "skipped": True, "reason": "already_cached", "date": target_date.isoformat()}
+        today = datetime.now(tz).date()
+        yesterday = today - timedelta(days=1)
+        
+        status = self.get_cache_status()
+        last_day_str = status.get("cached_to")
+        
+        if not last_day_str:
+            # Never fetched? Try just yesterday.
+            start_date = yesterday
+        else:
+            try:
+                last_day = date.fromisoformat(last_day_str)
+            except ValueError:
+                start_date = yesterday
+            else:
+                if last_day >= yesterday:
+                    return {"ok": True, "skipped": True, "reason": "already_cached", "date": yesterday.isoformat()}
+                start_date = last_day + timedelta(days=1)
+            
+        # Limit catch-up to 31 days to avoid overwhelming the portal
+        limit_date = today - timedelta(days=31)
+        if start_date < limit_date:
+            start_date = limit_date
+            
         try:
-            return self.fetch_day(pnd_cfg, target_date, reason="nightly")
+            return self.fetch_range(pnd_cfg, start_date, yesterday, reason="nightly")
         except PNDServiceError as exc:
-            self.record_error(exc, job_type="nightly", extra={"date": target_date.isoformat()})
+            self.record_error(exc, job_type="nightly", extra={"range": f"{start_date.isoformat()} - {yesterday.isoformat()}"})
             raise
 
     def fetch_range(self, pnd_cfg: dict[str, Any], start_date: date, end_date: date, *, reason: str) -> dict[str, Any]:
