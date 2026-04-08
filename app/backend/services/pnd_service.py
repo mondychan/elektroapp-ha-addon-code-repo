@@ -733,10 +733,37 @@ class PNDService:
         if not path.exists():
             return False
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            # Check if file has intervals and is not empty/corrupt
+            content = path.read_text(encoding="utf-8").strip()
+            if not content: return False
+            payload = json.loads(content)
             return bool(payload.get("intervals"))
         except (OSError, json.JSONDecodeError):
             return False
+
+    def find_first_missing_date(self, max_lookback_days: int = 31, tzinfo=None) -> Optional[date]:
+        tz = tzinfo or ZoneInfo(DEFAULT_TZ)
+        today = datetime.now(tz).date()
+        
+        # We check from today-1 back to today-max_lookback
+        for i in range(1, max_lookback_days + 1):
+            check_date = today - timedelta(days=i)
+            if not self.has_day(check_date.isoformat()):
+                # Continue looking further back to find the absolute oldest gap in the window
+                # so we can fetch everything from that gap up to yesterday in one go.
+                oldest_gap = check_date
+                for j in range(i + 1, max_lookback_days + 1):
+                    deeper_date = today - timedelta(days=j)
+                    if not self.has_day(deeper_date.isoformat()):
+                        oldest_gap = deeper_date
+                    else:
+                        # Once we find a day that EXISTS, we stop looking back
+                        # because we want the FIRST (oldest) gap in the CONSECUTIVE line of missing days
+                        # OR if we want to fill ALL gaps, we should find the oldest gap overall.
+                        # Usually PND API works best for ranges.
+                        pass
+                return oldest_gap
+        return None
 
     def verify(self, pnd_cfg: dict[str, Any]) -> dict[str, Any]:
         self._validate_config(pnd_cfg)
@@ -775,27 +802,17 @@ class PNDService:
         today = datetime.now(tz).date()
         yesterday = today - timedelta(days=1)
         
-        status = self.get_cache_status()
-        last_day_str = status.get("cached_to")
+        # Look for the oldest gap in the last 31 days
+        start_date = self.find_first_missing_date(max_lookback_days=31, tzinfo=tz)
         
-        if not last_day_str:
-            # Never fetched? Try just yesterday.
-            start_date = yesterday
-        else:
-            try:
-                last_day = date.fromisoformat(last_day_str)
-            except ValueError:
-                start_date = yesterday
-            else:
-                if last_day >= yesterday:
-                    return {"ok": True, "skipped": True, "reason": "already_cached", "date": yesterday.isoformat()}
-                start_date = last_day + timedelta(days=1)
+        if not start_date:
+            return {"ok": True, "skipped": True, "reason": "already_cached", "date": yesterday.isoformat()}
             
-        # Limit catch-up to 31 days to avoid overwhelming the portal
-        limit_date = today - timedelta(days=31)
-        if start_date < limit_date:
-            start_date = limit_date
-            
+        if start_date > yesterday:
+            # Should not happen given logic, but for safety:
+            return {"ok": True, "skipped": True, "reason": "no_past_gaps", "date": yesterday.isoformat()}
+
+        self.logger.info("PND nightly sync starting from first gap: %s to %s", start_date.isoformat(), yesterday.isoformat())
         try:
             return self.fetch_range(pnd_cfg, start_date, yesterday, reason="nightly")
         except PNDServiceError as exc:

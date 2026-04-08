@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.25
+- **PND a robustnost (Fix)**: Vyřešen problém se "zaseknutými" zámky schedulerů v Docker prostředí (HA Addon). Systém nyní spolehlivěji detekuje a uvolňuje staré zámky i při opakovaném přidělení stejného PID po restartu kontejneru.
+- **PND doplňování historie (Vylepšení)**: Vylepšena logika detekce mezer v datech. Plánovač již nekontroluje pouze včerejšek, ale prohledává celé 31denní okno a automaticky doplňuje chybějící dny od nejstarší nalezené mezery.
+
 ## 0.2.24
 - **Hotfix (Plánovače)**: Oprava kritické chyby (Undefined name) v plánovači cen, která znemožňovala start add-onu ve verzi 0.2.23.
 

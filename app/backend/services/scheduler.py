@@ -41,6 +41,14 @@ def _clear_stale_prefetch_lock(lock_path: Path):
         try:
             data = json.loads(lock_path.read_text(encoding="utf-8"))
             pid = data.get("pid")
+            
+            # If the PID matches our current PID, but we are just starting (we don't own the lock yet),
+            # it means the lock is from a previous run of the same container/process.
+            if pid == os.getpid():
+                lock_path.unlink(missing_ok=True)
+                logger.warning("Removed stale prefetch scheduler lock (reused PID %s): %s", pid, lock_path)
+                return
+
             if pid and not _is_pid_alive(pid):
                 lock_path.unlink(missing_ok=True)
                 logger.warning("Removed stale prefetch scheduler lock (dead PID %s): %s", pid, lock_path)

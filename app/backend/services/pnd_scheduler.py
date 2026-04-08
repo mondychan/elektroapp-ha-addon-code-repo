@@ -47,6 +47,14 @@ def _clear_stale_pnd_lock(lock_path: Path):
         try:
             data = json.loads(lock_path.read_text(encoding="utf-8"))
             pid = data.get("pid")
+            
+            # If the PID matches our current PID, but we are just starting (we don't own the lock yet),
+            # it means the lock is from a previous run of the same container/process.
+            if pid == os.getpid():
+                lock_path.unlink(missing_ok=True)
+                logger.warning("Removed stale PND scheduler lock (reused PID %s): %s", pid, lock_path)
+                return
+
             if pid and not _is_pid_alive(pid):
                 lock_path.unlink(missing_ok=True)
                 logger.warning("Removed stale PND scheduler lock (dead PID %s): %s", pid, lock_path)
@@ -164,12 +172,14 @@ def schedule_pnd_loop(
 
                 yesterday = (now - timedelta(days=1)).date().isoformat()
                 in_window = should_run_pnd_window(now, start_hour=start_hour, end_hour=end_hour)
-                missing_yesterday = not pnd_service.has_day(yesterday)
+                
+                # Check for any gaps in the 31-day window
+                has_gaps = pnd_service.find_first_missing_date(max_lookback_days=31, tzinfo=tzinfo) is not None
                 
                 # We run nightly sync if:
-                # 1. We are in the nightly window and yesterday is missing.
-                # 2. It's our first run after addon start and we are missing yesterday (catch-up).
-                should_sync = pnd_cfg.get("nightly_sync_enabled", True) and missing_yesterday and (in_window or initial_run)
+                # 1. We are in the nightly window and we have gaps in data.
+                # 2. It's our first run after addon start and we have gaps (catch-up).
+                should_sync = pnd_cfg.get("nightly_sync_enabled", True) and has_gaps and (in_window or initial_run)
                 
                 if should_sync:
                     try:
