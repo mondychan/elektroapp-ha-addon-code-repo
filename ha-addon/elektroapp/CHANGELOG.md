@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+- HP: fix graph loading and secondary KPI stats for entities using unit-based Influx measurements such as `°C`; instant-series charts now query bucket averages.
+- HP UI: top KPI tiles on the HP tab now use a compact card layout instead of stretching a single tile across the full row.
+- Config sync: prefer persistent customized backup options over freshly regenerated default HA options after add-on updates or reinstalls.
+
 ## 0.3.2
 - Fix release CI: static serving test no longer imports the full FastAPI app bootstrap, so backend tests do not try to initialize `/data` paths in GitHub Actions.
 

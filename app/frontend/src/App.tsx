@@ -357,7 +357,7 @@ const App: React.FC = () => {
       </div>
 
       <AppHeader pageMode={pageMode} setPageMode={setPageMode} theme={theme!} setTheme={setTheme} />
-      <KPIScreen items={screenKpiItems as any} />
+      <KPIScreen items={screenKpiItems as any} layout={pageMode === "hp" ? "compact" : "default"} />
 
       <main className="app-main">
         <AnimatePresence mode="wait">

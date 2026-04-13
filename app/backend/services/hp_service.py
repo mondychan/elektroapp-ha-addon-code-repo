@@ -113,7 +113,8 @@ class HPService:
 
         display_kind = entity.get("display_kind") or metadata.get("display_kind") if metadata else entity.get("display_kind")
         source_kind = entity.get("source_kind") or metadata.get("source_kind") if metadata else entity.get("source_kind")
-        unit = (entity.get("unit") or (metadata or {}).get("unit") or "").strip().lower()
+        raw_unit = str(entity.get("unit") or (metadata or {}).get("unit") or "").strip()
+        unit = raw_unit.lower()
         device_class = str(entity.get("device_class") or (metadata or {}).get("device_class") or "").strip().lower()
         state_class = str(entity.get("state_class") or (metadata or {}).get("state_class") or "").strip().lower()
 
@@ -123,8 +124,11 @@ class HPService:
             return ["W", "kW"]
         if unit in {"wh", "kwh"} or device_class == "energy" or source_kind == "counter" or state_class in {"total", "total_increasing"}:
             return ["kWh", "Wh"]
-        if unit:
-            return [unit]
+        if raw_unit:
+            candidates = [raw_unit]
+            if unit and unit != raw_unit:
+                candidates.append(unit)
+            return candidates
         return None
 
     def _build_state_card(self, influx: dict[str, Any], entity: dict[str, Any], metadata: dict[str, Any] | None, tzinfo):
@@ -183,6 +187,7 @@ class HPService:
         effective_date: str,
     ) -> dict[str, Any]:
         measurement_candidates = self._measurement_candidates(entity, metadata)
+        aggregate_fn = "mean" if entity.get("source_kind") == "instant" else "last"
         points = self._query_entity_series(
             influx,
             entity.get("entity_id"),
@@ -192,6 +197,7 @@ class HPService:
             tzinfo=tzinfo,
             numeric=True,
             measurement_candidates=measurement_candidates,
+            aggregate_fn=aggregate_fn,
         )
         clean_points = [{"time": p.get("time"), "value": p.get("value")} for p in points if p.get("value") is not None]
         values = [p["value"] for p in clean_points]

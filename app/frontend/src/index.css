@@ -613,6 +613,17 @@ body[data-theme="dark"] .row-weekend {
   margin: 0 0 16px;
 }
 
+.kpi-strip--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.kpi-strip--compact .kpi-tile {
+  flex: 0 1 220px;
+  width: min(220px, 100%);
+}
+
 .kpi-tile {
   background: var(--panel);
   border: 1px solid var(--border);

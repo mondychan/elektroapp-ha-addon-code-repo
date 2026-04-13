@@ -127,8 +127,7 @@ const buildChartOptions = (chart: HpChart) => ({
 });
 
 const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, maxDate }) => {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(maxDate);
   const [form, setForm] = useState(() => buildFormState(config));
   const [data, setData] = useState<HpDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -142,6 +141,10 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
   useEffect(() => {
     setForm(buildFormState(config));
   }, [config]);
+
+  useEffect(() => {
+    setSelectedDate((previous) => previous || maxDate);
+  }, [maxDate]);
 
   const loadData = useCallback(
     async (dateValue: string) => {

@@ -64,3 +64,53 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage):
     assert backup_options["pnd"]["username"] == "user@example.com"
     assert ha_options["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_hmu_currentyieldpower"
     assert backup_options["hp"]["enabled"] is True
+
+
+def test_load_config_prefers_custom_backup_over_newer_default_ha_options(isolated_storage):
+    config_path = isolated_storage["config_file"]
+    ha_options_path = isolated_storage["ha_options_file"]
+    backup_path = isolated_storage["storage_dir"] / "options.json"
+
+    config_path.write_text(
+        "price_provider: spotovaelektrina.cz\nhp:\n  enabled: false\n  entities: []\n",
+        encoding="utf-8",
+    )
+    backup_payload = {
+        "price_provider": "spotovaelektrina.cz",
+        "hp": {
+            "enabled": True,
+            "entities": [
+                {
+                    "entity_id": "sensor.ebusd_ha_daemon_broadcast_outsidetemp",
+                    "label": "Outside temp",
+                    "display_kind": "numeric",
+                    "source_kind": "instant",
+                    "kpi_enabled": True,
+                    "chart_enabled": True,
+                    "kpi_mode": "last",
+                    "unit": "°C",
+                }
+            ],
+        },
+    }
+    ha_options_payload = {
+        "price_provider": "spotovaelektrina.cz",
+        "hp": {
+            "enabled": False,
+            "entities": [],
+        },
+    }
+
+    ha_options_path.parent.mkdir(parents=True, exist_ok=True)
+    backup_path.write_text(json.dumps(backup_payload), encoding="utf-8")
+    ha_options_path.write_text(json.dumps(ha_options_payload), encoding="utf-8")
+
+    ha_mtime = backup_path.stat().st_mtime + 5
+    os.utime(ha_options_path, (ha_mtime, ha_mtime))
+
+    loaded = config_loader.load_config()
+
+    assert loaded["hp"]["enabled"] is True
+    assert loaded["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_broadcast_outsidetemp"
+    mirrored = json.loads(ha_options_path.read_text(encoding="utf-8"))
+    assert mirrored["hp"]["enabled"] is True

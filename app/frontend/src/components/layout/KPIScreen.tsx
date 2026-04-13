@@ -16,11 +16,12 @@ interface KPIItem {
 
 interface KPIScreenProps {
   items: KPIItem[];
+  layout?: "default" | "compact";
 }
 
-const KPIScreen: React.FC<KPIScreenProps> = ({ items }) => {
+const KPIScreen: React.FC<KPIScreenProps> = ({ items, layout = "default" }) => {
   return (
-    <section className="kpi-strip" aria-label="Dnesni KPI">
+    <section className={`kpi-strip ${layout === "compact" ? "kpi-strip--compact" : ""}`.trim()} aria-label="Dnesni KPI">
       {items.map((item) => (
         <div
           key={item.key}

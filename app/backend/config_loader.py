@@ -51,6 +51,21 @@ def _write_json_file(path: Path, payload: dict[str, Any]) -> bool:
         return False
 
 
+def _count_config_customizations(defaults: Any, candidate: Any) -> int:
+    if isinstance(defaults, dict) and isinstance(candidate, dict):
+        keys = set(defaults.keys()) | set(candidate.keys())
+        return sum(_count_config_customizations(defaults.get(key), candidate.get(key)) for key in keys)
+    if isinstance(defaults, list) and isinstance(candidate, list):
+        if defaults == candidate:
+            return 0
+        if not defaults and candidate:
+            return len(candidate)
+        return 1
+    if defaults == candidate:
+        return 0
+    return 1
+
+
 def save_options_sync(options: dict[str, Any]) -> dict[str, bool]:
     results: dict[str, bool] = {}
     for path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):
@@ -162,8 +177,9 @@ def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
+    default_cfg = cfg if isinstance(cfg, dict) else {}
 
-    option_sources: list[tuple[float, Path, dict[str, Any]]] = []
+    option_sources: list[tuple[float, int, Path, dict[str, Any]]] = []
     for options_path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):
         options = _read_json_file(options_path)
         if options is None:
@@ -172,11 +188,14 @@ def load_config():
             mtime = options_path.stat().st_mtime
         except OSError:
             mtime = 0.0
-        option_sources.append((mtime, options_path, options))
+        customization_score = _count_config_customizations(default_cfg, options)
+        option_sources.append((mtime, customization_score, options_path, options))
 
     if option_sources:
-        option_sources.sort(key=lambda item: item[0], reverse=True)
-        _, selected_path, selected_options = option_sources[0]
+        custom_sources = [item for item in option_sources if item[1] > 0]
+        candidate_sources = custom_sources or option_sources
+        candidate_sources.sort(key=lambda item: item[0], reverse=True)
+        _, _, selected_path, selected_options = candidate_sources[0]
         cfg = merge_config(cfg, selected_options)
 
         for mirror_path in (HA_OPTIONS_FILE, OPTIONS_BACKUP_FILE):

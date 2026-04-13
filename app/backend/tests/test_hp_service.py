@@ -208,3 +208,78 @@ def test_hp_service_infers_power_measurements_and_falls_back_to_ha_state():
     assert payload["kpis"][0]["value"] == pytest.approx(4.25)
     assert payload["kpis"][0]["secondary_metrics"] == []
     assert payload["charts"][0]["points"] == []
+
+
+def test_hp_service_preserves_celsius_measurement_case_for_series():
+    captured_measurements = []
+    captured_aggregate_fns = []
+
+    class StubHaService:
+        def resolve_entity_metadata(self, entity_id):
+            return {
+                "entity_id": entity_id,
+                "label": "Outside temperature",
+                "unit": "°C",
+                "device_class": "temperature",
+                "state_class": "measurement",
+                "state": "10.0",
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "last",
+                "chart_enabled": True,
+                "kpi_enabled": True,
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return self.resolve_entity_metadata(entity_id)
+
+    def query_series(_influx, _entity_id, *_args, **kwargs):
+        captured_measurements.append(kwargs.get("measurement_candidates"))
+        captured_aggregate_fns.append(kwargs.get("aggregate_fn"))
+        return [
+            {"time": "2026-01-01T00:00:00+00:00", "value": 9.5},
+            {"time": "2026-01-01T00:15:00+00:00", "value": 10.0},
+            {"time": "2026-01-01T00:30:00+00:00", "value": 10.5},
+        ]
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value", "measurement": "kWh"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda date, _start, _end, _tz: (
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 2, tzinfo=UTC),
+        ),
+        query_entity_series=query_series,
+        safe_query_entity_last_value=lambda *_args, **_kwargs: None,
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    payload = service.get_data(
+        date="2026-01-01",
+        cfg={
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_broadcast_outsidetemp",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "last",
+                    }
+                ],
+            }
+        },
+        tzinfo=UTC,
+    )
+
+    assert captured_measurements[0] == ["°C", "°c"]
+    assert captured_aggregate_fns[0] == "mean"
+    assert payload["kpis"][0]["secondary_metrics"] == [
+        {"key": "avg", "label": "AVG", "value": 10.0},
+        {"key": "min", "label": "MIN", "value": 9.5},
+        {"key": "max", "label": "MAX", "value": 10.5},
+    ]
+    assert len(payload["charts"][0]["points"]) == 3
