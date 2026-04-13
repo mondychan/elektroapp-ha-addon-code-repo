@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6
+- HP charts: preserve visible gaps when data is missing instead of drawing a continuous line across downtime or missing buckets.
+- HP KPI: keep `LAST` tied to the latest live value while `AVG`, `MIN`, `MAX` and other period stats follow the selected chart range.
+- HP periods: weekly, monthly and yearly charts now fill missing buckets with `null`, so missing days or months stay visibly empty.
+
 ## 0.3.5
 - Config persistence: save add-on configuration to Home Assistant Supervisor via `/addons/self/options`, so HP settings no longer disappear after add-on restart.
 - Config API: fail the save request explicitly when Supervisor sync fails, instead of reporting a false local-only success.

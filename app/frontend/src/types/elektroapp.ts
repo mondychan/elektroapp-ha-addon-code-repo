@@ -115,7 +115,7 @@ export interface HpChart {
   source_kind?: string;
   points: Array<{
     time: string;
-    value: number;
+    value: number | null;
   }>;
 }
 
@@ -127,6 +127,7 @@ export interface HpDataResponse {
   date?: string | null;
   period?: "day" | "week" | "month" | "year";
   anchor?: string | null;
+  kpi_date?: string | null;
   config: {
     enabled?: boolean;
     entities?: HpEntityConfig[];

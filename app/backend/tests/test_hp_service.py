@@ -128,6 +128,7 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
     assert payload["date"] == "2026-01-01"
     assert payload["period"] == "day"
     assert payload["anchor"] == "2026-01-01"
+    assert payload["kpi_date"]
     assert len(payload["kpis"]) == 1
     assert payload["kpis"][0]["value"] == pytest.approx(2.0)
     assert payload["kpis"][0]["label"] == "resolved:sensor.hp_power"
@@ -137,7 +138,7 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
         {"key": "max", "label": "MAX", "value": 3.0},
     ]
     assert len(payload["charts"]) == 1
-    assert len(payload["charts"][0]["points"]) == 3
+    assert len(payload["charts"][0]["points"]) >= 3
     assert len(payload["status_cards"]) == 1
     assert payload["status_cards"][0]["value"] == "Zapnuto"
 
@@ -211,7 +212,8 @@ def test_hp_service_infers_power_measurements_and_falls_back_to_ha_state():
     assert captured_measurements[0] == ["W", "kW"]
     assert payload["kpis"][0]["value"] == pytest.approx(4.25)
     assert payload["kpis"][0]["secondary_metrics"] == []
-    assert payload["charts"][0]["points"] == []
+    assert payload["charts"][0]["points"]
+    assert all(point["value"] is None for point in payload["charts"][0]["points"])
 
 
 def test_hp_service_preserves_celsius_measurement_case_for_series():
@@ -287,4 +289,224 @@ def test_hp_service_preserves_celsius_measurement_case_for_series():
         {"key": "min", "label": "MIN", "value": 9.5},
         {"key": "max", "label": "MAX", "value": 10.5},
     ]
-    assert len(payload["charts"][0]["points"]) == 3
+    assert len(payload["charts"][0]["points"]) >= 3
+
+
+def test_hp_service_fills_missing_day_buckets_with_null_gaps():
+    class StubHaService:
+        def resolve_entity_metadata(self, entity_id):
+            return {
+                "entity_id": entity_id,
+                "label": "Outside temperature",
+                "unit": "°C",
+                "device_class": "temperature",
+                "state_class": "measurement",
+                "state": "10.0",
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "last",
+                "chart_enabled": True,
+                "kpi_enabled": True,
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return self.resolve_entity_metadata(entity_id)
+
+    def query_series(_influx, _entity_id, start_utc, end_utc, interval, **_kwargs):
+        if interval == "15m":
+            return [
+                {"time": "2026-01-01T00:30:00+00:00", "value": 9.5},
+                {"time": "2026-01-01T00:45:00+00:00", "value": 10.0},
+            ]
+        return []
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value", "measurement": "°C"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda date, _start, _end, _tz: (
+            datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+            datetime(2026, 1, 1, 1, 0, tzinfo=UTC),
+        ),
+        query_entity_series=query_series,
+        safe_query_entity_last_value=lambda *_args, **_kwargs: {"time": "2026-01-01T00:45:00+00:00", "value": 10.0},
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    payload = service.get_data(
+        period="day",
+        anchor="2026-01-01",
+        cfg={
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.outside_temp",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "last",
+                    }
+                ],
+            }
+        },
+        tzinfo=UTC,
+    )
+
+    assert payload["charts"][0]["points"] == [
+        {"time": "2026-01-01T00:00:00+00:00", "value": None},
+        {"time": "2026-01-01T00:15:00+00:00", "value": None},
+        {"time": "2026-01-01T00:30:00+00:00", "value": 9.5},
+        {"time": "2026-01-01T00:45:00+00:00", "value": 10.0},
+    ]
+
+
+def test_hp_service_uses_selected_period_for_avg_but_live_value_for_last():
+    class StubHaService:
+        def resolve_entity_metadata(self, entity_id):
+            return {
+                "entity_id": entity_id,
+                "label": "Outside temperature",
+                "unit": "°C",
+                "device_class": "temperature",
+                "state_class": "measurement",
+                "state": "11.0",
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "last",
+                "chart_enabled": True,
+                "kpi_enabled": True,
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return self.resolve_entity_metadata(entity_id)
+
+    def query_series(_influx, _entity_id, start_utc, end_utc, interval, **_kwargs):
+        if interval == "15m":
+            return [
+                {"time": "2026-01-13T18:00:00+00:00", "value": 14.0},
+                {"time": "2026-01-13T19:00:00+00:00", "value": 16.0},
+            ]
+        if interval == "1h":
+            return [
+                {"time": "2026-01-07T00:00:00+00:00", "value": 1.0},
+                {"time": "2026-01-09T00:00:00+00:00", "value": 2.0},
+                {"time": "2026-01-13T00:00:00+00:00", "value": 3.0},
+            ]
+        return []
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value", "measurement": "°C"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda date, _start, _end, _tz: (
+            datetime(2026, 1, 13, 0, 0, tzinfo=UTC),
+            datetime(2026, 1, 14, 0, 0, tzinfo=UTC),
+        ),
+        query_entity_series=query_series,
+        safe_query_entity_last_value=lambda *_args, **_kwargs: {"time": "2026-01-13T19:00:00+00:00", "value": 16.0},
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    payload = service.get_data(
+        period="week",
+        anchor="2026-01-13",
+        cfg={
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.outside_temp",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "last",
+                    }
+                ],
+            }
+        },
+        tzinfo=UTC,
+    )
+
+    assert payload["kpis"][0]["value"] == pytest.approx(16.0)
+    assert payload["kpis"][0]["updated_at"] == "2026-01-13T19:00:00+00:00"
+    assert payload["kpis"][0]["secondary_metrics"] == [
+        {"key": "avg", "label": "AVG", "value": 2.0},
+        {"key": "min", "label": "MIN", "value": 1.0},
+        {"key": "max", "label": "MAX", "value": 3.0},
+    ]
+    assert len(payload["charts"][0]["points"]) == 7
+    assert payload["charts"][0]["points"][1]["value"] is None
+
+
+def test_hp_service_uses_selected_period_values_for_avg_mode():
+    class StubHaService:
+        def resolve_entity_metadata(self, entity_id):
+            return {
+                "entity_id": entity_id,
+                "label": "Outside temperature",
+                "unit": "Â°C",
+                "device_class": "temperature",
+                "state_class": "measurement",
+                "state": "11.0",
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "avg",
+                "chart_enabled": True,
+                "kpi_enabled": True,
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return self.resolve_entity_metadata(entity_id)
+
+    def query_series(_influx, _entity_id, _start_utc, _end_utc, interval, **_kwargs):
+        if interval == "1h":
+            return [
+                {"time": "2026-01-07T00:00:00+00:00", "value": 1.0},
+                {"time": "2026-01-09T00:00:00+00:00", "value": 2.0},
+                {"time": "2026-01-13T00:00:00+00:00", "value": 3.0},
+            ]
+        return []
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value", "measurement": "Â°C"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda date, _start, _end, _tz: (
+            datetime(2026, 1, 13, 0, 0, tzinfo=UTC),
+            datetime(2026, 1, 14, 0, 0, tzinfo=UTC),
+        ),
+        query_entity_series=query_series,
+        safe_query_entity_last_value=lambda *_args, **_kwargs: {"time": "2026-01-13T19:00:00+00:00", "value": 16.0},
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    payload = service.get_data(
+        period="week",
+        anchor="2026-01-13",
+        cfg={
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.outside_temp",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "avg",
+                    }
+                ],
+            }
+        },
+        tzinfo=UTC,
+    )
+
+    assert payload["kpis"][0]["value"] == pytest.approx(2.0)
+    assert payload["kpis"][0]["secondary_metrics"] == [
+        {"key": "last", "label": "LAST", "value": 16.0},
+        {"key": "min", "label": "MIN", "value": 1.0},
+        {"key": "max", "label": "MAX", "value": 3.0},
+    ]

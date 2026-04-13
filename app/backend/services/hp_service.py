@@ -46,11 +46,13 @@ class HPService:
         hp_cfg = self._get_hp_cfg(cfg)
         effective_period = period or "day"
         effective_anchor = self._normalize_anchor(effective_period, anchor, tzinfo)
-        start_utc, end_utc, interval = self._resolve_range(effective_period, effective_anchor, cfg, tzinfo)
+        chart_start_utc, chart_end_utc, chart_interval = self._resolve_range(effective_period, effective_anchor, cfg, tzinfo)
+        kpi_anchor = datetime.now(tzinfo).strftime("%Y-%m-%d")
         result = {
             "date": effective_anchor if effective_period == "day" else None,
             "period": effective_period,
             "anchor": effective_anchor,
+            "kpi_date": kpi_anchor,
             "config": {
                 "enabled": hp_cfg.get("enabled", False),
                 "entities": [],
@@ -95,9 +97,9 @@ class HPService:
                 influx,
                 entity,
                 metadata,
-                start_utc,
-                end_utc,
-                interval,
+                chart_start_utc,
+                chart_end_utc,
+                chart_interval,
                 tzinfo,
                 effective_anchor,
                 effective_period,
@@ -132,14 +134,14 @@ class HPService:
             anchor_local = datetime.strptime(anchor, "%Y-%m-%d").replace(tzinfo=tzinfo)
             start_local = anchor_local - timedelta(days=6)
             end_local = anchor_local + timedelta(days=1)
-            return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "6h"
+            return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1h"
         if period == "month":
             anchor_local = datetime.strptime(anchor, "%Y-%m").replace(tzinfo=tzinfo)
             if anchor_local.month == 12:
                 end_local = anchor_local.replace(year=anchor_local.year + 1, month=1)
             else:
                 end_local = anchor_local.replace(month=anchor_local.month + 1)
-            return anchor_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1d"
+            return anchor_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "6h"
         anchor_year = int(anchor)
         start_local = datetime(anchor_year, 1, 1, tzinfo=tzinfo)
         end_local = datetime(anchor_year + 1, 1, 1, tzinfo=tzinfo)
@@ -219,52 +221,57 @@ class HPService:
         influx: dict[str, Any],
         entity: dict[str, Any],
         metadata: dict[str, Any] | None,
-        start_utc: datetime,
-        end_utc: datetime,
-        interval: str,
+        chart_start_utc: datetime,
+        chart_end_utc: datetime,
+        chart_interval: str,
         tzinfo,
         effective_anchor: str,
         effective_period: str,
     ) -> dict[str, Any]:
         measurement_candidates = self._measurement_candidates(entity, metadata)
         aggregate_fn = "mean" if entity.get("source_kind") == "instant" else "last"
-        points = self._query_entity_series(
+        raw_chart_points = self._query_entity_series(
             influx,
             entity.get("entity_id"),
-            start_utc,
-            end_utc,
-            interval=interval,
+            chart_start_utc,
+            chart_end_utc,
+            interval=chart_interval,
             tzinfo=tzinfo,
             numeric=True,
             measurement_candidates=measurement_candidates,
             aggregate_fn=aggregate_fn,
         )
-        clean_points = [{"time": p.get("time"), "value": p.get("value")} for p in points if p.get("value") is not None]
-        values = [p["value"] for p in clean_points]
+        chart_points = self._build_chart_points(
+            raw_chart_points=raw_chart_points,
+            chart_start_utc=chart_start_utc,
+            chart_end_utc=chart_end_utc,
+            chart_interval=chart_interval,
+            period=effective_period,
+            source_kind=str(entity.get("source_kind") or "instant"),
+            tzinfo=tzinfo,
+        )
+        clean_period_points = [{"time": p.get("time"), "value": p.get("value")} for p in raw_chart_points if p.get("value") is not None]
+        period_values = [p["value"] for p in clean_period_points]
         kpi_mode = entity.get("kpi_mode") or "last"
         decimals = entity.get("decimals")
 
-        latest_record = None
-        if kpi_mode == "last" and not values:
-            latest_record = self._safe_query_entity_last_value(
-                influx,
-                entity.get("entity_id"),
-                tzinfo=tzinfo,
-                numeric=True,
-                label=entity.get("label"),
-                measurement_candidates=measurement_candidates,
-            )
-            latest_value = _safe_float(latest_record.get("value")) if latest_record else None
-        else:
-            latest_value = values[-1] if values else None
+        latest_record = self._safe_query_entity_last_value(
+            influx,
+            entity.get("entity_id"),
+            tzinfo=tzinfo,
+            numeric=True,
+            label=entity.get("label"),
+            measurement_candidates=measurement_candidates,
+        )
+        latest_value = _safe_float(latest_record.get("value")) if latest_record else (period_values[-1] if period_values else None)
 
         if latest_value is None and metadata:
             latest_value = _safe_float(metadata.get("state"))
 
-        kpi_value = self._compute_kpi_value(kpi_mode, values, latest_value)
-        stats = self._compute_stats(values, latest_value, decimals)
-        updated_at = latest_record.get("time") if latest_record else (clean_points[-1]["time"] if clean_points else None)
-        if not clean_points and latest_value is None:
+        kpi_value = self._compute_kpi_value(kpi_mode, period_values, latest_value)
+        stats = self._compute_stats(period_values, latest_value, decimals)
+        updated_at = latest_record.get("time") if latest_record else (clean_period_points[-1]["time"] if clean_period_points else None)
+        if not clean_period_points and latest_value is None:
             self.logger.info(
                 "HP numeric entity returned no data: entity_id=%s period=%s anchor=%s measurement_candidates=%s",
                 entity.get("entity_id"),
@@ -291,9 +298,106 @@ class HPService:
                 "unit": entity.get("unit"),
                 "decimals": decimals,
                 "source_kind": entity.get("source_kind"),
-                "points": clean_points,
+                "points": chart_points,
             },
         }
+
+    def _build_chart_points(
+        self,
+        raw_chart_points: list[dict[str, Any]],
+        chart_start_utc: datetime,
+        chart_end_utc: datetime,
+        chart_interval: str,
+        period: str,
+        source_kind: str,
+        tzinfo,
+    ) -> list[dict[str, Any]]:
+        normalized_points = [{"time": p.get("time"), "value": p.get("value")} for p in raw_chart_points]
+        if period == "day":
+            return self._fill_fixed_interval_points(
+                points=normalized_points,
+                start_utc=chart_start_utc,
+                end_utc=chart_end_utc,
+                interval=chart_interval,
+                tzinfo=tzinfo,
+            )
+
+        buckets: dict[str, list[float]] = {}
+        for point in normalized_points:
+            if point.get("value") is None or not point.get("time"):
+                continue
+            point_dt = datetime.fromisoformat(str(point["time"]))
+            bucket_dt = self._bucket_start_for_period(point_dt, period)
+            bucket_key = bucket_dt.isoformat()
+            buckets.setdefault(bucket_key, []).append(float(point["value"]))
+
+        filled_points: list[dict[str, Any]] = []
+        for bucket_dt in self._iter_period_buckets(chart_start_utc, chart_end_utc, period, tzinfo):
+            bucket_key = bucket_dt.isoformat()
+            values = buckets.get(bucket_key, [])
+            if not values:
+                bucket_value = None
+            elif source_kind == "counter":
+                bucket_value = values[-1]
+            else:
+                bucket_value = sum(values) / len(values)
+            filled_points.append({"time": bucket_key, "value": bucket_value})
+        return filled_points
+
+    def _fill_fixed_interval_points(
+        self,
+        points: list[dict[str, Any]],
+        start_utc: datetime,
+        end_utc: datetime,
+        interval: str,
+        tzinfo,
+    ) -> list[dict[str, Any]]:
+        step = self._parse_interval(interval)
+        value_map = {str(point.get("time")): point.get("value") for point in points if point.get("time")}
+        filled_points: list[dict[str, Any]] = []
+        current_utc = start_utc
+        while current_utc < end_utc:
+            current_local = current_utc.astimezone(tzinfo)
+            key = current_local.isoformat()
+            filled_points.append({"time": key, "value": value_map.get(key)})
+            current_utc += step
+        return filled_points
+
+    def _bucket_start_for_period(self, dt_local: datetime, period: str) -> datetime:
+        if period in {"week", "month"}:
+            return dt_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        if period == "year":
+            return dt_local.replace(month=dt_local.month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return dt_local
+
+    def _iter_period_buckets(self, start_utc: datetime, end_utc: datetime, period: str, tzinfo):
+        current = start_utc.astimezone(tzinfo)
+        end_local = end_utc.astimezone(tzinfo)
+        if period in {"week", "month"}:
+            current = current.replace(hour=0, minute=0, second=0, microsecond=0)
+            while current < end_local:
+                yield current
+                current += timedelta(days=1)
+            return
+        current = current.replace(month=1 if period == "year" else current.month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        while current < end_local:
+            yield current
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+
+    def _parse_interval(self, interval: str) -> timedelta:
+        raw = str(interval or "15m").strip().lower()
+        if raw.endswith("m"):
+            return timedelta(minutes=int(raw[:-1] or 15))
+        if raw.endswith("h"):
+            return timedelta(hours=int(raw[:-1] or 1))
+        if raw.endswith("d"):
+            return timedelta(days=int(raw[:-1] or 1))
+        if raw.endswith("w"):
+            return timedelta(weeks=int(raw[:-1] or 1))
+        return timedelta(minutes=15)
 
     def _compute_kpi_value(self, kpi_mode: str, values: list[float], latest_value: float | None) -> float | None:
         if kpi_mode == "last":

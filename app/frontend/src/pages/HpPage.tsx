@@ -125,9 +125,8 @@ const formatChartLabel = (value: string, period: HpPeriod) => {
   if (period === "day") {
     return date.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
   }
-  if (period === "week") {
-    return date.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit" }) + " " +
-      date.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+  if (period === "year") {
+    return date.toLocaleDateString("cs-CZ", { month: "short", year: "2-digit" });
   }
   return date.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit" });
 };
@@ -145,6 +144,7 @@ const buildChartData = (chart: HpChart, period: HpPeriod) => ({
       tension: 0.24,
       borderWidth: 2,
       fill: true,
+      spanGaps: false,
       pointRadius: 0,
       pointHitRadius: 10,
     },
@@ -160,7 +160,7 @@ const buildChartOptions = (chart: HpChart, period: HpPeriod) => ({
       ticks: {
         maxRotation: 0,
         autoSkip: true,
-        maxTicksLimit: period === "day" ? 12 : period === "week" ? 10 : 14,
+        maxTicksLimit: period === "day" ? 12 : period === "week" ? 8 : period === "month" ? 12 : 12,
       },
       grid: {
         display: false,
@@ -466,10 +466,10 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
             <DataCard
               key={chart.entity_id}
               title={chart.label}
-              empty={!chart.points?.length}
+              empty={!chart.points?.some((point) => point.value != null)}
               emptyMessage="Pro vybrane obdobi nejsou k dispozici zadna data."
             >
-              {chart.points?.length ? <LineTimeChart data={buildChartData(chart, chartPeriod)} options={buildChartOptions(chart, chartPeriod)} height={260} /> : null}
+              {chart.points?.some((point) => point.value != null) ? <LineTimeChart data={buildChartData(chart, chartPeriod)} options={buildChartOptions(chart, chartPeriod)} height={260} /> : null}
             </DataCard>
           ))
         ) : (
