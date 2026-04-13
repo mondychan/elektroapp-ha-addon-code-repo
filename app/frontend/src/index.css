@@ -622,6 +622,25 @@ body[data-theme="dark"] .row-weekend {
 .kpi-strip--compact .kpi-tile {
   flex: 0 1 220px;
   width: min(220px, 100%);
+  text-align: center;
+}
+
+.kpi-strip--compact .kpi-tile-label {
+  margin-bottom: 8px;
+}
+
+.kpi-strip--compact .kpi-tile-value {
+  font-size: clamp(1.9rem, 3vw, 2.25rem);
+  font-weight: 700;
+  justify-content: center;
+}
+
+.kpi-strip--compact .kpi-tile-secondary {
+  margin-top: 10px;
+}
+
+.kpi-strip--compact .kpi-tile-detail {
+  display: none;
 }
 
 .kpi-tile {
@@ -1249,6 +1268,38 @@ input {
   gap: 12px;
 }
 
+.hp-chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.hp-period-nav {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hp-stale-alert {
+  margin-bottom: 0;
+}
+
+.hp-stale-alert strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.hp-stale-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--buy-text);
+  font-size: 13px;
+}
+
 .hp-entity-list {
   display: grid;
   gap: 10px;
@@ -1455,6 +1506,40 @@ input {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+.collapsible-card {
+  padding-top: 0;
+}
+
+.collapsible-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.collapsible-card-header.is-open {
+  border-bottom-color: var(--border);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.collapsible-card-chevron {
+  transition: transform 0.2s ease;
+}
+
+.collapsible-card-chevron.is-open {
+  transform: rotate(180deg);
 }
 
 .danger-button {

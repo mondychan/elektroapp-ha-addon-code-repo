@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -42,11 +42,15 @@ class HPService:
     def resolve_entity(self, entity_id: str) -> dict[str, Any]:
         return self._home_assistant_service.resolve_entity_metadata(entity_id)
 
-    def get_data(self, date: str | None, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
+    def get_data(self, period: str | None, anchor: str | None, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
         hp_cfg = self._get_hp_cfg(cfg)
-        effective_date = date or datetime.now(tzinfo).strftime("%Y-%m-%d")
+        effective_period = period or "day"
+        effective_anchor = self._normalize_anchor(effective_period, anchor, tzinfo)
+        start_utc, end_utc, interval = self._resolve_range(effective_period, effective_anchor, cfg, tzinfo)
         result = {
-            "date": effective_date,
+            "date": effective_anchor if effective_period == "day" else None,
+            "period": effective_period,
+            "anchor": effective_anchor,
             "config": {
                 "enabled": hp_cfg.get("enabled", False),
                 "entities": [],
@@ -59,8 +63,6 @@ class HPService:
             return result
 
         influx = self._get_influx_cfg(cfg)
-        start_utc, end_utc = self._parse_time_range(effective_date, None, None, tzinfo)
-        interval = influx.get("interval", "15m")
 
         for raw_entity in hp_cfg.get("entities", []):
             entity = dict(raw_entity)
@@ -97,7 +99,8 @@ class HPService:
                 end_utc,
                 interval,
                 tzinfo,
-                effective_date,
+                effective_anchor,
+                effective_period,
             )
             if entity.get("kpi_enabled", True):
                 result["kpis"].append(numeric_payload["kpi"])
@@ -105,6 +108,42 @@ class HPService:
                 result["charts"].append(numeric_payload["chart"])
 
         return result
+
+    def _normalize_anchor(self, period: str, anchor: str | None, tzinfo) -> str:
+        now_local = datetime.now(tzinfo)
+        if period == "year":
+            if anchor:
+                return anchor
+            return str(now_local.year)
+        if period == "month":
+            if anchor:
+                return anchor
+            return now_local.strftime("%Y-%m")
+        if anchor:
+            return anchor
+        return now_local.strftime("%Y-%m-%d")
+
+    def _resolve_range(self, period: str, anchor: str, cfg: dict[str, Any], tzinfo) -> tuple[datetime, datetime, str]:
+        influx = self._get_influx_cfg(cfg)
+        if period == "day":
+            start_utc, end_utc = self._parse_time_range(anchor, None, None, tzinfo)
+            return start_utc, end_utc, influx.get("interval", "15m")
+        if period == "week":
+            anchor_local = datetime.strptime(anchor, "%Y-%m-%d").replace(tzinfo=tzinfo)
+            start_local = anchor_local - timedelta(days=6)
+            end_local = anchor_local + timedelta(days=1)
+            return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "6h"
+        if period == "month":
+            anchor_local = datetime.strptime(anchor, "%Y-%m").replace(tzinfo=tzinfo)
+            if anchor_local.month == 12:
+                end_local = anchor_local.replace(year=anchor_local.year + 1, month=1)
+            else:
+                end_local = anchor_local.replace(month=anchor_local.month + 1)
+            return anchor_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1d"
+        anchor_year = int(anchor)
+        start_local = datetime(anchor_year, 1, 1, tzinfo=tzinfo)
+        end_local = datetime(anchor_year + 1, 1, 1, tzinfo=tzinfo)
+        return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1w"
 
     def _measurement_candidates(self, entity: dict[str, Any], metadata: dict[str, Any] | None = None) -> list[str] | None:
         measurement = entity.get("measurement")
@@ -184,7 +223,8 @@ class HPService:
         end_utc: datetime,
         interval: str,
         tzinfo,
-        effective_date: str,
+        effective_anchor: str,
+        effective_period: str,
     ) -> dict[str, Any]:
         measurement_candidates = self._measurement_candidates(entity, metadata)
         aggregate_fn = "mean" if entity.get("source_kind") == "instant" else "last"
@@ -226,9 +266,10 @@ class HPService:
         updated_at = latest_record.get("time") if latest_record else (clean_points[-1]["time"] if clean_points else None)
         if not clean_points and latest_value is None:
             self.logger.info(
-                "HP numeric entity returned no data: entity_id=%s date=%s measurement_candidates=%s",
+                "HP numeric entity returned no data: entity_id=%s period=%s anchor=%s measurement_candidates=%s",
                 entity.get("entity_id"),
-                effective_date,
+                effective_period,
+                effective_anchor,
                 measurement_candidates or [influx.get("measurement")],
             )
 

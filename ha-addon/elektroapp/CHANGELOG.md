@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4
+- HP UI: enlarge and center the primary KPI value, hide the redundant KPI footer note, and keep AVG/MIN/MAX in the same card.
+- HP charts: add `day / week / month / year` range switching with matching backend query support; yearly charts use the selected calendar year from January through December.
+- HP config: make the configuration panel collapsible and default it to collapsed after reload.
+- HP stale warning: show a red warning banner only when displayed HP values are older than 60 minutes; otherwise do not show a status warning block.
+
 ## 0.3.3
 - HP: fix graph loading and secondary KPI stats for entities using unit-based Influx measurements such as `°C`; instant-series charts now query bucket averages.
 - HP UI: top KPI tiles on the HP tab now use a compact card layout instead of stretching a single tile across the full row.

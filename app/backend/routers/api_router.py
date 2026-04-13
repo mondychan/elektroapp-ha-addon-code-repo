@@ -3,7 +3,7 @@ from fastapi import APIRouter, Body, Depends, Query, Response
 import app_service as svc
 from config_models import AppConfigModel
 from dependencies import RequestContext, get_request_context
-from query_models import DateRangeQuery, EnergyBalanceQuery, HeatmapQuery, MonthQuery, OptionalDateQuery
+from query_models import DateRangeQuery, EnergyBalanceQuery, HeatmapQuery, HpDataQuery, MonthQuery, OptionalDateQuery
 
 
 router = APIRouter(prefix="/api")
@@ -69,8 +69,8 @@ def get_pnd_data(
 
 
 @router.get("/hp/data")
-def get_hp_data(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
-    return svc.get_hp_data(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+def get_hp_data(params: HpDataQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_hp_data(period=params.period, anchor=params.anchor, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.post("/hp/resolve-entity")

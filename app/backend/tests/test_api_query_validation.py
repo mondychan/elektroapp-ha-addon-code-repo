@@ -56,13 +56,31 @@ def test_energy_balance_rejects_invalid_period():
     assert payload["code"] == "VALIDATION_ERROR"
 
 
-def test_hp_data_rejects_invalid_date_query():
+def test_hp_data_rejects_invalid_period_query():
     client = TestClient(build_test_app())
-    resp = client.get("/api/hp/data", params={"date": "2026-99-99"})
+    resp = client.get("/api/hp/data", params={"period": "quarter"})
 
     assert resp.status_code == 422
     payload = resp.json()["error"]
     assert payload["code"] == "VALIDATION_ERROR"
+
+
+def test_hp_data_rejects_invalid_week_anchor():
+    client = TestClient(build_test_app())
+    resp = client.get("/api/hp/data", params={"period": "week", "anchor": "2026-99-99"})
+
+    assert resp.status_code == 422
+    payload = resp.json()["error"]
+    assert payload["code"] == "VALIDATION_ERROR"
+
+
+def test_hp_data_accepts_month_anchor(monkeypatch):
+    monkeypatch.setattr("app_service.get_hp_data", lambda **kwargs: {"ok": True})
+    client = TestClient(build_test_app())
+    resp = client.get("/api/hp/data", params={"period": "month", "anchor": "2026-04"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
 
 
 def test_energy_balance_accepts_month_anchor(monkeypatch):

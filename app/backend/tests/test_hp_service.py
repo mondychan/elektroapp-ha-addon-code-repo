@@ -93,7 +93,8 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
     )
 
     payload = service.get_data(
-        date="2026-01-01",
+        period="day",
+        anchor="2026-01-01",
         cfg={
             "hp": {
                 "enabled": True,
@@ -125,6 +126,8 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
     )
 
     assert payload["date"] == "2026-01-01"
+    assert payload["period"] == "day"
+    assert payload["anchor"] == "2026-01-01"
     assert len(payload["kpis"]) == 1
     assert payload["kpis"][0]["value"] == pytest.approx(2.0)
     assert payload["kpis"][0]["label"] == "resolved:sensor.hp_power"
@@ -183,7 +186,8 @@ def test_hp_service_infers_power_measurements_and_falls_back_to_ha_state():
     )
 
     payload = service.get_data(
-        date="2026-01-01",
+        period="day",
+        anchor="2026-01-01",
         cfg={
             "hp": {
                 "enabled": True,
@@ -256,7 +260,8 @@ def test_hp_service_preserves_celsius_measurement_case_for_series():
     )
 
     payload = service.get_data(
-        date="2026-01-01",
+        period="day",
+        anchor="2026-01-01",
         cfg={
             "hp": {
                 "enabled": True,

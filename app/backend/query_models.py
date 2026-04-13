@@ -93,3 +93,22 @@ class EnergyBalanceQuery(QueryModel):
                 raise ValueError("Invalid anchor for year. Use YYYY.")
             int(self.anchor)
         return self
+
+
+class HpDataQuery(QueryModel):
+    period: Literal["day", "week", "month", "year"] = "day"
+    anchor: str | None = None
+
+    @model_validator(mode="after")
+    def validate_anchor_for_period(self):
+        if self.anchor is None:
+            return self
+        if self.period in {"day", "week"}:
+            datetime.strptime(self.anchor, "%Y-%m-%d")
+        elif self.period == "month":
+            datetime.strptime(self.anchor, "%Y-%m")
+        else:
+            if len(self.anchor) != 4:
+                raise ValueError("Invalid anchor for year. Use YYYY.")
+            int(self.anchor)
+        return self

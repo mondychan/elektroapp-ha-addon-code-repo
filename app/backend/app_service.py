@@ -548,9 +548,9 @@ def get_solar_forecast(cfg=None):
     cfg = cfg if isinstance(cfg, dict) else load_config()
     return SOLAR_SERVICE.get_solar_forecast(cfg)
 
-def get_hp_data(date=None, cfg=None, tzinfo=None):
+def get_hp_data(period="day", anchor=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
-    return HP_SERVICE.get_data(date=date, cfg=cfg, tzinfo=tzinfo)
+    return HP_SERVICE.get_data(period=period, anchor=anchor, cfg=cfg, tzinfo=tzinfo)
 
 def resolve_hp_entity(entity_id: str):
     return HP_SERVICE.resolve_entity(entity_id)

@@ -42,7 +42,7 @@ const KPIScreen: React.FC<KPIScreenProps> = ({ items, layout = "default" }) => {
               ))}
             </div>
           ) : null}
-          <div className="kpi-tile-detail">{item.detail || ""}</div>
+          {item.detail ? <div className="kpi-tile-detail">{item.detail}</div> : null}
         </div>
       ))}
     </section>

@@ -124,7 +124,9 @@ export interface HpResolvedEntity extends HpEntityConfig {
 }
 
 export interface HpDataResponse {
-  date: string;
+  date?: string | null;
+  period?: "day" | "week" | "month" | "year";
+  anchor?: string | null;
   config: {
     enabled?: boolean;
     entities?: HpEntityConfig[];
