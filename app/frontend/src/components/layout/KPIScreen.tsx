@@ -5,6 +5,11 @@ interface KPIItem {
   label: string;
   value: string;
   detail?: string | null;
+  secondaryMetrics?: Array<{
+    key: string;
+    label: string;
+    value: string;
+  }>;
   tone?: "price" | "neutral" | "buy" | "sell" | "battery" | string;
   onClick?: () => void;
 }
@@ -26,6 +31,16 @@ const KPIScreen: React.FC<KPIScreenProps> = ({ items }) => {
         >
           <div className="kpi-tile-label">{item.label}</div>
           <div className="kpi-tile-value">{item.value}</div>
+          {item.secondaryMetrics?.length ? (
+            <div className="kpi-tile-secondary">
+              {item.secondaryMetrics.map((metric) => (
+                <div key={metric.key} className="kpi-tile-secondary-item">
+                  <span className="kpi-tile-secondary-label">{metric.label}</span>
+                  <span className="kpi-tile-secondary-value">{metric.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="kpi-tile-detail">{item.detail || ""}</div>
         </div>
       ))}

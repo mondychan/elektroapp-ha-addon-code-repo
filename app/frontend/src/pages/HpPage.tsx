@@ -71,6 +71,11 @@ const toScreenKpis = (kpis: HpKpiItem[]) =>
     key: item.entity_id,
     label: item.label,
     value: formatNumber(item.value, item.decimals, item.unit),
+    secondaryMetrics: (item.secondary_metrics || []).map((metric) => ({
+      key: metric.key,
+      label: metric.label,
+      value: formatNumber(metric.value, item.decimals, item.unit),
+    })),
     detail: [item.kpi_mode ? `KPI: ${item.kpi_mode}` : null, formatTime(item.updated_at)].filter(Boolean).join(" | "),
     tone: "neutral",
   }));

@@ -89,6 +89,11 @@ export interface HpKpiItem {
   kpi_mode?: string;
   source_kind?: string;
   updated_at?: string | null;
+  secondary_metrics?: Array<{
+    key: string;
+    label: string;
+    value: number | null;
+  }>;
 }
 
 export interface HpStatusCard {

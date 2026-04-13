@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+- Hotfix: disable caching of the SPA index shell to avoid stale hashed asset 404s after add-on updates or restarts.
+- HP: infer Influx measurement candidates from Home Assistant metadata, improve empty-data diagnostics, and show secondary KPI stats in the same card.
+
 ## 0.3.0
 - Initial heat pump integration: new HP tab with KPI cards, status cards, daily graphs, configurable HP entities, and Home Assistant metadata auto-fill.
 

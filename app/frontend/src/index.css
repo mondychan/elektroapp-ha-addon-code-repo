@@ -659,6 +659,33 @@ body[data-theme="dark"] .row-weekend {
   line-height: 1.2;
 }
 
+.kpi-tile-secondary {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.kpi-tile-secondary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.kpi-tile-secondary-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.kpi-tile-secondary-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .kpi-tile-detail {
   margin-top: 4px;
   min-height: 16px;

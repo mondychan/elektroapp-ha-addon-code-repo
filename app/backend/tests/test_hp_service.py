@@ -128,7 +128,83 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
     assert len(payload["kpis"]) == 1
     assert payload["kpis"][0]["value"] == pytest.approx(2.0)
     assert payload["kpis"][0]["label"] == "resolved:sensor.hp_power"
+    assert payload["kpis"][0]["secondary_metrics"] == [
+        {"key": "last", "label": "LAST", "value": 3.0},
+        {"key": "min", "label": "MIN", "value": 1.0},
+        {"key": "max", "label": "MAX", "value": 3.0},
+    ]
     assert len(payload["charts"]) == 1
     assert len(payload["charts"][0]["points"]) == 3
     assert len(payload["status_cards"]) == 1
     assert payload["status_cards"][0]["value"] == "Zapnuto"
+
+
+def test_hp_service_infers_power_measurements_and_falls_back_to_ha_state():
+    captured_measurements = []
+
+    class StubHaService:
+        def resolve_entity_metadata(self, entity_id):
+            return {
+                "entity_id": entity_id,
+                "label": "Power consumption",
+                "unit": "kW",
+                "device_class": "power",
+                "state_class": "measurement",
+                "state": "4.25",
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "last",
+                "chart_enabled": True,
+                "kpi_enabled": True,
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return self.resolve_entity_metadata(entity_id)
+
+    def query_series(_influx, _entity_id, *_args, **kwargs):
+        captured_measurements.append(kwargs.get("measurement_candidates"))
+        return []
+
+    def query_last(_influx, _entity_id, **kwargs):
+        captured_measurements.append(kwargs.get("measurement_candidates"))
+        return None
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value", "measurement": "kWh"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda date, _start, _end, _tz: (
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 2, tzinfo=UTC),
+        ),
+        query_entity_series=query_series,
+        safe_query_entity_last_value=query_last,
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    payload = service.get_data(
+        date="2026-01-01",
+        cfg={
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_hmu_powerconsumptionhmu",
+                        "label": "",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "last",
+                    }
+                ],
+            }
+        },
+        tzinfo=UTC,
+    )
+
+    assert captured_measurements
+    assert captured_measurements[0] == ["W", "kW"]
+    assert payload["kpis"][0]["value"] == pytest.approx(4.25)
+    assert payload["kpis"][0]["secondary_metrics"] == []
+    assert payload["charts"][0]["points"] == []

@@ -61,6 +61,19 @@ def health():
 
 
 build_path = Path(__file__).parent / "frontend_build"
+
+
+def _spa_index_response(path: Path) -> FileResponse:
+    return FileResponse(
+        path,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 if build_path.exists():
     app.mount("/static", StaticFiles(directory=build_path / "static"), name="static")
 
@@ -80,6 +93,10 @@ if build_path.exists():
     def favicon512():
         return FileResponse(build_path / "android-chrome-512x512.png")
 
+    @app.get("/")
+    def serve_react_root():
+        return _spa_index_response(build_path / "index.html")
+
     @app.get("/{full_path:path}")
     def serve_react(full_path: str):
-        return FileResponse(build_path / "index.html")
+        return _spa_index_response(build_path / "index.html")

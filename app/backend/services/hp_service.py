@@ -12,6 +12,14 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def _round_if_needed(value: float | None, decimals: int | None) -> float | None:
+    if value is None:
+        return None
+    if decimals is None:
+        return value
+    return round(value, decimals)
+
+
 class HPService:
     def __init__(
         self,
@@ -81,7 +89,16 @@ class HPService:
                     result["status_cards"].append(status_card)
                 continue
 
-            numeric_payload = self._build_numeric_payload(influx, entity, start_utc, end_utc, interval, tzinfo)
+            numeric_payload = self._build_numeric_payload(
+                influx,
+                entity,
+                metadata,
+                start_utc,
+                end_utc,
+                interval,
+                tzinfo,
+                effective_date,
+            )
             if entity.get("kpi_enabled", True):
                 result["kpis"].append(numeric_payload["kpi"])
             if entity.get("chart_enabled"):
@@ -89,20 +106,36 @@ class HPService:
 
         return result
 
-    def _measurement_candidates(self, entity: dict[str, Any]) -> list[str] | None:
+    def _measurement_candidates(self, entity: dict[str, Any], metadata: dict[str, Any] | None = None) -> list[str] | None:
         measurement = entity.get("measurement")
         if measurement:
             return [measurement]
+
+        display_kind = entity.get("display_kind") or metadata.get("display_kind") if metadata else entity.get("display_kind")
+        source_kind = entity.get("source_kind") or metadata.get("source_kind") if metadata else entity.get("source_kind")
+        unit = (entity.get("unit") or (metadata or {}).get("unit") or "").strip().lower()
+        device_class = str(entity.get("device_class") or (metadata or {}).get("device_class") or "").strip().lower()
+        state_class = str(entity.get("state_class") or (metadata or {}).get("state_class") or "").strip().lower()
+
+        if display_kind == "state" or source_kind == "state":
+            return ["state"]
+        if unit in {"w", "kw"} or device_class == "power":
+            return ["W", "kW"]
+        if unit in {"wh", "kwh"} or device_class == "energy" or source_kind == "counter" or state_class in {"total", "total_increasing"}:
+            return ["kWh", "Wh"]
+        if unit:
+            return [unit]
         return None
 
     def _build_state_card(self, influx: dict[str, Any], entity: dict[str, Any], metadata: dict[str, Any] | None, tzinfo):
+        measurement_candidates = self._measurement_candidates(entity, metadata)
         record = self._safe_query_entity_last_value(
             influx,
             entity.get("entity_id"),
             tzinfo=tzinfo,
             numeric=False,
             label=entity.get("label"),
-            measurement_candidates=self._measurement_candidates(entity),
+            measurement_candidates=measurement_candidates,
         )
         raw_value = None
         updated_at = None
@@ -121,6 +154,12 @@ class HPService:
                 display_value = "Vypnuto"
             else:
                 display_value = normalized or "-"
+        if raw_value is None:
+            self.logger.info(
+                "HP state entity returned no data: entity_id=%s measurement_candidates=%s",
+                entity.get("entity_id"),
+                measurement_candidates or [influx.get("measurement")],
+            )
         return {
             "entity_id": entity.get("entity_id"),
             "label": entity.get("label"),
@@ -136,11 +175,14 @@ class HPService:
         self,
         influx: dict[str, Any],
         entity: dict[str, Any],
+        metadata: dict[str, Any] | None,
         start_utc: datetime,
         end_utc: datetime,
         interval: str,
         tzinfo,
+        effective_date: str,
     ) -> dict[str, Any]:
+        measurement_candidates = self._measurement_candidates(entity, metadata)
         points = self._query_entity_series(
             influx,
             entity.get("entity_id"),
@@ -149,7 +191,7 @@ class HPService:
             interval=interval,
             tzinfo=tzinfo,
             numeric=True,
-            measurement_candidates=self._measurement_candidates(entity),
+            measurement_candidates=measurement_candidates,
         )
         clean_points = [{"time": p.get("time"), "value": p.get("value")} for p in points if p.get("value") is not None]
         values = [p["value"] for p in clean_points]
@@ -164,14 +206,25 @@ class HPService:
                 tzinfo=tzinfo,
                 numeric=True,
                 label=entity.get("label"),
-                measurement_candidates=self._measurement_candidates(entity),
+                measurement_candidates=measurement_candidates,
             )
             latest_value = _safe_float(latest_record.get("value")) if latest_record else None
         else:
             latest_value = values[-1] if values else None
 
+        if latest_value is None and metadata:
+            latest_value = _safe_float(metadata.get("state"))
+
         kpi_value = self._compute_kpi_value(kpi_mode, values, latest_value)
+        stats = self._compute_stats(values, latest_value, decimals)
         updated_at = latest_record.get("time") if latest_record else (clean_points[-1]["time"] if clean_points else None)
+        if not clean_points and latest_value is None:
+            self.logger.info(
+                "HP numeric entity returned no data: entity_id=%s date=%s measurement_candidates=%s",
+                entity.get("entity_id"),
+                effective_date,
+                measurement_candidates or [influx.get("measurement")],
+            )
 
         return {
             "kpi": {
@@ -183,6 +236,7 @@ class HPService:
                 "kpi_mode": kpi_mode,
                 "source_kind": entity.get("source_kind"),
                 "updated_at": updated_at,
+                "secondary_metrics": self._build_secondary_metrics(kpi_mode, stats),
             },
             "chart": {
                 "entity_id": entity.get("entity_id"),
@@ -215,3 +269,33 @@ class HPService:
                     total += diff
             return total
         return latest_value
+
+    def _compute_stats(self, values: list[float], latest_value: float | None, decimals: int | None) -> dict[str, float | None]:
+        return {
+            "last": _round_if_needed(latest_value, decimals),
+            "avg": _round_if_needed(sum(values) / len(values), decimals) if values else None,
+            "min": _round_if_needed(min(values), decimals) if values else None,
+            "max": _round_if_needed(max(values), decimals) if values else None,
+        }
+
+    def _build_secondary_metrics(self, primary_mode: str, stats: dict[str, float | None]) -> list[dict[str, float | None | str]]:
+        order_map = {
+            "last": ["avg", "min", "max"],
+            "avg": ["last", "min", "max"],
+            "min": ["last", "avg", "max"],
+            "max": ["last", "avg", "min"],
+            "delta": ["last", "avg", "max"],
+            "sum": ["last", "avg", "max"],
+        }
+        order = order_map.get(primary_mode, ["avg", "min", "max"])
+        labels = {
+            "last": "LAST",
+            "avg": "AVG",
+            "min": "MIN",
+            "max": "MAX",
+        }
+        return [
+            {"key": key, "label": labels[key], "value": stats.get(key)}
+            for key in order
+            if key in labels and stats.get(key) is not None
+        ]
