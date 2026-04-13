@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8
+- Add-on schema: align `price_provider` values with backend-normalized options and add the missing `alerts` block to `options/schema`.
+- Fix Supervisor config sync: prevent `400 Bad Request` when saving configuration from the web UI due to schema mismatch in add-on metadata.
+
 ## 0.3.7
 - HP config save: strip `null` fields before syncing to Supervisor options and expose better Supervisor error details, fixing `POST /api/config` failures when adding HP entities from the web UI.
 - Add-on permissions: explicitly enable `hassio_api` for Supervisor API access in stricter Home Assistant environments.

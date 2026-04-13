@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.3.7"
+version: "0.3.8"
 arch:
   - amd64
   - aarch64
@@ -15,7 +15,7 @@ homeassistant_api: true
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.3.7"
+  ADDON_VERSION: "0.3.8"
 ports:
   8000/tcp: null
 ports_description:
@@ -25,7 +25,7 @@ map:
   - config:rw
 options:
   dph: 21
-  price_provider: "spotovaelektrina.cz"
+  price_provider: "spotovaelektrina"
   poplatky:
     komodita_sluzba: 0.35
     oze: 0.0
@@ -89,6 +89,9 @@ options:
     energy_production_tomorrow_entity_id: "sensor.energy_production_tomorrow"
     power_highest_peak_time_today_entity_id: "sensor.power_highest_peak_time_today"
     power_highest_peak_time_tomorrow_entity_id: "sensor.power_highest_peak_time_tomorrow"
+  alerts:
+    low_price_threshold: 1.5
+    high_price_threshold: 5.0
   pnd:
     enabled: false
     username: ""
@@ -103,7 +106,7 @@ options:
     entities: []
 schema:
   dph: float
-  price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
+  price_provider: list(spotovaelektrina|spotovaelektrina.cz|ote|ote-cr.cz)?
   poplatky:
     komodita_sluzba: float
     oze: float
@@ -167,6 +170,9 @@ schema:
     energy_production_tomorrow_entity_id: str?
     power_highest_peak_time_today_entity_id: str?
     power_highest_peak_time_tomorrow_entity_id: str?
+  alerts:
+    low_price_threshold: float?
+    high_price_threshold: float?
   pnd:
     enabled: bool?
     username: str?
