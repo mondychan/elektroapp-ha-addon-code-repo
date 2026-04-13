@@ -4,6 +4,7 @@ import DateNavigator from "../components/DateNavigator";
 import MonthNavigator from "../components/MonthNavigator";
 import YearNavigator from "../components/YearNavigator";
 import LineTimeChart from "../charting/components/LineTimeChart";
+import { buildTooltip } from "../charting/builders/common";
 import { elektroappApi, formatApiError } from "../api/elektroappApi";
 import {
   clampDateValue,
@@ -146,14 +147,39 @@ const buildChartData = (chart: HpChart, period: HpPeriod) => ({
       fill: true,
       spanGaps: false,
       pointRadius: 0,
+      pointHoverRadius: 4,
       pointHitRadius: 10,
     },
   ],
 });
 
 const buildChartOptions = (chart: HpChart, period: HpPeriod) => ({
+  interaction: {
+    mode: "index",
+    intersect: false,
+  },
   plugins: {
     legend: { display: false },
+    tooltip: buildTooltip(({ points }: { points: Array<{ dataIndex: number; raw: number | null }> }) => {
+      const point = points?.[0];
+      if (!point) {
+        return null;
+      }
+      const value = point.raw;
+      const label = chart.points?.[point.dataIndex]?.time
+        ? formatChartLabel(chart.points[point.dataIndex].time, period)
+        : chart.label;
+      return {
+        title: label,
+        sections: [
+          {
+            label: chart.label,
+            value: formatNumber(value, chart.decimals, chart.unit),
+            color: "#4d79ff",
+          },
+        ],
+      };
+    }),
   },
   scales: {
     x: {

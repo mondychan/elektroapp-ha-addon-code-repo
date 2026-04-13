@@ -39,6 +39,7 @@ class SupervisorService:
     def sync_addon_options(self, options: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(options, dict):
             options = {}
+        options = self._strip_none_values(options)
 
         if not self.is_available():
             self.logger.info("Supervisor options sync skipped because SUPERVISOR_TOKEN is not available.")
@@ -53,7 +54,6 @@ class SupervisorService:
         payload = {"options": options}
         try:
             response = self.session.post(url, headers=self._build_headers(), json=payload, timeout=10)
-            response.raise_for_status()
         except SupervisorSyncError:
             raise
         except requests.RequestException as exc:
@@ -63,18 +63,25 @@ class SupervisorService:
                 detail={"code": "supervisor_request_failed", "error": str(exc), "url": url},
             ) from exc
 
-        parsed: dict[str, Any] | None = None
-        if response.content:
-            try:
-                maybe_json = response.json()
-            except ValueError as exc:
-                raise SupervisorSyncError(
-                    "Supervisor API vratilo neplatny JSON.",
-                    status_code=502,
-                    detail={"code": "supervisor_invalid_json", "url": url},
-                ) from exc
-            if isinstance(maybe_json, dict):
-                parsed = maybe_json
+        parsed = self._parse_response_json(response, url)
+
+        if response.status_code >= 400:
+            detail: dict[str, Any] = {
+                "code": "supervisor_http_error",
+                "url": url,
+                "status_code": response.status_code,
+            }
+            if parsed:
+                detail["result"] = parsed.get("result")
+                if parsed.get("message") is not None:
+                    detail["message"] = parsed.get("message")
+                if parsed.get("data") is not None:
+                    detail["data"] = parsed.get("data")
+            raise SupervisorSyncError(
+                "Supervisor vratil chybu pri ukladani add-on options.",
+                status_code=response.status_code,
+                detail=detail,
+            )
 
         if parsed and parsed.get("result") not in {None, "ok"}:
             raise SupervisorSyncError(
@@ -93,3 +100,27 @@ class SupervisorService:
             "message": "Konfigurace byla synchronizovana do Supervisor options.",
             "endpoint": "/addons/self/options",
         }
+
+    def _strip_none_values(self, value: Any):
+        if isinstance(value, dict):
+            return {
+                key: self._strip_none_values(item)
+                for key, item in value.items()
+                if item is not None
+            }
+        if isinstance(value, list):
+            return [self._strip_none_values(item) for item in value]
+        return value
+
+    def _parse_response_json(self, response, url: str) -> dict[str, Any] | None:
+        if not response.content:
+            return None
+        try:
+            maybe_json = response.json()
+        except ValueError as exc:
+            raise SupervisorSyncError(
+                "Supervisor API vratilo neplatny JSON.",
+                status_code=502,
+                detail={"code": "supervisor_invalid_json", "url": url},
+            ) from exc
+        return maybe_json if isinstance(maybe_json, dict) else None

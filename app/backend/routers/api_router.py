@@ -16,7 +16,7 @@ def get_config():
 
 @router.post("/config")
 def save_config(new_config: AppConfigModel = Body(...)):
-    return svc.save_config(new_config.model_dump(mode="python"))
+    return svc.save_config(new_config.model_dump(mode="python", exclude_none=True))
 
 
 @router.get("/fees-history")

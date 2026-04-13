@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7
+- HP config save: strip `null` fields before syncing to Supervisor options and expose better Supervisor error details, fixing `POST /api/config` failures when adding HP entities from the web UI.
+- Add-on permissions: explicitly enable `hassio_api` for Supervisor API access in stricter Home Assistant environments.
+- HP charts: restore hover interaction and external tooltip rendering for line charts, including charts with hidden point markers.
+
 ## 0.3.6
 - HP charts: preserve visible gaps when data is missing instead of drawing a continuous line across downtime or missing buckets.
 - HP KPI: keep `LAST` tied to the latest live value while `AVG`, `MIN`, `MAX` and other period stats follow the selected chart range.

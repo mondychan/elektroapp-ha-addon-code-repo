@@ -4,12 +4,10 @@ from services.supervisor_service import SupervisorService
 
 
 class FakeResponse:
-    def __init__(self, payload=None):
+    def __init__(self, payload=None, status_code=200):
         self._payload = payload or {"result": "ok"}
+        self.status_code = status_code
         self.content = b'{"result":"ok"}'
-
-    def raise_for_status(self):
-        return None
 
     def json(self):
         return self._payload
@@ -53,3 +51,24 @@ def test_supervisor_service_skips_without_token(monkeypatch):
 
     assert result["ok"] is False
     assert result["skipped"] is True
+
+
+def test_supervisor_service_returns_detailed_http_error(monkeypatch):
+    from services.supervisor_service import SupervisorSyncError
+
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token")
+    session = FakeSession()
+    session.post = lambda *args, **kwargs: FakeResponse(
+        payload={"result": "error", "message": "Invalid user input", "data": {"schema": "hp.entities[0].unit"}},
+        status_code=400,
+    )
+    service = SupervisorService(logger=logging.getLogger("test"))
+    service.session = session
+
+    try:
+        service.sync_addon_options({"hp": {"enabled": True}})
+        assert False, "sync_addon_options was expected to raise SupervisorSyncError"
+    except SupervisorSyncError as exc:
+        assert exc.status_code == 400
+        assert exc.detail["code"] == "supervisor_http_error"
+        assert exc.detail["message"] == "Invalid user input"

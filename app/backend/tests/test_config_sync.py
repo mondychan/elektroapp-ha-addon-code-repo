@@ -3,7 +3,10 @@ import os
 
 import app_service
 import config_loader
+from fastapi.testclient import TestClient
 from fastapi import HTTPException
+from fastapi import FastAPI
+from routers.api_router import router as api_router
 
 
 class DummySupervisorService:
@@ -171,3 +174,55 @@ def test_save_config_raises_when_supervisor_sync_fails_in_addon_runtime(isolated
 
     backup_options = json.loads((isolated_storage["storage_dir"] / "options.json").read_text(encoding="utf-8"))
     assert backup_options["hp"]["enabled"] is True
+
+
+def test_api_config_save_excludes_none_before_supervisor_sync(isolated_storage, monkeypatch):
+    supervisor = DummySupervisorService()
+    monkeypatch.setattr(app_service, "SUPERVISOR_SERVICE", supervisor)
+    api = FastAPI()
+    api.include_router(api_router)
+    client = TestClient(api)
+
+    response = client.post(
+        "/api/config",
+        json={
+            "dph": 21,
+            "price_provider": "spotovaelektrina.cz",
+            "influxdb": {
+                "host": "localhost",
+                "port": 8086,
+                "database": "homeassistant",
+                "retention_policy": "autogen",
+                "measurement": "kWh",
+                "field": "value",
+                "entity_id": "sensor.main",
+                "timezone": "Europe/Prague",
+                "interval": "15m",
+            },
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_broadcast_outsidetemp",
+                        "label": "Outside temp",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "last",
+                        "unit": None,
+                        "measurement": None,
+                        "device_class": None,
+                        "state_class": None,
+                    }
+                ],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    sent_entity = supervisor.calls[0]["hp"]["entities"][0]
+    assert "unit" not in sent_entity
+    assert "measurement" not in sent_entity
+    assert "device_class" not in sent_entity
+    assert "state_class" not in sent_entity
