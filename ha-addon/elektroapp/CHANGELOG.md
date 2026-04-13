@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.2
+- Fix release CI: static serving test no longer imports the full FastAPI app bootstrap, so backend tests do not try to initialize `/data` paths in GitHub Actions.
+
 ## 0.3.1
 - Hotfix: disable caching of the SPA index shell to avoid stale hashed asset 404s after add-on updates or restarts.
 - HP: infer Influx measurement candidates from Home Assistant metadata, improve empty-data diagnostics, and show secondary KPI stats in the same card.

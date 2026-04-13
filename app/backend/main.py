@@ -10,6 +10,7 @@ import config_loader
 from container import build_container
 from errors import register_error_handling
 from routers.api_router import router as api_router
+from static_serving import spa_index_response
 
 
 def _wire_service_from_container():
@@ -63,17 +64,6 @@ def health():
 build_path = Path(__file__).parent / "frontend_build"
 
 
-def _spa_index_response(path: Path) -> FileResponse:
-    return FileResponse(
-        path,
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
-
-
 if build_path.exists():
     app.mount("/static", StaticFiles(directory=build_path / "static"), name="static")
 
@@ -95,8 +85,8 @@ if build_path.exists():
 
     @app.get("/")
     def serve_react_root():
-        return _spa_index_response(build_path / "index.html")
+        return spa_index_response(build_path / "index.html")
 
     @app.get("/{full_path:path}")
     def serve_react(full_path: str):
-        return _spa_index_response(build_path / "index.html")
+        return spa_index_response(build_path / "index.html")
