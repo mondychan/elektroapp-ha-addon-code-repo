@@ -3,6 +3,24 @@ import os
 
 import app_service
 import config_loader
+from fastapi import HTTPException
+
+
+class DummySupervisorService:
+    def __init__(self, *, available=True, response=None, error=None):
+        self.available = available
+        self.response = response or {"ok": True, "message": "synced"}
+        self.error = error
+        self.calls = []
+
+    def is_available(self):
+        return self.available
+
+    def sync_addon_options(self, options):
+        self.calls.append(options)
+        if self.error:
+            raise self.error
+        return self.response
 
 
 def test_load_config_prefers_newer_backup_over_ha_options(isolated_storage):
@@ -28,7 +46,9 @@ def test_load_config_prefers_newer_backup_over_ha_options(isolated_storage):
     assert mirrored["pnd"]["username"] == "ui-user"
 
 
-def test_save_config_writes_ha_and_backup_options(isolated_storage):
+def test_save_config_writes_ha_and_backup_options(isolated_storage, monkeypatch):
+    supervisor = DummySupervisorService()
+    monkeypatch.setattr(app_service, "SUPERVISOR_SERVICE", supervisor)
     payload = {
         "dph": 21,
         "price_provider": "spotovaelektrina.cz",
@@ -64,6 +84,8 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage):
     assert backup_options["pnd"]["username"] == "user@example.com"
     assert ha_options["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_hmu_currentyieldpower"
     assert backup_options["hp"]["enabled"] is True
+    assert supervisor.calls and supervisor.calls[0]["hp"]["enabled"] is True
+    assert response["supervisor_sync"]["ok"] is True
 
 
 def test_load_config_prefers_custom_backup_over_newer_default_ha_options(isolated_storage):
@@ -114,3 +136,38 @@ def test_load_config_prefers_custom_backup_over_newer_default_ha_options(isolate
     assert loaded["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_broadcast_outsidetemp"
     mirrored = json.loads(ha_options_path.read_text(encoding="utf-8"))
     assert mirrored["hp"]["enabled"] is True
+
+
+def test_save_config_raises_when_supervisor_sync_fails_in_addon_runtime(isolated_storage, monkeypatch):
+    from services.supervisor_service import SupervisorSyncError
+
+    monkeypatch.setattr(
+        app_service,
+        "SUPERVISOR_SERVICE",
+        DummySupervisorService(
+            available=True,
+            error=SupervisorSyncError(
+                "Ulozeni do Supervisor options selhalo.",
+                status_code=502,
+                detail={"code": "supervisor_request_failed"},
+            ),
+        ),
+    )
+
+    payload = {
+        "price_provider": "spotovaelektrina.cz",
+        "hp": {
+            "enabled": True,
+            "entities": [{"entity_id": "sensor.ebusd_ha_daemon_broadcast_outsidetemp"}],
+        },
+    }
+
+    try:
+        app_service.save_config(payload)
+        assert False, "save_config was expected to raise HTTPException"
+    except HTTPException as exc:
+        assert exc.status_code == 502
+        assert exc.detail["code"] == "supervisor_request_failed"
+
+    backup_options = json.loads((isolated_storage["storage_dir"] / "options.json").read_text(encoding="utf-8"))
+    assert backup_options["hp"]["enabled"] is True

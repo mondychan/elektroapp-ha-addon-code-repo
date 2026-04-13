@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5
+- Config persistence: save add-on configuration to Home Assistant Supervisor via `/addons/self/options`, so HP settings no longer disappear after add-on restart.
+- Config API: fail the save request explicitly when Supervisor sync fails, instead of reporting a false local-only success.
+- Tests: add regression coverage for Supervisor options sync and the restart persistence scenario for `hp.enabled` and `hp.entities`.
+
 ## 0.3.4
 - HP UI: enlarge and center the primary KPI value, hide the redundant KPI footer note, and keep AVG/MIN/MAX in the same card.
 - HP charts: add `day / week / month / year` range switching with matching backend query support; yearly charts use the selected calendar year from January through December.

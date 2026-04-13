@@ -87,6 +87,7 @@ from services.pnd_scheduler import (
     PND_LOCK_STALE_SECONDS,
 )
 from services.pnd_service import PNDService, PNDServiceError
+from services.supervisor_service import SupervisorService, SupervisorSyncError
 
 # Re-exporting injected services (for main.py and others)
 from services.influx_service import InfluxService
@@ -122,6 +123,7 @@ FEES_HISTORY_FILE = None
 RUNTIME_STATE = RuntimeState()
 INFLUX_SERVICE = InfluxService(logger=logger)
 HOME_ASSISTANT_SERVICE = HomeAssistantService(logger=logger)
+SUPERVISOR_SERVICE = SupervisorService(logger=logger)
 
 # Cache Instances (initialized in main.py wiring)
 CONSUMPTION_CACHE: Optional[SeriesCache] = None
@@ -431,9 +433,23 @@ def save_config(new_config: dict = Body(...)):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.safe_dump(new_config, f, allow_unicode=True)
     option_sync = save_options_sync(new_config if isinstance(new_config, dict) else {})
+    try:
+        supervisor_sync = SUPERVISOR_SERVICE.sync_addon_options(new_config if isinstance(new_config, dict) else {})
+    except SupervisorSyncError as exc:
+        detail = exc.detail if isinstance(exc.detail, dict) else {"detail": exc.detail}
+        raise HTTPException(
+            status_code=exc.status_code or 502,
+            detail={
+                "code": detail.get("code", "supervisor_sync_failed"),
+                "message": exc.message,
+                "supervisor_sync": detail,
+            },
+        ) from exc
     response = {"status": "ok", "message": "Konfigurace ulozena"}
     if option_sync:
         response["config_sync"] = option_sync
+    if supervisor_sync:
+        response["supervisor_sync"] = supervisor_sync
     if PND_SERVICE:
         pnd_cfg = get_pnd_cfg(new_config)
         if has_pnd_required_cfg(pnd_cfg):
