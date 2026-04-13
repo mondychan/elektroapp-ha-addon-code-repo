@@ -369,6 +369,53 @@ def get_pnd_cfg(cfg):
         "nightly_sync_window_end_hour": end_hour,
     }
 
+
+def get_hp_cfg(cfg):
+    hp = cfg.get("hp", {}) if isinstance(cfg.get("hp"), dict) else {}
+    raw_entities = hp.get("entities") if isinstance(hp.get("entities"), list) else []
+    normalized_entities = []
+
+    for item in raw_entities:
+        if not isinstance(item, dict):
+            continue
+        display_kind = str(item.get("display_kind") or "numeric").strip().lower()
+        source_kind = str(item.get("source_kind") or "instant").strip().lower()
+        kpi_mode = str(item.get("kpi_mode") or "last").strip().lower()
+
+        if display_kind == "state" or source_kind == "state":
+            display_kind = "state"
+            source_kind = "state"
+            kpi_mode = "last"
+
+        decimals_value = item.get("decimals")
+        if decimals_value is None or decimals_value == "":
+            decimals = None
+        else:
+            decimals = max(0, min(6, int(_safe_float(decimals_value) or 0)))
+
+        normalized_entities.append(
+            {
+                "entity_id": str(item.get("entity_id") or "").strip(),
+                "label": str(item.get("label") or "").strip(),
+                "display_kind": display_kind,
+                "source_kind": source_kind,
+                "kpi_enabled": bool(item.get("kpi_enabled", True)),
+                "chart_enabled": bool(item.get("chart_enabled", False)) if display_kind == "numeric" else False,
+                "kpi_mode": kpi_mode,
+                "unit": str(item.get("unit")).strip() if item.get("unit") else None,
+                "measurement": str(item.get("measurement")).strip() if item.get("measurement") else None,
+                "decimals": decimals,
+                "device_class": str(item.get("device_class")).strip() if item.get("device_class") else None,
+                "state_class": str(item.get("state_class")).strip() if item.get("state_class") else None,
+            }
+        )
+
+    return {
+        "enabled": bool(hp.get("enabled", False)),
+        "entities": normalized_entities,
+    }
+
+
 def has_pnd_required_cfg(pnd_cfg):
     return bool(
         pnd_cfg.get("enabled")

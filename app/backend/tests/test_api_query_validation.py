@@ -56,6 +56,15 @@ def test_energy_balance_rejects_invalid_period():
     assert payload["code"] == "VALIDATION_ERROR"
 
 
+def test_hp_data_rejects_invalid_date_query():
+    client = TestClient(build_test_app())
+    resp = client.get("/api/hp/data", params={"date": "2026-99-99"})
+
+    assert resp.status_code == 422
+    payload = resp.json()["error"]
+    assert payload["code"] == "VALIDATION_ERROR"
+
+
 def test_energy_balance_accepts_month_anchor(monkeypatch):
     monkeypatch.setattr("app_service.get_energy_balance", lambda **kwargs: {"ok": True})
     client = TestClient(build_test_app())

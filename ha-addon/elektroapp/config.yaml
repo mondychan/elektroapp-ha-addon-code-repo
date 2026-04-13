@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.2.26"
+version: "0.3.0"
 arch:
   - amd64
   - aarch64
@@ -10,10 +10,11 @@ startup: services
 boot: auto
 ingress: true
 ingress_port: 8000
+homeassistant_api: true
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.2.26"
+  ADDON_VERSION: "0.3.0"
 ports:
   8000/tcp: null
 ports_description:
@@ -96,6 +97,9 @@ options:
     nightly_sync_enabled: true
     nightly_sync_window_start_hour: 2
     nightly_sync_window_end_hour: 7
+  hp:
+    enabled: false
+    entities: []
 schema:
   dph: float
   price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
@@ -171,3 +175,18 @@ schema:
     nightly_sync_enabled: bool?
     nightly_sync_window_start_hour: int?
     nightly_sync_window_end_hour: int?
+  hp:
+    enabled: bool?
+    entities:
+      - entity_id: str
+        label: str?
+        display_kind: list(numeric|state)?
+        source_kind: list(instant|counter|state)?
+        kpi_enabled: bool?
+        chart_enabled: bool?
+        kpi_mode: list(last|min|max|avg|sum|delta)?
+        unit: str?
+        measurement: str?
+        decimals: int?
+        device_class: str?
+        state_class: str?

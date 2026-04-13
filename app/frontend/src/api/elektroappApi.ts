@@ -35,6 +35,8 @@ export const elektroappApi = {
   backfillPnd: (range: string) => post("/pnd/backfill", { range }),
   getPndData: (from: string, to: string) => get("/pnd/data", { from, to }),
   purgePndCache: () => post("/pnd/purge-cache"),
+  getHpData: (date?: string) => get("/hp/data", date ? { date } : undefined),
+  resolveHpEntity: (entity_id: string) => post("/hp/resolve-entity", { entity_id }),
 };
 
 const formatErrorDetail = (detail: any): string | null => {

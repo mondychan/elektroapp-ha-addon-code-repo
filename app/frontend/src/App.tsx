@@ -6,6 +6,7 @@ import KPIScreen from "./components/layout/KPIScreen";
 import OverviewPage from "./pages/OverviewPage";
 import DetailPage from "./pages/DetailPage";
 import PndPage from "./pages/PndPage";
+import HpPage from "./pages/HpPage";
 
 import { formatSlotToTime, formatSlotRange, formatCurrency, formatBytes } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
@@ -74,6 +75,7 @@ const App: React.FC = () => {
 
   const [plannerValidationError, setPlannerValidationError] = useState<string | null>(null);
   const [pinnedSlot, setPinnedSlot] = useState<number | null>(null);
+  const [hpKpiItems, setHpKpiItems] = useState<any[]>([]);
 
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -244,6 +246,8 @@ const App: React.FC = () => {
     ];
   }, [todayData, currentSlot, dashboard.todayCostsKpi, dashboard.todayExportKpi, batteryData]);
 
+  const screenKpiItems = pageMode === "hp" ? hpKpiItems : kpiItems;
+
   const configRows = useMemo(() => {
     if (!config) return [];
     const f = (v: any) => v ?? "-";
@@ -353,7 +357,7 @@ const App: React.FC = () => {
       </div>
 
       <AppHeader pageMode={pageMode} setPageMode={setPageMode} theme={theme!} setTheme={setTheme} />
-      <KPIScreen items={kpiItems as any} />
+      <KPIScreen items={screenKpiItems as any} />
 
       <main className="app-main">
         <AnimatePresence mode="wait">
@@ -584,6 +588,11 @@ const App: React.FC = () => {
           {pageMode === "pnd" && (
             <div key="pnd" className="page-pnd">
               <PndPage config={config} refreshConfig={refreshConfig} />
+            </div>
+          )}
+          {pageMode === "hp" && (
+            <div key="hp" className="page-hp">
+              <HpPage config={config} refreshConfig={refreshConfig} onKpisChange={setHpKpiItems} maxDate={todayDateStr} />
             </div>
           )}
         </AnimatePresence>

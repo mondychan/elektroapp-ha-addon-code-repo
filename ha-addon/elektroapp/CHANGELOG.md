@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.0
+- Initial heat pump integration: new HP tab with KPI cards, status cards, daily graphs, configurable HP entities, and Home Assistant metadata auto-fill.
+
 ## 0.2.26
 - Fix: vrácena exkluzivita process locku schedulerů; čerstvý lock se už nemaže jen kvůli shodnému PID.
 - Fix: PND scheduler je zpět kompatibilní se službami a test doubles bez `find_first_missing_date`, takže CI opět prochází.

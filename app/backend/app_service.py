@@ -38,6 +38,7 @@ from config_loader import (
     get_energy_entities_cfg,
     get_forecast_solar_cfg,
     get_pnd_cfg,
+    get_hp_cfg,
     has_battery_required_cfg,
     has_pnd_required_cfg,
 )
@@ -89,6 +90,8 @@ from services.pnd_service import PNDService, PNDServiceError
 
 # Re-exporting injected services (for main.py and others)
 from services.influx_service import InfluxService
+from services.home_assistant_service import HomeAssistantService
+from services.hp_service import HPService
 from services.prices_service import PricesService
 from services.costs_service import CostsService
 from services.export_service import ExportService
@@ -118,6 +121,7 @@ FEES_HISTORY_FILE = None
 # Shared State
 RUNTIME_STATE = RuntimeState()
 INFLUX_SERVICE = InfluxService(logger=logger)
+HOME_ASSISTANT_SERVICE = HomeAssistantService(logger=logger)
 
 # Cache Instances (initialized in main.py wiring)
 CONSUMPTION_CACHE: Optional[SeriesCache] = None
@@ -397,6 +401,16 @@ SOLAR_SERVICE = SolarService(
     logger=logger
 )
 
+HP_SERVICE = HPService(
+    get_influx_cfg=get_influx_cfg,
+    get_hp_cfg=get_hp_cfg,
+    parse_time_range=parse_time_range,
+    query_entity_series=INFLUX_SERVICE.query_entity_series,
+    safe_query_entity_last_value=INFLUX_SERVICE.safe_query_entity_last_value,
+    home_assistant_service=HOME_ASSISTANT_SERVICE,
+    logger=logger,
+)
+
 EXPORT_DATA_SERVICE = DataExportService(billing_service=BILLING_SERVICE)
 
 # --- Public API Functions (Compatibility) ---
@@ -533,6 +547,13 @@ def get_comparison(date=None, cfg=None, tzinfo=None):
 def get_solar_forecast(cfg=None):
     cfg = cfg if isinstance(cfg, dict) else load_config()
     return SOLAR_SERVICE.get_solar_forecast(cfg)
+
+def get_hp_data(date=None, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    return HP_SERVICE.get_data(date=date, cfg=cfg, tzinfo=tzinfo)
+
+def resolve_hp_entity(entity_id: str):
+    return HP_SERVICE.resolve_entity(entity_id)
 
 def get_daily_summary(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)

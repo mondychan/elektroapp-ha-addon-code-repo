@@ -146,6 +146,48 @@ class PNDConfig(StrictModel):
         return self
 
 
+class HPEntityConfig(StrictModel):
+    entity_id: str = Field(min_length=1)
+    label: str = Field(default="", min_length=0)
+    display_kind: Literal["numeric", "state"] = "numeric"
+    source_kind: Literal["instant", "counter", "state"] = "instant"
+    kpi_enabled: bool = True
+    chart_enabled: bool = False
+    kpi_mode: Literal["last", "min", "max", "avg", "sum", "delta"] = "last"
+    unit: str | None = None
+    measurement: str | None = None
+    decimals: int | None = Field(default=None, ge=0, le=6)
+    device_class: str | None = None
+    state_class: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_modes(self):
+        if self.display_kind == "state" or self.source_kind == "state":
+            self.display_kind = "state"
+            self.source_kind = "state"
+            self.kpi_mode = "last"
+            self.chart_enabled = False
+            return self
+
+        allowed_by_source = {
+            "instant": {"last", "min", "max", "avg"},
+            "counter": {"last", "sum", "delta"},
+        }
+        allowed_modes = allowed_by_source[self.source_kind]
+        if self.kpi_mode not in allowed_modes:
+            raise ValueError(
+                f"kpi_mode '{self.kpi_mode}' is not allowed for source_kind '{self.source_kind}'."
+            )
+        if self.chart_enabled and self.display_kind != "numeric":
+            raise ValueError("chart_enabled can be used only with numeric entities.")
+        return self
+
+
+class HPConfig(StrictModel):
+    enabled: bool = False
+    entities: list[HPEntityConfig] = Field(default_factory=list)
+
+
 class AppConfigModel(StrictModel):
     dph: float = Field(default=0.0, ge=0.0, le=100.0)
     price_provider: Literal["spotovaelektrina", "ote"] = Field(default=DEFAULT_PRICE_PROVIDER)
@@ -159,6 +201,7 @@ class AppConfigModel(StrictModel):
     forecast_solar: ForecastSolarConfig = Field(default_factory=ForecastSolarConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     pnd: PNDConfig = Field(default_factory=PNDConfig)
+    hp: HPConfig = Field(default_factory=HPConfig)
 
     @field_validator("dph", mode="before")
     @classmethod

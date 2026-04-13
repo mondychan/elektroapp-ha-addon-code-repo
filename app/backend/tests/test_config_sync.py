@@ -38,6 +38,21 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage):
             "password": "secret",
             "meter_id": "3000012345",
         },
+        "hp": {
+            "enabled": True,
+            "entities": [
+                {
+                    "entity_id": "sensor.ebusd_ha_daemon_hmu_currentyieldpower",
+                    "label": "Yield",
+                    "display_kind": "numeric",
+                    "source_kind": "instant",
+                    "kpi_enabled": True,
+                    "chart_enabled": True,
+                    "kpi_mode": "last",
+                    "unit": "kW",
+                }
+            ],
+        },
     }
 
     response = app_service.save_config(payload)
@@ -47,3 +62,5 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage):
     backup_options = json.loads((isolated_storage["storage_dir"] / "options.json").read_text(encoding="utf-8"))
     assert ha_options["pnd"]["username"] == "user@example.com"
     assert backup_options["pnd"]["username"] == "user@example.com"
+    assert ha_options["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_hmu_currentyieldpower"
+    assert backup_options["hp"]["enabled"] is True

@@ -30,6 +30,9 @@ jest.mock("./api/elektroappApi", () => ({
     verifyPnd: jest.fn(),
     backfillPnd: jest.fn(),
     getPndData: jest.fn(),
+    purgePndCache: jest.fn(),
+    getHpData: jest.fn(),
+    resolveHpEntity: jest.fn(),
   },
   extractApiError: (err) => {
     const status = err?.response?.status ?? null;
@@ -100,6 +103,21 @@ describe("App API states", () => {
     elektroappApi.verifyPnd.mockResolvedValue({ ok: true, message: "verify ok" });
     elektroappApi.backfillPnd.mockResolvedValue({ accepted: true, estimated_days: 1 });
     elektroappApi.getPndData.mockResolvedValue({ days: [] });
+    elektroappApi.purgePndCache.mockResolvedValue({ purged_files: 0 });
+    elektroappApi.getHpData.mockResolvedValue({
+      date: "2026-01-01",
+      config: { enabled: false, entities: [] },
+      kpis: [],
+      status_cards: [],
+      charts: [],
+    });
+    elektroappApi.resolveHpEntity.mockResolvedValue({
+      entity_id: "sensor.test",
+      label: "Test",
+      display_kind: "numeric",
+      source_kind: "instant",
+      kpi_mode: "last",
+    });
   });
 
   afterEach(() => {
@@ -175,5 +193,17 @@ describe("App API states", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Konfigurace" }));
     expect(screen.getByText("PND konfigurace")).toBeInTheDocument();
+  });
+
+  test("renders HP page and loads its data", async () => {
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "HP" }));
+
+    await waitFor(() => {
+      expect(elektroappApi.getHpData).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText("HP konfigurace")).toBeInTheDocument();
   });
 });

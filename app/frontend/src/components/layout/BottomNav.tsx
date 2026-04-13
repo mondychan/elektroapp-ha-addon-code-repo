@@ -2,8 +2,8 @@ import React from "react";
 import { motion } from "framer-motion";
 
 interface BottomNavProps {
-  pageMode: "overview" | "costs" | "battery" | "pnd" | "settings";
-  setPageMode: (mode: "overview" | "costs" | "battery" | "pnd" | "settings") => void;
+  pageMode: "overview" | "costs" | "battery" | "hp" | "pnd" | "settings";
+  setPageMode: (mode: "overview" | "costs" | "battery" | "hp" | "pnd" | "settings") => void;
 }
 
 const BottomNav: React.FC<BottomNavProps> = ({ pageMode, setPageMode }) => {
@@ -11,6 +11,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ pageMode, setPageMode }) => {
     { id: "overview", label: "Přehled", icon: "P" },
     { id: "costs", label: "Náklady", icon: "N" },
     { id: "battery", label: "Baterie", icon: "B" },
+    { id: "hp", label: "HP", icon: "H" },
     { id: "pnd", label: "PND", icon: "D" },
     { id: "settings", label: "Nastavení", icon: "S" },
   ] as const;

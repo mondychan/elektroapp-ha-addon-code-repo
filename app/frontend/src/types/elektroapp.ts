@@ -59,6 +59,74 @@ export interface Config {
     nightly_sync_window_start_hour?: number;
     nightly_sync_window_end_hour?: number;
   };
+  hp?: {
+    enabled?: boolean;
+    entities?: HpEntityConfig[];
+  };
+}
+
+export interface HpEntityConfig {
+  entity_id: string;
+  label?: string;
+  display_kind?: "numeric" | "state";
+  source_kind?: "instant" | "counter" | "state";
+  kpi_enabled?: boolean;
+  chart_enabled?: boolean;
+  kpi_mode?: "last" | "min" | "max" | "avg" | "sum" | "delta";
+  unit?: string | null;
+  measurement?: string | null;
+  decimals?: number | null;
+  device_class?: string | null;
+  state_class?: string | null;
+}
+
+export interface HpKpiItem {
+  entity_id: string;
+  label: string;
+  value: number | null;
+  unit?: string | null;
+  decimals?: number | null;
+  kpi_mode?: string;
+  source_kind?: string;
+  updated_at?: string | null;
+}
+
+export interface HpStatusCard {
+  entity_id: string;
+  label: string;
+  value: string;
+  raw_value?: any;
+  unit?: string | null;
+  updated_at?: string | null;
+  device_class?: string | null;
+  state_class?: string | null;
+}
+
+export interface HpChart {
+  entity_id: string;
+  label: string;
+  unit?: string | null;
+  decimals?: number | null;
+  source_kind?: string;
+  points: Array<{
+    time: string;
+    value: number;
+  }>;
+}
+
+export interface HpResolvedEntity extends HpEntityConfig {
+  state?: any;
+}
+
+export interface HpDataResponse {
+  date: string;
+  config: {
+    enabled?: boolean;
+    entities?: HpEntityConfig[];
+  };
+  kpis: HpKpiItem[];
+  status_cards: HpStatusCard[];
+  charts: HpChart[];
 }
 
 export interface PriceItem {

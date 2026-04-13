@@ -80,3 +80,6 @@ pnd:
   nightly_sync_enabled: true
   nightly_sync_window_start_hour: 2
   nightly_sync_window_end_hour: 7
+hp:
+  enabled: false
+  entities: []

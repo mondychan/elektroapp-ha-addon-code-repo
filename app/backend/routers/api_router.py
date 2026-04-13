@@ -68,6 +68,16 @@ def get_pnd_data(
     return svc.get_pnd_data(from_date=from_date, to_date=to_date, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
+@router.get("/hp/data")
+def get_hp_data(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_hp_data(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.post("/hp/resolve-entity")
+def resolve_hp_entity(payload: dict = Body(...)):
+    return svc.resolve_hp_entity(entity_id=str(payload.get("entity_id") or "").strip())
+
+
 @router.get("/version")
 def get_version():
     return svc.get_version()

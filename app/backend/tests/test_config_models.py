@@ -26,6 +26,7 @@ def test_config_model_normalizes_provider_dph_and_applies_defaults():
     assert dumped["poplatky"]["oze"] == 0.0
     assert dumped["battery"]["reserve_soc_percent"] == 15.0
     assert dumped["pnd"]["nightly_sync_enabled"] is True
+    assert dumped["hp"]["entities"] == []
 
 
 def test_config_model_rejects_unknown_keys():
@@ -90,6 +91,59 @@ def test_pnd_config_rejects_invalid_sync_window():
                     "meter_id": "3000012345",
                     "nightly_sync_window_start_hour": 8,
                     "nightly_sync_window_end_hour": 7,
+                }
+            }
+        )
+
+
+def test_hp_config_accepts_numeric_and_state_entities():
+    model = AppConfigModel.model_validate(
+        {
+            "hp": {
+                "enabled": True,
+                "entities": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_hmu_currentyieldpower",
+                        "label": "Aktualni vykon",
+                        "display_kind": "numeric",
+                        "source_kind": "instant",
+                        "kpi_enabled": True,
+                        "chart_enabled": True,
+                        "kpi_mode": "avg",
+                        "unit": "kW",
+                    },
+                    {
+                        "entity_id": "binary_sensor.ebusd_ha_daemon_hmu_hcmodeactive",
+                        "display_kind": "state",
+                        "source_kind": "state",
+                        "chart_enabled": True,
+                        "kpi_mode": "max",
+                    },
+                ],
+            }
+        }
+    )
+
+    assert model.hp.enabled is True
+    assert len(model.hp.entities) == 2
+    assert model.hp.entities[0].kpi_mode == "avg"
+    assert model.hp.entities[1].chart_enabled is False
+    assert model.hp.entities[1].kpi_mode == "last"
+
+
+def test_hp_config_rejects_invalid_mode_for_instant_entity():
+    with pytest.raises(ValidationError):
+        AppConfigModel.model_validate(
+            {
+                "hp": {
+                    "entities": [
+                        {
+                            "entity_id": "sensor.test",
+                            "display_kind": "numeric",
+                            "source_kind": "instant",
+                            "kpi_mode": "delta",
+                        }
+                    ]
                 }
             }
         )
