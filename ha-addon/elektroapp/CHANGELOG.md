@@ -1,6 +1,11 @@
 # Changelog
 # Seznam změn
 
+## 0.3.13
+- HP overrides: přidána podpora formátování hodnot pomocí `value_format`, včetně převodu trvání ze sekund, minut nebo hodin do čitelného textu.
+- HP UI: do editoru override pravidel přidána pole pro formát hodnoty, styl zobrazení trvání a maximální počet zobrazovaných částí.
+- HP karty a tooltipy: formátování trvání se nyní použije v KPI kartách, sekundárních statistikách, status kartách i v tooltipu grafu.
+
 ## 0.3.12
 - HP discovery: oprava načítání konfigurace, aby parametry `source_mode`, `scan`, `defaults` a `overrides` zůstaly zachovány i za běhu a nebyly zahazovány zavaděčem backendu.
 - HP regex/prefix scan: skenované entity se v produkčních sestaveních nyní skutečně načítají z uložené konfigurace.

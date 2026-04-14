@@ -92,6 +92,9 @@ export interface HpOverrideConfig extends Partial<HpEntityConfig> {
   enabled?: boolean;
 }
 
+export type HpValueFormat = "default" | "duration_seconds" | "duration_minutes" | "duration_hours";
+export type HpDurationStyle = "short" | "long";
+
 export interface HpEntityConfig {
   entity_id: string;
   label?: string;
@@ -105,6 +108,9 @@ export interface HpEntityConfig {
   decimals?: number | null;
   device_class?: string | null;
   state_class?: string | null;
+  value_format?: HpValueFormat | null;
+  duration_style?: HpDurationStyle | null;
+  duration_max_parts?: number | null;
 }
 
 export interface HpKpiItem {
@@ -116,6 +122,9 @@ export interface HpKpiItem {
   kpi_mode?: string;
   source_kind?: string;
   updated_at?: string | null;
+  value_format?: HpValueFormat | null;
+  duration_style?: HpDurationStyle | null;
+  duration_max_parts?: number | null;
   secondary_metrics?: Array<{
     key: string;
     label: string;
@@ -132,6 +141,9 @@ export interface HpStatusCard {
   updated_at?: string | null;
   device_class?: string | null;
   state_class?: string | null;
+  value_format?: HpValueFormat | null;
+  duration_style?: HpDurationStyle | null;
+  duration_max_parts?: number | null;
 }
 
 export interface HpChart {
@@ -140,6 +152,9 @@ export interface HpChart {
   unit?: string | null;
   decimals?: number | null;
   source_kind?: string;
+  value_format?: HpValueFormat | null;
+  duration_style?: HpDurationStyle | null;
+  duration_max_parts?: number | null;
   points: Array<{
     time: string;
     value: number | null;

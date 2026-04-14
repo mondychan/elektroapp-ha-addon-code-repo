@@ -335,6 +335,9 @@ class HPService:
             "updated_at": updated_at,
             "device_class": entity.get("device_class"),
             "state_class": entity.get("state_class"),
+            "value_format": entity.get("value_format"),
+            "duration_style": entity.get("duration_style"),
+            "duration_max_parts": entity.get("duration_max_parts"),
         }
 
     def _build_numeric_payload(
@@ -411,6 +414,9 @@ class HPService:
                 "kpi_mode": kpi_mode,
                 "source_kind": entity.get("source_kind"),
                 "updated_at": updated_at,
+                "value_format": entity.get("value_format"),
+                "duration_style": entity.get("duration_style"),
+                "duration_max_parts": entity.get("duration_max_parts"),
                 "secondary_metrics": self._build_secondary_metrics(kpi_mode, stats),
             },
             "chart": {
@@ -419,6 +425,9 @@ class HPService:
                 "unit": entity.get("unit"),
                 "decimals": decimals,
                 "source_kind": entity.get("source_kind"),
+                "value_format": entity.get("value_format"),
+                "duration_style": entity.get("duration_style"),
+                "duration_max_parts": entity.get("duration_max_parts"),
                 "points": chart_points,
             },
         }

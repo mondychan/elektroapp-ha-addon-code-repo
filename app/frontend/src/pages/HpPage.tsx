@@ -16,9 +16,11 @@ import {
   Config,
   HpChart,
   HpDataResponse,
+  HpDurationStyle,
   HpEntityConfig,
   HpKpiItem,
   HpResolvedEntity,
+  HpValueFormat,
 } from "../types/elektroapp";
 
 interface HpPageProps {
@@ -29,7 +31,24 @@ interface HpPageProps {
 }
 
 type HpPeriod = "day" | "week" | "month" | "year";
-type HpFormOverride = Omit<HpEntityConfig, "decimals"> & { entity_id: string; enabled?: boolean; decimals?: number | string | null };
+type HpFormOverride = {
+  entity_id: string;
+  enabled?: boolean;
+  label?: string;
+  display_kind?: "numeric" | "state";
+  source_kind?: "instant" | "counter" | "state";
+  kpi_enabled?: boolean;
+  chart_enabled?: boolean;
+  kpi_mode?: "last" | "min" | "max" | "avg" | "sum" | "delta";
+  unit?: string | null;
+  measurement?: string | null;
+  device_class?: string | null;
+  state_class?: string | null;
+  decimals?: number | string | null;
+  value_format?: HpValueFormat | "" | null;
+  duration_style?: HpDurationStyle | "" | null;
+  duration_max_parts?: number | string | null;
+};
 
 const buildFormState = (config: Config | null) => ({
   enabled: Boolean(config?.hp?.enabled),
@@ -63,8 +82,17 @@ const buildFormState = (config: Config | null) => ({
     decimals: entity.decimals ?? "",
     device_class: entity.device_class || "",
     state_class: entity.state_class || "",
+    value_format: entity.value_format || "",
+    duration_style: entity.duration_style || "short",
+    duration_max_parts: entity.duration_max_parts ?? 2,
   })),
-  overrides: (config?.hp?.overrides || []).map(o => ({...o, decimals: o.decimals ?? ""})),
+  overrides: (config?.hp?.overrides || []).map((o) => ({
+    ...o,
+    decimals: o.decimals ?? "",
+    value_format: o.value_format || "",
+    duration_style: o.duration_style || "short",
+    duration_max_parts: o.duration_max_parts ?? 2,
+  })),
 });
 
 const emptyEntityRow = (): any => ({
@@ -80,6 +108,9 @@ const emptyEntityRow = (): any => ({
   decimals: "",
   device_class: "",
   state_class: "",
+  value_format: "",
+  duration_style: "short",
+  duration_max_parts: 2,
 });
 
 const formatTime = (value?: string | null) => {
@@ -101,8 +132,70 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
-const formatNumber = (value: number | null | undefined, decimals?: number | null, unit?: string | null) => {
+const pluralizeCzech = (count: number, forms: [string, string, string]) => {
+  const abs = Math.abs(count);
+  if (abs === 1) return forms[0];
+  if (abs >= 2 && abs <= 4) return forms[1];
+  return forms[2];
+};
+
+const formatDurationValue = (
+  input: number,
+  sourceFormat: HpValueFormat,
+  style: HpDurationStyle = "short",
+  maxParts = 2
+) => {
+  const factorMap: Record<Exclude<HpValueFormat, "default">, number> = {
+    duration_seconds: 1,
+    duration_minutes: 60,
+    duration_hours: 3600,
+  };
+  const totalSeconds = Math.round(Math.abs(input) * factorMap[sourceFormat as Exclude<HpValueFormat, "default">]);
+  const sign = input < 0 ? "-" : "";
+  const safeMaxParts = Math.max(1, Math.min(6, maxParts || 2));
+  const units = [
+    { size: 365 * 24 * 60 * 60, short: "r", long: ["rok", "roky", "let"] as [string, string, string] },
+    { size: 30 * 24 * 60 * 60, short: "mes", long: ["mesic", "mesice", "mesicu"] as [string, string, string] },
+    { size: 7 * 24 * 60 * 60, short: "tyd", long: ["tyden", "tydny", "tydnu"] as [string, string, string] },
+    { size: 24 * 60 * 60, short: "d", long: ["den", "dny", "dnu"] as [string, string, string] },
+    { size: 60 * 60, short: "h", long: ["hodina", "hodiny", "hodin"] as [string, string, string] },
+    { size: 60, short: "min", long: ["minuta", "minuty", "minut"] as [string, string, string] },
+    { size: 1, short: "s", long: ["sekunda", "sekundy", "sekund"] as [string, string, string] },
+  ];
+
+  if (totalSeconds === 0) {
+    return style === "long" ? "0 sekund" : "0 s";
+  }
+
+  let remainder = totalSeconds;
+  const parts: string[] = [];
+  for (const unit of units) {
+    if (remainder < unit.size) continue;
+    const count = Math.floor(remainder / unit.size);
+    remainder -= count * unit.size;
+    parts.push(
+      style === "long"
+        ? `${count} ${pluralizeCzech(count, unit.long)}`
+        : `${count} ${unit.short}`
+    );
+    if (parts.length >= safeMaxParts) break;
+  }
+
+  return `${sign}${parts.join(" ")}`;
+};
+
+const formatNumber = (
+  value: number | null | undefined,
+  decimals?: number | null,
+  unit?: string | null,
+  valueFormat?: HpValueFormat | null,
+  durationStyle?: HpDurationStyle | null,
+  durationMaxParts?: number | null
+) => {
   if (value == null || Number.isNaN(value)) return "-";
+  if (valueFormat && valueFormat !== "default") {
+    return formatDurationValue(value, valueFormat, durationStyle || "short", durationMaxParts ?? 2);
+  }
   const precision = decimals != null ? decimals : Math.abs(value) >= 100 ? 0 : 2;
   const formatted = value.toFixed(precision);
   return unit ? `${formatted} ${unit}` : formatted;
@@ -129,11 +222,11 @@ const toScreenKpis = (kpis: HpKpiItem[], chartEntityIds: Set<string>, onChartFoc
   kpis.map((item) => ({
     key: item.entity_id,
     label: item.label,
-    value: formatNumber(item.value, item.decimals, item.unit),
+    value: formatNumber(item.value, item.decimals, item.unit, item.value_format, item.duration_style, item.duration_max_parts),
     secondaryMetrics: (item.secondary_metrics || []).map((metric) => ({
       key: metric.key,
       label: metric.label,
-      value: formatNumber(metric.value, item.decimals, item.unit),
+      value: formatNumber(metric.value, item.decimals, item.unit, item.value_format, item.duration_style, item.duration_max_parts),
     })),
     detail: null,
     tone: "neutral",
@@ -194,7 +287,7 @@ const buildChartOptions = (chart: HpChart, period: HpPeriod) => ({
         sections: [
           {
             label: chart.label,
-            value: formatNumber(value, chart.decimals, chart.unit),
+            value: formatNumber(value, chart.decimals, chart.unit, chart.value_format, chart.duration_style, chart.duration_max_parts),
             color: "#4d79ff",
           },
         ],
@@ -303,6 +396,9 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
         decimals: entity.decimals === "" ? undefined : Number(entity.decimals),
         device_class: entity.device_class?.trim() || undefined,
         state_class: entity.state_class?.trim() || undefined,
+        value_format: entity.value_format || undefined,
+        duration_style: entity.value_format ? entity.duration_style || "short" : undefined,
+        duration_max_parts: entity.value_format ? Number(entity.duration_max_parts || 2) : undefined,
       }));
     const scan = {
       ...form.scan,
@@ -317,6 +413,9 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
     const overrides = form.overrides.map((o: any) => ({
       ...o,
       decimals: o.decimals === "" ? null : Number(o.decimals),
+      value_format: o.value_format || null,
+      duration_style: o.value_format ? o.duration_style || "short" : null,
+      duration_max_parts: o.value_format ? Number(o.duration_max_parts || 2) : null,
     }));
 
     return {
@@ -418,7 +517,10 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
   };
 
   const getOverrideFor = (entityId: string): HpFormOverride => {
-    return form.overrides.find((o: any) => o.entity_id === entityId) || { entity_id: entityId, enabled: true };
+    return (form.overrides.find((o: any) => o.entity_id === entityId) as HpFormOverride | undefined) || {
+      entity_id: entityId,
+      enabled: true,
+    };
   };
 
   const handleSave = async () => {
@@ -538,7 +640,11 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
             {data?.status_cards?.map((card) => (
               <div key={card.entity_id} className="hp-status-card">
                 <div className="hp-status-label">{card.label}</div>
-                <div className="hp-status-value">{card.value}</div>
+                <div className="hp-status-value">
+                  {card.raw_value != null && typeof card.raw_value !== "boolean" && !Number.isNaN(Number(card.raw_value)) && card.value_format && card.value_format !== "default"
+                    ? formatNumber(Number(card.raw_value), null, card.unit, card.value_format, card.duration_style, card.duration_max_parts)
+                    : card.value}
+                </div>
                 <div className="hp-status-detail">{[card.unit, formatTime(card.updated_at)].filter(Boolean).join(" | ") || "\u00A0"}</div>
               </div>
             ))}
@@ -711,6 +817,27 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                                    <option value="true">Zobrazit graf</option>
                                    <option value="false">Skryt graf</option>
                                  </select>
+                               </label>
+                               <label className="pnd-field">
+                                 <span>Format hodnoty</span>
+                                 <select value={override.value_format ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "value_format", e.target.value || null)} disabled={!isEnabled}>
+                                   <option value="">Vychozi</option>
+                                   <option value="default">Bez formatovani</option>
+                                   <option value="duration_seconds">Doba ze sekund</option>
+                                   <option value="duration_minutes">Doba z minut</option>
+                                   <option value="duration_hours">Doba z hodin</option>
+                                 </select>
+                               </label>
+                               <label className="pnd-field">
+                                 <span>Styl trvani</span>
+                                 <select value={override.duration_style ?? "short"} onChange={(e) => handleOverrideField(entity.entity_id, "duration_style", e.target.value || "short")} disabled={!isEnabled || !override.value_format || override.value_format === "default"}>
+                                   <option value="short">kratky</option>
+                                   <option value="long">dlouhy</option>
+                                 </select>
+                               </label>
+                               <label className="pnd-field">
+                                 <span>Max casti</span>
+                                 <input type="number" min={1} max={6} value={override.duration_max_parts ?? 2} onChange={(e) => handleOverrideField(entity.entity_id, "duration_max_parts", e.target.value || 2)} disabled={!isEnabled || !override.value_format || override.value_format === "default"} />
                                </label>
                             </div>
                             <div className="hp-entity-meta" style={{ marginTop: "0.5rem" }}>

@@ -170,6 +170,9 @@ def test_get_hp_cfg_preserves_scan_defaults_and_overrides():
                         "label": "Uptime",
                         "chart_enabled": False,
                         "decimals": 0,
+                        "value_format": "duration_seconds",
+                        "duration_style": "short",
+                        "duration_max_parts": 2,
                     }
                 ],
             }
@@ -186,6 +189,9 @@ def test_get_hp_cfg_preserves_scan_defaults_and_overrides():
     assert hp_cfg["overrides"][0]["label"] == "Uptime"
     assert hp_cfg["overrides"][0]["chart_enabled"] is False
     assert hp_cfg["overrides"][0]["decimals"] == 0
+    assert hp_cfg["overrides"][0]["value_format"] == "duration_seconds"
+    assert hp_cfg["overrides"][0]["duration_style"] == "short"
+    assert hp_cfg["overrides"][0]["duration_max_parts"] == 2
 
 
 def test_save_config_raises_when_supervisor_sync_fails_in_addon_runtime(isolated_storage, monkeypatch):

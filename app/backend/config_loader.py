@@ -428,6 +428,27 @@ def get_hp_cfg(cfg):
     if defaults_decimals not in (None, ""):
         normalized_defaults["decimals"] = max(0, min(6, int(_safe_float(defaults_decimals) or 0)))
 
+    def _normalize_value_format(item: dict[str, Any]) -> tuple[str | None, str | None, int | None]:
+        value_format = item.get("value_format")
+        if value_format is not None:
+            value_format = str(value_format).strip().lower()
+            if value_format not in {"default", "duration_seconds", "duration_minutes", "duration_hours"}:
+                value_format = None
+
+        duration_style = item.get("duration_style")
+        if duration_style is not None:
+            duration_style = str(duration_style).strip().lower()
+            if duration_style not in {"short", "long"}:
+                duration_style = None
+
+        duration_max_parts_value = item.get("duration_max_parts")
+        if duration_max_parts_value in (None, ""):
+            duration_max_parts = None
+        else:
+            duration_max_parts = max(1, min(6, int(_safe_float(duration_max_parts_value) or 2)))
+
+        return value_format, duration_style, duration_max_parts
+
     for item in raw_entities:
         if not isinstance(item, dict):
             continue
@@ -445,6 +466,7 @@ def get_hp_cfg(cfg):
             decimals = None
         else:
             decimals = max(0, min(6, int(_safe_float(decimals_value) or 0)))
+        value_format, duration_style, duration_max_parts = _normalize_value_format(item)
 
         normalized_entities.append(
             {
@@ -460,6 +482,9 @@ def get_hp_cfg(cfg):
                 "decimals": decimals,
                 "device_class": str(item.get("device_class")).strip() if item.get("device_class") else None,
                 "state_class": str(item.get("state_class")).strip() if item.get("state_class") else None,
+                "value_format": value_format,
+                "duration_style": duration_style,
+                "duration_max_parts": duration_max_parts,
             }
         )
 
@@ -492,6 +517,7 @@ def get_hp_cfg(cfg):
             decimals = None
         else:
             decimals = max(0, min(6, int(_safe_float(decimals_value) or 0)))
+        value_format, duration_style, duration_max_parts = _normalize_value_format(item)
 
         normalized_overrides.append(
             {
@@ -506,6 +532,9 @@ def get_hp_cfg(cfg):
                 "unit": str(item.get("unit")).strip() if item.get("unit") else None,
                 "measurement": str(item.get("measurement")).strip() if item.get("measurement") else None,
                 "decimals": decimals,
+                "value_format": value_format,
+                "duration_style": duration_style,
+                "duration_max_parts": duration_max_parts,
             }
         )
 

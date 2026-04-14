@@ -108,6 +108,9 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
                         "chart_enabled": True,
                         "kpi_mode": "avg",
                         "unit": "",
+                        "value_format": "duration_seconds",
+                        "duration_style": "short",
+                        "duration_max_parts": 2,
                     },
                     {
                         "entity_id": "binary_sensor.hp_mode",
@@ -132,12 +135,16 @@ def test_hp_service_returns_numeric_kpis_status_cards_and_charts():
     assert len(payload["kpis"]) == 1
     assert payload["kpis"][0]["value"] == pytest.approx(2.0)
     assert payload["kpis"][0]["label"] == "resolved:sensor.hp_power"
+    assert payload["kpis"][0]["value_format"] == "duration_seconds"
+    assert payload["kpis"][0]["duration_style"] == "short"
+    assert payload["kpis"][0]["duration_max_parts"] == 2
     assert payload["kpis"][0]["secondary_metrics"] == [
         {"key": "last", "label": "LAST", "value": 3.0},
         {"key": "min", "label": "MIN", "value": 1.0},
         {"key": "max", "label": "MAX", "value": 3.0},
     ]
     assert len(payload["charts"]) == 1
+    assert payload["charts"][0]["value_format"] == "duration_seconds"
     assert len(payload["charts"][0]["points"]) >= 3
     assert len(payload["status_cards"]) == 1
     assert payload["status_cards"][0]["value"] == "Zapnuto"

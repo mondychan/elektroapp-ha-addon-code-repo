@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.3.12"
+version: "0.3.13"
 arch:
   - amd64
   - aarch64
@@ -15,7 +15,7 @@ homeassistant_api: true
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.3.12"
+  ADDON_VERSION: "0.3.13"
 ports:
   8000/tcp: null
 ports_description:
@@ -232,6 +232,9 @@ schema:
         decimals: int?
         device_class: str?
         state_class: str?
+        value_format: list(default|duration_seconds|duration_minutes|duration_hours)?
+        duration_style: list(short|long)?
+        duration_max_parts: int?
     overrides:
       - entity_id: str
         enabled: bool?
@@ -244,3 +247,6 @@ schema:
         unit: str?
         measurement: str?
         decimals: int?
+        value_format: list(default|duration_seconds|duration_minutes|duration_hours)?
+        duration_style: list(short|long)?
+        duration_max_parts: int?

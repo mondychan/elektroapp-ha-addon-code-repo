@@ -131,6 +131,28 @@ def test_hp_config_accepts_numeric_and_state_entities():
     assert model.hp.entities[1].kpi_mode == "last"
 
 
+def test_hp_config_accepts_duration_value_format_in_overrides():
+    model = AppConfigModel.model_validate(
+        {
+            "hp": {
+                "source_mode": "regex",
+                "overrides": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_global_uptime",
+                        "value_format": "duration_seconds",
+                        "duration_style": "short",
+                        "duration_max_parts": 2,
+                    }
+                ],
+            }
+        }
+    )
+
+    assert model.hp.overrides[0].value_format == "duration_seconds"
+    assert model.hp.overrides[0].duration_style == "short"
+    assert model.hp.overrides[0].duration_max_parts == 2
+
+
 def test_hp_config_rejects_invalid_mode_for_instant_entity():
     with pytest.raises(ValidationError):
         AppConfigModel.model_validate(
