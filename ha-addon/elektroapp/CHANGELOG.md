@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.10
+- HP discovery: add `manual | prefix | regex` source modes with scan settings, defaults, allowlist/blocklist filtering and per-entity overrides.
+- Home Assistant integration: add bulk state discovery support and runtime metadata inference for scanned HP entities.
+- HP UI: extend the configuration panel with discovery preview and override editing for scanned entities.
+
 ## 0.3.9
 - HP KPI: clicking a KPI card now scrolls to the matching chart when that entity has a rendered graph.
 - HP charts: improve sparse-series visibility with point markers and clamp the tooltip left/right so it stays inside the visible chart area; tooltip rows also wrap long labels and values instead of overflowing.

@@ -37,6 +37,7 @@ export const elektroappApi = {
   purgePndCache: () => post("/pnd/purge-cache"),
   getHpData: (period = "day", anchor?: string) => get("/hp/data", anchor ? { period, anchor } : { period }),
   resolveHpEntity: (entity_id: string) => post("/hp/resolve-entity", { entity_id }),
+  previewHpDiscovery: (payload: any) => post("/hp/discovery/preview", payload),
 };
 
 const formatErrorDetail = (detail: any): string | null => {

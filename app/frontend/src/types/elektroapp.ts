@@ -61,8 +61,35 @@ export interface Config {
   };
   hp?: {
     enabled?: boolean;
+    source_mode?: "manual" | "prefix" | "regex";
+    scan?: HpScanConfig;
+    defaults?: HpDefaultsConfig;
     entities?: HpEntityConfig[];
+    overrides?: HpOverrideConfig[];
   };
+}
+
+export interface HpScanConfig {
+  prefix?: string;
+  regex?: string;
+  allowlist?: string[];
+  blocklist?: string[];
+  include_domains?: string[];
+  exclude_unavailable?: boolean;
+}
+
+export interface HpDefaultsConfig {
+  kpi_enabled?: boolean;
+  chart_enabled_numeric?: boolean;
+  chart_enabled_state?: boolean;
+  kpi_mode_numeric?: "last" | "min" | "max" | "avg" | "sum" | "delta";
+  kpi_mode_state?: "last";
+  decimals?: number | null;
+}
+
+export interface HpOverrideConfig extends Partial<HpEntityConfig> {
+  entity_id: string;
+  enabled?: boolean;
 }
 
 export interface HpEntityConfig {

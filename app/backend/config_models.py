@@ -183,9 +183,45 @@ class HPEntityConfig(StrictModel):
         return self
 
 
+class HPScanConfig(StrictModel):
+    prefix: str = ""
+    regex: str = ""
+    allowlist: list[str] = Field(default_factory=list)
+    blocklist: list[str] = Field(default_factory=list)
+    include_domains: list[str] = Field(default_factory=lambda: ["sensor", "binary_sensor"])
+    exclude_unavailable: bool = True
+
+
+class HPDefaultsConfig(StrictModel):
+    kpi_enabled: bool = True
+    chart_enabled_numeric: bool = True
+    chart_enabled_state: bool = False
+    kpi_mode_numeric: Literal["last", "min", "max", "avg", "sum", "delta"] = "last"
+    kpi_mode_state: Literal["last"] = "last"
+    decimals: int | None = Field(default=None, ge=0, le=6)
+
+
+class HPOverrideConfig(StrictModel):
+    entity_id: str = Field(min_length=1)
+    enabled: bool = True
+    label: str | None = None
+    display_kind: Literal["numeric", "state"] | None = None
+    source_kind: Literal["instant", "counter", "state"] | None = None
+    kpi_enabled: bool | None = None
+    chart_enabled: bool | None = None
+    kpi_mode: Literal["last", "min", "max", "avg", "sum", "delta"] | None = None
+    unit: str | None = None
+    measurement: str | None = None
+    decimals: int | None = Field(default=None, ge=0, le=6)
+
+
 class HPConfig(StrictModel):
     enabled: bool = False
+    source_mode: Literal["manual", "prefix", "regex"] = "manual"
+    scan: HPScanConfig = Field(default_factory=HPScanConfig)
+    defaults: HPDefaultsConfig = Field(default_factory=HPDefaultsConfig)
     entities: list[HPEntityConfig] = Field(default_factory=list)
+    overrides: list[HPOverrideConfig] = Field(default_factory=list)
 
 
 class AppConfigModel(StrictModel):

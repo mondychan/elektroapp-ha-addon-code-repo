@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -61,12 +62,16 @@ class HPService:
             "status_cards": [],
             "charts": [],
         }
-        if not hp_cfg.get("entities"):
+        if not hp_cfg.get("enabled", False):
+            return result
+
+        resolved_entities = self.resolve_effective_entities(hp_cfg)
+        if not resolved_entities:
             return result
 
         influx = self._get_influx_cfg(cfg)
 
-        for raw_entity in hp_cfg.get("entities", []):
+        for raw_entity in resolved_entities:
             entity = dict(raw_entity)
             metadata = self._home_assistant_service.resolve_entity_metadata_safe(entity.get("entity_id"))
             if metadata:
@@ -110,6 +115,106 @@ class HPService:
                 result["charts"].append(numeric_payload["chart"])
 
         return result
+
+    def resolve_effective_entities(self, hp_cfg: dict[str, Any]) -> list[dict[str, Any]]:
+        source_mode = hp_cfg.get("source_mode", "manual")
+        if source_mode == "manual":
+            return hp_cfg.get("entities", [])
+        
+        scan_cfg = hp_cfg.get("scan", {})
+        defaults_cfg = hp_cfg.get("defaults", {})
+        overrides = hp_cfg.get("overrides", [])
+        
+        try:
+            states = self._home_assistant_service.get_states()
+        except Exception as exc:
+            self.logger.warning("Failed to fetch states for HP auto-discovery: %s", exc)
+            return []
+            
+        prefix = scan_cfg.get("prefix", "")
+        regex_pattern = scan_cfg.get("regex", "")
+        include_domains = scan_cfg.get("include_domains", ["sensor", "binary_sensor"])
+        allowlist = set(scan_cfg.get("allowlist", []))
+        blocklist = set(scan_cfg.get("blocklist", []))
+        exclude_unavailable = scan_cfg.get("exclude_unavailable", True)
+        
+        regex_matcher = None
+        if source_mode == "regex" and regex_pattern:
+            try:
+                regex_matcher = re.compile(regex_pattern)
+            except re.error:
+                self.logger.warning("Invalid regex for HP auto-discovery: %s", regex_pattern)
+                
+        discovered = []
+        for state_obj in states:
+            entity_id = state_obj.get("entity_id", "")
+            if not entity_id:
+                continue
+                
+            domain = entity_id.split(".")[0]
+            if include_domains and domain not in include_domains:
+                continue
+                
+            if allowlist and entity_id not in allowlist:
+                continue
+            if entity_id in blocklist:
+                continue
+                
+            if exclude_unavailable and state_obj.get("state") in ("unavailable", "unknown"):
+                continue
+
+            if source_mode == "prefix":
+                if prefix and not entity_id.startswith(prefix):
+                    continue
+            elif source_mode == "regex":
+                if regex_matcher is None or not regex_matcher.search(entity_id):
+                    continue
+
+            metadata = self._home_assistant_service.resolve_metadata_from_state(state_obj)
+            
+            is_numeric = metadata.get("display_kind") == "numeric"
+            kpi_enabled = defaults_cfg.get("kpi_enabled", True)
+            chart_enabled = defaults_cfg.get("chart_enabled_numeric", True) if is_numeric else defaults_cfg.get("chart_enabled_state", False)
+            kpi_mode = defaults_cfg.get("kpi_mode_numeric", "last") if is_numeric else defaults_cfg.get("kpi_mode_state", "last")
+            decimals = defaults_cfg.get("decimals")
+            
+            entity_cfg = {
+                "entity_id": metadata["entity_id"],
+                "label": metadata["label"],
+                "display_kind": metadata["display_kind"],
+                "source_kind": metadata["source_kind"],
+                "kpi_enabled": kpi_enabled,
+                "chart_enabled": chart_enabled,
+                "kpi_mode": kpi_mode,
+                "unit": metadata["unit"],
+                "decimals": decimals,
+                "device_class": metadata["device_class"],
+                "state_class": metadata["state_class"]
+            }
+            
+            if entity_cfg["source_kind"] == "counter" and kpi_mode not in ("last", "sum", "delta"):
+                entity_cfg["kpi_mode"] = "delta"
+            elif entity_cfg["source_kind"] == "instant" and kpi_mode not in ("last", "min", "max", "avg"):
+                entity_cfg["kpi_mode"] = "last"
+            elif entity_cfg["source_kind"] == "state":
+                entity_cfg["kpi_mode"] = "last"
+                
+            discovered.append(entity_cfg)
+            
+        override_map = {o["entity_id"]: o for o in overrides}
+        final_entities = []
+        for ent in discovered:
+            eid = ent["entity_id"]
+            if eid in override_map:
+                override = override_map[eid]
+                if not override.get("enabled", True):
+                    continue
+                for k, v in override.items():
+                    if k not in ("entity_id", "enabled") and v is not None:
+                        ent[k] = v
+            final_entities.append(ent)
+            
+        return final_entities
 
     def _normalize_anchor(self, period: str, anchor: str | None, tzinfo) -> str:
         now_local = datetime.now(tzinfo)

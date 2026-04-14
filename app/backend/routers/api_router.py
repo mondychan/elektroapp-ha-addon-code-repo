@@ -77,6 +77,10 @@ def get_hp_data(params: HpDataQuery = Depends(), ctx: RequestContext = Depends(g
 def resolve_hp_entity(payload: dict = Body(...)):
     return svc.resolve_hp_entity(entity_id=str(payload.get("entity_id") or "").strip())
 
+@router.post("/hp/discovery/preview")
+def preview_hp_discovery(payload: dict = Body(...)):
+    return {"entities": svc.preview_hp_discovery(payload)}
+
 
 @router.get("/version")
 def get_version():

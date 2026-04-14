@@ -29,9 +29,27 @@ interface HpPageProps {
 }
 
 type HpPeriod = "day" | "week" | "month" | "year";
+type HpFormOverride = Omit<HpEntityConfig, "decimals"> & { entity_id: string; enabled?: boolean; decimals?: number | string | null };
 
 const buildFormState = (config: Config | null) => ({
   enabled: Boolean(config?.hp?.enabled),
+  source_mode: config?.hp?.source_mode || "manual",
+  scan: {
+    prefix: config?.hp?.scan?.prefix || "",
+    regex: config?.hp?.scan?.regex || "",
+    allowlist: (config?.hp?.scan?.allowlist || []).join(", "),
+    blocklist: (config?.hp?.scan?.blocklist || []).join(", "),
+    include_domains: (config?.hp?.scan?.include_domains || ["sensor", "binary_sensor"]).join(", "),
+    exclude_unavailable: config?.hp?.scan?.exclude_unavailable ?? true,
+  },
+  defaults: {
+    kpi_enabled: config?.hp?.defaults?.kpi_enabled ?? true,
+    chart_enabled_numeric: config?.hp?.defaults?.chart_enabled_numeric ?? true,
+    chart_enabled_state: config?.hp?.defaults?.chart_enabled_state ?? false,
+    kpi_mode_numeric: config?.hp?.defaults?.kpi_mode_numeric || "last",
+    kpi_mode_state: config?.hp?.defaults?.kpi_mode_state || "last",
+    decimals: config?.hp?.defaults?.decimals ?? "",
+  },
   entities: (config?.hp?.entities || []).map((entity) => ({
     entity_id: entity.entity_id || "",
     label: entity.label || "",
@@ -46,6 +64,7 @@ const buildFormState = (config: Config | null) => ({
     device_class: entity.device_class || "",
     state_class: entity.state_class || "",
   })),
+  overrides: (config?.hp?.overrides || []).map(o => ({...o, decimals: o.decimals ?? ""})),
 });
 
 const emptyEntityRow = (): any => ({
@@ -285,11 +304,30 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
         device_class: entity.device_class?.trim() || undefined,
         state_class: entity.state_class?.trim() || undefined,
       }));
+    const scan = {
+      ...form.scan,
+      allowlist: form.scan.allowlist.split(",").map((s: string) => s.trim()).filter(Boolean),
+      blocklist: form.scan.blocklist.split(",").map((s: string) => s.trim()).filter(Boolean),
+      include_domains: form.scan.include_domains.split(",").map((s: string) => s.trim()).filter(Boolean),
+    };
+    const defaults = {
+      ...form.defaults,
+      decimals: form.defaults.decimals === "" ? null : Number(form.defaults.decimals),
+    };
+    const overrides = form.overrides.map((o: any) => ({
+      ...o,
+      decimals: o.decimals === "" ? null : Number(o.decimals),
+    }));
+
     return {
       ...base,
       hp: {
         enabled: form.enabled,
+        source_mode: form.source_mode,
+        scan,
+        defaults,
         entities,
+        overrides,
       },
     };
   }, [config, form]);
@@ -348,6 +386,39 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
     } finally {
       setResolveLoading(null);
     }
+  };
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<any[] | null>(null);
+  
+  const handlePreviewDiscovery = async () => {
+    setPreviewLoading(true);
+    setResolveError(null);
+    try {
+      const response = await elektroappApi.previewHpDiscovery(mergedConfig.hp);
+      setPreviewData(response.entities || []);
+    } catch (err) {
+      setResolveError(formatApiError(err, "Preview discovery failed."));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleOverrideField = (entityId: string, key: string, value: any) => {
+    setForm((prev: any) => {
+      const overrides = [...prev.overrides];
+      const existingIdx = overrides.findIndex((o: any) => o.entity_id === entityId);
+      if (existingIdx >= 0) {
+        overrides[existingIdx] = { ...overrides[existingIdx], [key]: value };
+      } else {
+        overrides.push({ entity_id: entityId, [key]: value });
+      }
+      return { ...prev, overrides };
+    });
+  };
+
+  const getOverrideFor = (entityId: string): HpFormOverride => {
+    return form.overrides.find((o: any) => o.entity_id === entityId) || { entity_id: entityId, enabled: true };
   };
 
   const handleSave = async () => {
@@ -537,8 +608,124 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                   />
                   HP zapnuto
                 </label>
+                <label className="pnd-field" style={{ flex: 1, minWidth: 200, maxWidth: 350 }}>
+                  <select value={form.source_mode} onChange={(e) => setForm((prev: any) => ({ ...prev, source_mode: e.target.value }))}>
+                    <option value="manual">Manualni nastaveni (vychozi)</option>
+                    <option value="prefix">Hledat entity podle prefixu</option>
+                    <option value="regex">Hledat entity podle regexu</option>
+                  </select>
+                </label>
               </div>
-              <div className="hp-entity-list">
+
+              {form.source_mode !== "manual" ? (
+                <div className="hp-scan-config" style={{ marginTop: "1rem" }}>
+                  <h4 style={{ margin: "0.5rem 0", color: "#b1b1b1" }}>Parametry vyhledavani entit</h4>
+                  <div className="hp-entity-grid">
+                  {form.source_mode === "prefix" ? (
+                    <label className="pnd-field">
+                      <span>Prefix entit</span>
+                      <input value={form.scan.prefix} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, prefix: e.target.value}}))} placeholder="sensor.ebusd_ha_daemon_hmu_" />
+                    </label>
+                  ) : (
+                    <label className="pnd-field">
+                      <span>Regex (Regularni vyraz)</span>
+                      <input value={form.scan.regex} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, regex: e.target.value}}))} placeholder="^sensor\.ebusd_ha_daemon_hmu_.*$" />
+                    </label>
+                  )}
+                  <label className="pnd-field">
+                    <span>Zahrnute domeny (oddelene carkou)</span>
+                    <input value={form.scan.include_domains} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, include_domains: e.target.value}}))} placeholder="sensor, binary_sensor" />
+                  </label>
+                  <label className="pnd-field">
+                    <span>Vyradit tyto entity (blocklist, carkou)</span>
+                    <input value={form.scan.blocklist} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, blocklist: e.target.value}}))} placeholder="sensor.x, sensor.y" />
+                  </label>
+                  <label className="pnd-field">
+                    <span>Povolit JEN tyto entity (allowlist, carkou)</span>
+                    <input value={form.scan.allowlist} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, allowlist: e.target.value}}))} placeholder="Jen tyto entity..." />
+                  </label>
+                  </div>
+                  <div className="pnd-toggle-grid" style={{ marginBottom: "1rem" }}>
+                    <label><input type="checkbox" checked={form.scan.exclude_unavailable} onChange={(e) => setForm((p: any) => ({...p, scan: {...p.scan, exclude_unavailable: e.target.checked}}))} /> Ignorovat unavailable/unknown stavy</label>
+                  </div>
+                  
+                  <h4 style={{ margin: "0.5rem 0", color: "#b1b1b1" }}>Vychozi chovani (Defaults)</h4>
+                  <div className="pnd-toggle-grid" style={{ marginBottom: "0.5rem" }}>
+                    <label><input type="checkbox" checked={form.defaults.kpi_enabled} onChange={(e) => setForm((p: any) => ({...p, defaults: {...p.defaults, kpi_enabled: e.target.checked}}))} /> Zobrazit v KPI</label>
+                    <label><input type="checkbox" checked={form.defaults.chart_enabled_numeric} onChange={(e) => setForm((p: any) => ({...p, defaults: {...p.defaults, chart_enabled_numeric: e.target.checked}}))} /> Grafy zapnuty vychozi (Ciselne)</label>
+                  </div>
+                  <div className="hp-entity-grid" style={{ marginBottom: "1rem" }}>
+                    <label className="pnd-field">
+                      <span>Kpi Mode Numeric</span>
+                      <select value={form.defaults.kpi_mode_numeric} onChange={(e) => setForm((p: any) => ({...p, defaults: {...p.defaults, kpi_mode_numeric: e.target.value}}))}>
+                        <option value="last">last</option><option value="avg">avg</option><option value="min">min</option><option value="max">max</option><option value="sum">sum</option><option value="delta">delta</option>
+                      </select>
+                    </label>
+                    <label className="pnd-field">
+                      <span>Decimals (Vychozi des. mista)</span>
+                      <input type="number" min={0} max={6} value={form.defaults.decimals} onChange={(e) => setForm((p: any) => ({...p, defaults: {...p.defaults, decimals: e.target.value}}))} placeholder="Auto" />
+                    </label>
+                  </div>
+                  
+                  <div className="fees-history-actions">
+                    <button onClick={handlePreviewDiscovery} disabled={previewLoading}>
+                      {previewLoading ? "Nacitam entity z HA..." : "Nacist preview z HA"}
+                    </button>
+                    <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit HP konfiguraci"}</button>
+                  </div>
+                  
+                  {previewData && (
+                    <div className="hp-entity-list" style={{ marginTop: "1rem", opacity: previewLoading ? 0.5 : 1 }}>
+                      {previewData.length === 0 ? <div className="config-muted" style={{ padding: "1rem" }}>Nenasly se zadne entity.</div> : null}
+                      <span className="config-muted" style={{ display: "block", marginBottom: "0.5rem" }}>Nalezene entity ({previewData.length}) v Preview:</span>
+                      {previewData.map((entity: any) => {
+                        const override = getOverrideFor(entity.entity_id);
+                        const isEnabled = override.enabled !== false;
+                        return (
+                          <div key={entity.entity_id} className={`hp-entity-card ${!isEnabled ? "is-disabled" : ""}`} style={{ opacity: !isEnabled ? 0.6 : 1 }}>
+                            <div className="pnd-toggle-grid" style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "0.5rem", marginBottom: "0.5rem" }}>
+                              <label style={{ fontWeight: 'bold' }}>
+                                <input type="checkbox" checked={isEnabled} onChange={(e) => handleOverrideField(entity.entity_id, "enabled", e.target.checked)} /> {entity.entity_id}
+                              </label>
+                            </div>
+                            <div className="hp-entity-grid">
+                               <label className="pnd-field">
+                                 <span>Label override</span>
+                                 <input value={override.label ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "label", e.target.value || null)} placeholder={entity.label} disabled={!isEnabled} />
+                               </label>
+                               <label className="pnd-field">
+                                 <span>Decimals override</span>
+                                 <input type="number" min={0} max={6} value={override.decimals ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "decimals", e.target.value || null)} placeholder={entity.decimals ?? "Auto"} disabled={!isEnabled} />
+                               </label>
+                               <label className="pnd-field">
+                                 <span>KPI Mode override</span>
+                                 <select value={override.kpi_mode ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "kpi_mode", e.target.value || null)} disabled={!isEnabled}>
+                                   <option value="">Vychozi ({entity.kpi_mode})</option>
+                                   <option value="last">last</option><option value="avg">avg</option><option value="min">min</option><option value="max">max</option><option value="sum">sum</option><option value="delta">delta</option>
+                                 </select>
+                               </label>
+                               <label className="pnd-field">
+                                 <span>Graf override</span>
+                                 <select value={override.chart_enabled === undefined ? "" : override.chart_enabled ? "true" : "false"} onChange={(e) => handleOverrideField(entity.entity_id, "chart_enabled", e.target.value ? e.target.value === "true" : null)} disabled={!isEnabled}>
+                                   <option value="">Vychozi ({entity.chart_enabled ? "Ano" : "Ne"})</option>
+                                   <option value="true">Zobrazit graf</option>
+                                   <option value="false">Skryt graf</option>
+                                 </select>
+                               </label>
+                            </div>
+                            <div className="hp-entity-meta" style={{ marginTop: "0.5rem" }}>
+                              <span>Device: {entity.device_class || "-"} | State C.: {entity.state_class || "-"}</span>
+                              <span>Display: {entity.display_kind} | Source: {entity.source_kind} | Unit: {entity.unit || "-"}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="hp-entity-list">
                 {form.entities.map((entity: any, index: number) => (
                   <div key={`${entity.entity_id || "new"}-${index}`} className="hp-entity-card">
                     <div className="hp-entity-grid">
@@ -617,11 +804,13 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                     </div>
                   </div>
                 ))}
-              </div>
-              <div className="fees-history-actions">
-                <button onClick={() => setForm((prev: any) => ({ ...prev, entities: [...prev.entities, emptyEntityRow()] }))}>Pridat entitu</button>
-                <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit HP konfiguraci"}</button>
-              </div>
+                  </div>
+                  <div className="fees-history-actions">
+                    <button onClick={() => setForm((prev: any) => ({ ...prev, entities: [...prev.entities, emptyEntityRow()] }))}>Pridat entitu</button>
+                    <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit HP konfiguraci"}</button>
+                  </div>
+                </>
+              )}
               {resolveError ? <div className="alert error">{resolveError}</div> : null}
               {saveMessage ? <div className="config-muted">{saveMessage}</div> : null}
               {saveError ? <div className="alert error">{saveError}</div> : null}

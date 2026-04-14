@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.3.9"
+version: "0.3.10"
 arch:
   - amd64
   - aarch64
@@ -15,7 +15,7 @@ homeassistant_api: true
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.3.9"
+  ADDON_VERSION: "0.3.10"
 ports:
   8000/tcp: null
 ports_description:
@@ -103,7 +103,24 @@ options:
     nightly_sync_window_end_hour: 7
   hp:
     enabled: false
+    source_mode: "manual"
+    scan:
+      prefix: ""
+      regex: ""
+      allowlist: []
+      blocklist: []
+      include_domains:
+        - "sensor"
+        - "binary_sensor"
+      exclude_unavailable: true
+    defaults:
+      kpi_enabled: true
+      chart_enabled_numeric: true
+      chart_enabled_state: false
+      kpi_mode_numeric: "last"
+      kpi_mode_state: "last"
     entities: []
+    overrides: []
 schema:
   dph: float
   price_provider: list(spotovaelektrina|spotovaelektrina.cz|ote|ote-cr.cz)?
@@ -184,6 +201,24 @@ schema:
     nightly_sync_window_end_hour: int?
   hp:
     enabled: bool?
+    source_mode: list(manual|prefix|regex)?
+    scan:
+      prefix: str?
+      regex: str?
+      allowlist:
+        - str
+      blocklist:
+        - str
+      include_domains:
+        - str
+      exclude_unavailable: bool?
+    defaults:
+      kpi_enabled: bool?
+      chart_enabled_numeric: bool?
+      chart_enabled_state: bool?
+      kpi_mode_numeric: list(last|min|max|avg|sum|delta)?
+      kpi_mode_state: list(last)?
+      decimals: int?
     entities:
       - entity_id: str
         label: str?
@@ -197,3 +232,15 @@ schema:
         decimals: int?
         device_class: str?
         state_class: str?
+    overrides:
+      - entity_id: str
+        enabled: bool?
+        label: str?
+        display_kind: list(numeric|state)?
+        source_kind: list(instant|counter|state)?
+        kpi_enabled: bool?
+        chart_enabled: bool?
+        kpi_mode: list(last|min|max|avg|sum|delta)?
+        unit: str?
+        measurement: str?
+        decimals: int?

@@ -57,8 +57,25 @@ class HomeAssistantService:
             raise HTTPException(status_code=502, detail="Home Assistant API vratilo neocekavanou odpoved.")
         return payload
 
-    def resolve_entity_metadata(self, entity_id: str) -> dict[str, Any]:
-        payload = self.get_entity_state(entity_id)
+    def get_states(self) -> list[dict[str, Any]]:
+        url = f"{self.base_url}/states"
+        try:
+            response = self.session.get(url, headers=self._build_headers(), timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+        except HTTPException:
+            raise
+        except requests.RequestException as exc:
+            raise HTTPException(status_code=502, detail=f"Dotaz na Home Assistant API selhal: {exc}") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Home Assistant API vratilo neplatny JSON.") from exc
+
+        if not isinstance(payload, list):
+            raise HTTPException(status_code=502, detail="Home Assistant API vratilo neocekavanou odpoved.")
+        return payload
+
+    def resolve_metadata_from_state(self, payload: dict[str, Any]) -> dict[str, Any]:
+        entity_id = payload.get("entity_id", "")
         attributes = payload.get("attributes", {}) if isinstance(payload.get("attributes"), dict) else {}
         state = payload.get("state")
         state_class = attributes.get("state_class")
@@ -98,6 +115,10 @@ class HomeAssistantService:
             "chart_enabled": display_kind == "numeric",
             "kpi_enabled": True,
         }
+
+    def resolve_entity_metadata(self, entity_id: str) -> dict[str, Any]:
+        payload = self.get_entity_state(entity_id)
+        return self.resolve_metadata_from_state(payload)
 
     def resolve_entity_metadata_safe(self, entity_id: str) -> dict[str, Any] | None:
         try:

@@ -571,6 +571,9 @@ def get_hp_data(period="day", anchor=None, cfg=None, tzinfo=None):
 def resolve_hp_entity(entity_id: str):
     return HP_SERVICE.resolve_entity(entity_id)
 
+def preview_hp_discovery(payload: dict):
+    return HP_SERVICE.resolve_effective_entities(payload)
+
 def get_daily_summary(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return BILLING_SERVICE.get_daily_summary(month=month, cfg=cfg, tzinfo=tzinfo)
