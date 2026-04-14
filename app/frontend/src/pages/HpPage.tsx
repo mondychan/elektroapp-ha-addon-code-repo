@@ -141,16 +141,16 @@ const pluralizeCzech = (count: number, forms: [string, string, string]) => {
 
 const formatDurationValue = (
   input: number,
-  sourceFormat: HpValueFormat,
+  sourceFormat: "duration_seconds" | "duration_minutes" | "duration_hours",
   style: HpDurationStyle = "short",
   maxParts = 2
 ) => {
-  const factorMap: Record<Exclude<HpValueFormat, "default">, number> = {
+  const factorMap: Record<"duration_seconds" | "duration_minutes" | "duration_hours", number> = {
     duration_seconds: 1,
     duration_minutes: 60,
     duration_hours: 3600,
   };
-  const totalSeconds = Math.round(Math.abs(input) * factorMap[sourceFormat as Exclude<HpValueFormat, "default">]);
+  const totalSeconds = Math.round(Math.abs(input) * factorMap[sourceFormat]);
   const sign = input < 0 ? "-" : "";
   const safeMaxParts = Math.max(1, Math.min(6, maxParts || 2));
   const units = [
@@ -218,7 +218,7 @@ const formatNumber = (
     return formatAutoUnitValue(value, unit, decimals);
   }
   if (valueFormat && valueFormat !== "default" && valueFormat.startsWith("duration")) {
-    return formatDurationValue(value, valueFormat, durationStyle || "short", durationMaxParts ?? 2);
+    return formatDurationValue(value, valueFormat as any, durationStyle || "short", durationMaxParts ?? 2);
   }
   const precision = decimals != null ? decimals : Math.abs(value) >= 100 ? 0 : 2;
   const formatted = value.toFixed(precision);
