@@ -510,3 +510,131 @@ def test_hp_service_uses_selected_period_values_for_avg_mode():
         {"key": "min", "label": "MIN", "value": 1.0},
         {"key": "max", "label": "MAX", "value": 3.0},
     ]
+
+
+def test_hp_service_merges_scanned_and_manual_entities_with_manual_precedence():
+    class StubHaService:
+        def get_states(self):
+            return [
+                {
+                    "entity_id": "sensor.hp_scanned",
+                    "state": "12.5",
+                    "attributes": {
+                        "friendly_name": "Scanned sensor",
+                        "unit_of_measurement": "°C",
+                        "state_class": "measurement",
+                    },
+                }
+            ]
+
+        def resolve_metadata_from_state(self, payload):
+            return {
+                "entity_id": payload["entity_id"],
+                "label": payload["attributes"]["friendly_name"],
+                "unit": payload["attributes"]["unit_of_measurement"],
+                "device_class": None,
+                "state_class": payload["attributes"]["state_class"],
+                "state": payload["state"],
+                "display_kind": "numeric",
+                "source_kind": "instant",
+                "kpi_mode": "last",
+            }
+
+        def resolve_entity_metadata_safe(self, entity_id):
+            return None
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda *_args, **_kwargs: (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 2, tzinfo=UTC)),
+        query_entity_series=lambda *_args, **_kwargs: [],
+        safe_query_entity_last_value=lambda *_args, **_kwargs: None,
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    resolved = service.resolve_effective_entities(
+        {
+            "source_mode": "regex",
+            "scan": {"regex": "^sensor\\.hp_.*$"},
+            "defaults": {"kpi_enabled": True, "chart_enabled_numeric": True, "chart_enabled_state": False, "kpi_mode_numeric": "last", "kpi_mode_state": "last"},
+            "overrides": [{"entity_id": "sensor.hp_scanned", "label": "Override label", "chart_enabled": False}],
+            "entities": [
+                {
+                    "entity_id": "sensor.hp_scanned",
+                    "label": "Manual label wins",
+                    "display_kind": "numeric",
+                    "source_kind": "instant",
+                    "kpi_enabled": True,
+                    "chart_enabled": True,
+                    "kpi_mode": "avg",
+                    "unit": "°C",
+                    "decimals": 1,
+                },
+                {
+                    "entity_id": "sensor.hp_manual_only",
+                    "label": "Manual only",
+                    "display_kind": "numeric",
+                    "source_kind": "instant",
+                    "kpi_enabled": True,
+                    "chart_enabled": False,
+                    "kpi_mode": "last",
+                    "unit": "°C",
+                },
+            ],
+        }
+    )
+
+    by_id = {entity["entity_id"]: entity for entity in resolved}
+    assert set(by_id) == {"sensor.hp_scanned", "sensor.hp_manual_only"}
+    assert by_id["sensor.hp_scanned"]["label"] == "Manual label wins"
+    assert by_id["sensor.hp_scanned"]["chart_enabled"] is True
+    assert by_id["sensor.hp_scanned"]["kpi_mode"] == "avg"
+    assert by_id["sensor.hp_manual_only"]["label"] == "Manual only"
+
+
+def test_hp_service_keeps_manual_entities_when_scan_fails():
+    class StubHaService:
+        def get_states(self):
+            raise RuntimeError("boom")
+
+    service = HPService(
+        get_influx_cfg=lambda cfg: {"interval": "15m", "field": "value"},
+        get_hp_cfg=lambda cfg: cfg["hp"],
+        parse_time_range=lambda *_args, **_kwargs: (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 2, tzinfo=UTC)),
+        query_entity_series=lambda *_args, **_kwargs: [],
+        safe_query_entity_last_value=lambda *_args, **_kwargs: None,
+        home_assistant_service=StubHaService(),
+        logger=logging.getLogger("test.hp"),
+    )
+
+    resolved = service.resolve_effective_entities(
+        {
+            "source_mode": "prefix",
+            "scan": {"prefix": "sensor.hp_"},
+            "entities": [
+                {
+                    "entity_id": "sensor.hp_manual_only",
+                    "label": "Manual only",
+                    "display_kind": "numeric",
+                    "source_kind": "instant",
+                    "kpi_enabled": True,
+                    "chart_enabled": False,
+                    "kpi_mode": "last",
+                }
+            ],
+            "overrides": [],
+        }
+    )
+
+    assert resolved == [
+        {
+            "entity_id": "sensor.hp_manual_only",
+            "label": "Manual only",
+            "display_kind": "numeric",
+            "source_kind": "instant",
+            "kpi_enabled": True,
+            "chart_enabled": False,
+            "kpi_mode": "last",
+        }
+    ]

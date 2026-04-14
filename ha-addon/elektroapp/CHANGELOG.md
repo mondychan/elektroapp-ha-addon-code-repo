@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.11
+- HP discovery: in `prefix` and `regex` modes, scanned entities and manual `hp.entities` now merge together instead of being mutually exclusive.
+- HP precedence: when the same entity exists both in scan results and in `hp.entities`, the explicit manual entity configuration now wins.
+- HP resilience: manual entities remain active even when scan does not find them or Home Assistant state discovery fails.
+
 ## 0.3.10
 - HP discovery: add `manual | prefix | regex` source modes with scan settings, defaults, allowlist/blocklist filtering and per-entity overrides.
 - Home Assistant integration: add bulk state discovery support and runtime metadata inference for scanned HP entities.

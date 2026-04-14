@@ -120,46 +120,62 @@ class HPService:
         source_mode = hp_cfg.get("source_mode", "manual")
         if source_mode == "manual":
             return hp_cfg.get("entities", [])
-        
+
+        manual_entities = [dict(entity) for entity in hp_cfg.get("entities", [])]
+        discovered = self._discover_entities(hp_cfg, source_mode)
+        final_entities_by_id: dict[str, dict[str, Any]] = {}
+
+        for entity in discovered:
+            final_entities_by_id[str(entity.get("entity_id"))] = entity
+
+        for entity in manual_entities:
+            entity_id = str(entity.get("entity_id") or "").strip()
+            if not entity_id:
+                continue
+            final_entities_by_id[entity_id] = entity
+
+        return list(final_entities_by_id.values())
+
+    def _discover_entities(self, hp_cfg: dict[str, Any], source_mode: str) -> list[dict[str, Any]]:
         scan_cfg = hp_cfg.get("scan", {})
         defaults_cfg = hp_cfg.get("defaults", {})
         overrides = hp_cfg.get("overrides", [])
-        
+
         try:
             states = self._home_assistant_service.get_states()
         except Exception as exc:
             self.logger.warning("Failed to fetch states for HP auto-discovery: %s", exc)
             return []
-            
+
         prefix = scan_cfg.get("prefix", "")
         regex_pattern = scan_cfg.get("regex", "")
         include_domains = scan_cfg.get("include_domains", ["sensor", "binary_sensor"])
         allowlist = set(scan_cfg.get("allowlist", []))
         blocklist = set(scan_cfg.get("blocklist", []))
         exclude_unavailable = scan_cfg.get("exclude_unavailable", True)
-        
+
         regex_matcher = None
         if source_mode == "regex" and regex_pattern:
             try:
                 regex_matcher = re.compile(regex_pattern)
             except re.error:
                 self.logger.warning("Invalid regex for HP auto-discovery: %s", regex_pattern)
-                
+
         discovered = []
         for state_obj in states:
             entity_id = state_obj.get("entity_id", "")
             if not entity_id:
                 continue
-                
+
             domain = entity_id.split(".")[0]
             if include_domains and domain not in include_domains:
                 continue
-                
+
             if allowlist and entity_id not in allowlist:
                 continue
             if entity_id in blocklist:
                 continue
-                
+
             if exclude_unavailable and state_obj.get("state") in ("unavailable", "unknown"):
                 continue
 
@@ -171,13 +187,13 @@ class HPService:
                     continue
 
             metadata = self._home_assistant_service.resolve_metadata_from_state(state_obj)
-            
+
             is_numeric = metadata.get("display_kind") == "numeric"
             kpi_enabled = defaults_cfg.get("kpi_enabled", True)
             chart_enabled = defaults_cfg.get("chart_enabled_numeric", True) if is_numeric else defaults_cfg.get("chart_enabled_state", False)
             kpi_mode = defaults_cfg.get("kpi_mode_numeric", "last") if is_numeric else defaults_cfg.get("kpi_mode_state", "last")
             decimals = defaults_cfg.get("decimals")
-            
+
             entity_cfg = {
                 "entity_id": metadata["entity_id"],
                 "label": metadata["label"],
@@ -191,16 +207,16 @@ class HPService:
                 "device_class": metadata["device_class"],
                 "state_class": metadata["state_class"]
             }
-            
+
             if entity_cfg["source_kind"] == "counter" and kpi_mode not in ("last", "sum", "delta"):
                 entity_cfg["kpi_mode"] = "delta"
             elif entity_cfg["source_kind"] == "instant" and kpi_mode not in ("last", "min", "max", "avg"):
                 entity_cfg["kpi_mode"] = "last"
             elif entity_cfg["source_kind"] == "state":
                 entity_cfg["kpi_mode"] = "last"
-                
+
             discovered.append(entity_cfg)
-            
+
         override_map = {o["entity_id"]: o for o in overrides}
         final_entities = []
         for ent in discovered:
@@ -213,7 +229,7 @@ class HPService:
                     if k not in ("entity_id", "enabled") and v is not None:
                         ent[k] = v
             final_entities.append(ent)
-            
+
         return final_entities
 
     def _normalize_anchor(self, period: str, anchor: str | None, tzinfo) -> str:
