@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.12
+- HP discovery: fix config loading so `source_mode`, `scan`, `defaults` and `overrides` are preserved at runtime instead of being dropped by the backend loader.
+- HP regex/prefix scan: scanned entities now actually resolve from the saved configuration in released builds.
+
 ## 0.3.11
 - HP discovery: in `prefix` and `regex` modes, scanned entities and manual `hp.entities` now merge together instead of being mutually exclusive.
 - HP precedence: when the same entity exists both in scan results and in `hp.entities`, the explicit manual entity configuration now wins.

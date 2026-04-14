@@ -392,7 +392,41 @@ def get_pnd_cfg(cfg):
 def get_hp_cfg(cfg):
     hp = cfg.get("hp", {}) if isinstance(cfg.get("hp"), dict) else {}
     raw_entities = hp.get("entities") if isinstance(hp.get("entities"), list) else []
+    raw_overrides = hp.get("overrides") if isinstance(hp.get("overrides"), list) else []
     normalized_entities = []
+    normalized_overrides = []
+
+    source_mode = str(hp.get("source_mode") or "manual").strip().lower()
+    if source_mode not in {"manual", "prefix", "regex"}:
+        source_mode = "manual"
+
+    scan = hp.get("scan", {}) if isinstance(hp.get("scan"), dict) else {}
+    normalized_scan = {
+        "prefix": str(scan.get("prefix") or "").strip(),
+        "regex": str(scan.get("regex") or "").strip(),
+        "allowlist": [str(item).strip() for item in scan.get("allowlist", []) if str(item).strip()] if isinstance(scan.get("allowlist"), list) else [],
+        "blocklist": [str(item).strip() for item in scan.get("blocklist", []) if str(item).strip()] if isinstance(scan.get("blocklist"), list) else [],
+        "include_domains": [str(item).strip() for item in scan.get("include_domains", []) if str(item).strip()] if isinstance(scan.get("include_domains"), list) else ["sensor", "binary_sensor"],
+        "exclude_unavailable": bool(scan.get("exclude_unavailable", True)),
+    }
+    if not normalized_scan["include_domains"]:
+        normalized_scan["include_domains"] = ["sensor", "binary_sensor"]
+
+    defaults = hp.get("defaults", {}) if isinstance(hp.get("defaults"), dict) else {}
+    kpi_mode_numeric = str(defaults.get("kpi_mode_numeric") or "last").strip().lower()
+    if kpi_mode_numeric not in {"last", "min", "max", "avg", "sum", "delta"}:
+        kpi_mode_numeric = "last"
+    normalized_defaults = {
+        "kpi_enabled": bool(defaults.get("kpi_enabled", True)),
+        "chart_enabled_numeric": bool(defaults.get("chart_enabled_numeric", True)),
+        "chart_enabled_state": bool(defaults.get("chart_enabled_state", False)),
+        "kpi_mode_numeric": kpi_mode_numeric,
+        "kpi_mode_state": "last",
+        "decimals": None,
+    }
+    defaults_decimals = defaults.get("decimals")
+    if defaults_decimals not in (None, ""):
+        normalized_defaults["decimals"] = max(0, min(6, int(_safe_float(defaults_decimals) or 0)))
 
     for item in raw_entities:
         if not isinstance(item, dict):
@@ -429,9 +463,59 @@ def get_hp_cfg(cfg):
             }
         )
 
+    for item in raw_overrides:
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("entity_id") or "").strip()
+        if not entity_id:
+            continue
+        display_kind = item.get("display_kind")
+        if display_kind is not None:
+            display_kind = str(display_kind).strip().lower()
+            if display_kind not in {"numeric", "state"}:
+                display_kind = None
+
+        source_kind = item.get("source_kind")
+        if source_kind is not None:
+            source_kind = str(source_kind).strip().lower()
+            if source_kind not in {"instant", "counter", "state"}:
+                source_kind = None
+
+        kpi_mode = item.get("kpi_mode")
+        if kpi_mode is not None:
+            kpi_mode = str(kpi_mode).strip().lower()
+            if kpi_mode not in {"last", "min", "max", "avg", "sum", "delta"}:
+                kpi_mode = None
+
+        decimals_value = item.get("decimals")
+        if decimals_value is None or decimals_value == "":
+            decimals = None
+        else:
+            decimals = max(0, min(6, int(_safe_float(decimals_value) or 0)))
+
+        normalized_overrides.append(
+            {
+                "entity_id": entity_id,
+                "enabled": bool(item.get("enabled", True)),
+                "label": str(item.get("label")).strip() if item.get("label") else None,
+                "display_kind": display_kind,
+                "source_kind": source_kind,
+                "kpi_enabled": bool(item["kpi_enabled"]) if "kpi_enabled" in item and item.get("kpi_enabled") is not None else None,
+                "chart_enabled": bool(item["chart_enabled"]) if "chart_enabled" in item and item.get("chart_enabled") is not None else None,
+                "kpi_mode": kpi_mode,
+                "unit": str(item.get("unit")).strip() if item.get("unit") else None,
+                "measurement": str(item.get("measurement")).strip() if item.get("measurement") else None,
+                "decimals": decimals,
+            }
+        )
+
     return {
         "enabled": bool(hp.get("enabled", False)),
+        "source_mode": source_mode,
+        "scan": normalized_scan,
+        "defaults": normalized_defaults,
         "entities": normalized_entities,
+        "overrides": normalized_overrides,
     }
 
 

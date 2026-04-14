@@ -141,6 +141,53 @@ def test_load_config_prefers_custom_backup_over_newer_default_ha_options(isolate
     assert mirrored["hp"]["enabled"] is True
 
 
+def test_get_hp_cfg_preserves_scan_defaults_and_overrides():
+    hp_cfg = config_loader.get_hp_cfg(
+        {
+            "hp": {
+                "enabled": True,
+                "source_mode": "regex",
+                "scan": {
+                    "prefix": "",
+                    "regex": "^(sensor|binary_sensor)\\.ebusd_ha_daemon_global_.*$",
+                    "allowlist": [],
+                    "blocklist": ["sensor.ebusd_ha_daemon_global_debug"],
+                    "include_domains": ["sensor", "binary_sensor"],
+                    "exclude_unavailable": False,
+                },
+                "defaults": {
+                    "kpi_enabled": True,
+                    "chart_enabled_numeric": True,
+                    "chart_enabled_state": False,
+                    "kpi_mode_numeric": "last",
+                    "kpi_mode_state": "last",
+                    "decimals": 2,
+                },
+                "entities": [],
+                "overrides": [
+                    {
+                        "entity_id": "sensor.ebusd_ha_daemon_global_uptime",
+                        "label": "Uptime",
+                        "chart_enabled": False,
+                        "decimals": 0,
+                    }
+                ],
+            }
+        }
+    )
+
+    assert hp_cfg["enabled"] is True
+    assert hp_cfg["source_mode"] == "regex"
+    assert hp_cfg["scan"]["regex"] == "^(sensor|binary_sensor)\\.ebusd_ha_daemon_global_.*$"
+    assert hp_cfg["scan"]["exclude_unavailable"] is False
+    assert hp_cfg["defaults"]["kpi_mode_numeric"] == "last"
+    assert hp_cfg["defaults"]["decimals"] == 2
+    assert hp_cfg["overrides"][0]["entity_id"] == "sensor.ebusd_ha_daemon_global_uptime"
+    assert hp_cfg["overrides"][0]["label"] == "Uptime"
+    assert hp_cfg["overrides"][0]["chart_enabled"] is False
+    assert hp_cfg["overrides"][0]["decimals"] == 0
+
+
 def test_save_config_raises_when_supervisor_sync_fails_in_addon_runtime(isolated_storage, monkeypatch):
     from services.supervisor_service import SupervisorSyncError
 
