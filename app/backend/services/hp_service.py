@@ -109,6 +109,12 @@ class HPService:
                 effective_anchor,
                 effective_period,
             )
+            if numeric_payload.get("chart", {}).get("points"):
+                self.logger.info(
+                    "HP entity chart found data: entity_id=%s measurement=%s",
+                    entity.get("entity_id"),
+                    numeric_payload.get("chart", {}).get("measurement")
+                )
 
             if entity.get("kpi_enabled", True):
                 result["kpis"].append(numeric_payload["kpi"])
@@ -297,7 +303,7 @@ class HPService:
         end_local = datetime(anchor_year + 1, 1, 1, tzinfo=tzinfo)
         return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1w"
 
-    def _measurement_candidates(self, entity: dict[str, Any], metadata: dict[str, Any] | None = None) -> list[str] | None:
+    def _measurement_candidates(self, influx: dict[str, Any], entity: dict[str, Any], metadata: dict[str, Any] | None = None) -> list[str] | None:
         """Heuristic to find matching InfluxDB measurement names."""
         candidates = []
 
@@ -318,6 +324,8 @@ class HPService:
                 candidates.append(sub)
                 if "_" in sub:
                      candidates.append(sub.replace("_", "-"))
+                     # Try the last part: ebusd_ha_daemon_global_uptime -> uptime
+                     candidates.append(sub.split("_")[-1])
 
         # 3. Attributes heuristics
         display_kind = entity.get("display_kind") or (metadata.get("display_kind") if metadata else None)
@@ -338,10 +346,18 @@ class HPService:
             if unit and unit != raw_unit:
                 candidates.append(unit)
 
+        # 4. Common HA InfluxDB fallbacks
+        if "state" not in candidates:
+            candidates.append("state")
+        
+        # 5. Global config fallback
+        if influx and influx.get("measurement"):
+            candidates.append(influx.get("measurement"))
+
         return candidates if candidates else None
 
     def _build_state_card(self, influx: dict[str, Any], entity: dict[str, Any], metadata: dict[str, Any] | None, tzinfo):
-        measurement_candidates = self._measurement_candidates(entity, metadata)
+        measurement_candidates = self._measurement_candidates(influx, entity, metadata)
         record = self._safe_query_entity_last_value(
             influx,
             entity.get("entity_id"),
@@ -394,7 +410,7 @@ class HPService:
         effective_anchor: str,
         effective_period: str,
     ) -> dict[str, Any]:
-        measurement_candidates = self._measurement_candidates(entity, metadata)
+        measurement_candidates = self._measurement_candidates(influx, entity, metadata)
         aggregate_fn = "mean" if entity.get("source_kind") == "instant" else "last"
         raw_chart_points = self._query_entity_series(
             influx,
