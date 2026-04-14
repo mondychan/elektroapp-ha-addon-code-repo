@@ -1,63 +1,64 @@
 # Changelog
+# Seznam změn
 
 ## 0.3.12
-- HP discovery: fix config loading so `source_mode`, `scan`, `defaults` and `overrides` are preserved at runtime instead of being dropped by the backend loader.
-- HP regex/prefix scan: scanned entities now actually resolve from the saved configuration in released builds.
+- HP discovery: oprava načítání konfigurace, aby parametry `source_mode`, `scan`, `defaults` a `overrides` zůstaly zachovány i za běhu a nebyly zahazovány zavaděčem backendu.
+- HP regex/prefix scan: skenované entity se v produkčních sestaveních nyní skutečně načítají z uložené konfigurace.
 
 ## 0.3.11
-- HP discovery: in `prefix` and `regex` modes, scanned entities and manual `hp.entities` now merge together instead of being mutually exclusive.
-- HP precedence: when the same entity exists both in scan results and in `hp.entities`, the explicit manual entity configuration now wins.
-- HP resilience: manual entities remain active even when scan does not find them or Home Assistant state discovery fails.
+- HP discovery: v režimech `prefix` a `regex` se nyní skenované entity a ručně zadané `hp.entities` slučují, místo aby se vzájemně vylučovaly.
+- HP precedence: pokud stejná entita existuje ve výsledcích skenování i v `hp.entities`, má nyní přednost explicitní ruční konfigurace entity.
+- HP odolnost: ručně zadané entity zůstávají aktivní, i když je skenování nenajde nebo selže zjišťování stavu v Home Assistantovi.
 
 ## 0.3.10
-- HP discovery: add `manual | prefix | regex` source modes with scan settings, defaults, allowlist/blocklist filtering and per-entity overrides.
-- Home Assistant integration: add bulk state discovery support and runtime metadata inference for scanned HP entities.
-- HP UI: extend the configuration panel with discovery preview and override editing for scanned entities.
+- HP discovery: přidány režimy zdroje `manual | prefix | regex` s nastavením skenování, výchozími hodnotami, filtrováním pomocí allowlistu/blocklistu a přepisováním (overrides) pro jednotlivé entity.
+- Integrace Home Assistant: přidána podpora pro hromadné zjišťování stavů a odvozování metadat za běhu pro skenované HP entity.
+- HP UI: rozšířen konfigurační panel o náhled zjišťování a úpravu přepisů pro skenované entity.
 
 ## 0.3.9
-- HP KPI: clicking a KPI card now scrolls to the matching chart when that entity has a rendered graph.
-- HP charts: improve sparse-series visibility with point markers and clamp the tooltip left/right so it stays inside the visible chart area; tooltip rows also wrap long labels and values instead of overflowing.
-- Supervisor sync: add stronger runtime diagnostics for add-on option sync failures, including logged payload/response details from the Supervisor API.
+- HP KPI: kliknutí na kartu KPI nyní posune zobrazení na odpovídající graf, pokud má daná entita vykreslený graf.
+- HP grafy: vylepšena viditelnost řídkých datových řad pomocí bodových značek a omezení tooltipu vlevo/vpravo, aby zůstal uvnitř viditelné oblasti grafu; řádky tooltipu nyní zalamují dlouhé popisky a hodnoty místo přetékání.
+- Synchronizace se Supervisorem: přidána silnější diagnostika za běhu pro selhání synchronizace možností doplňku, včetně podrobností o odeslaných datech a odpovědích z API Supervisora.
 
 ## 0.3.8
-- Add-on schema: align `price_provider` values with backend-normalized options and add the missing `alerts` block to `options/schema`.
-- Fix Supervisor config sync: prevent `400 Bad Request` when saving configuration from the web UI due to schema mismatch in add-on metadata.
+- Schéma doplňku: sjednocení hodnot `price_provider` s normalizovanými volbami backendu a doplnění chybějícího bloku `alerts` do `options/schema`.
+- Oprava synchronizace konfigurace Supervisora: zabránění chybě `400 Bad Request` při ukládání konfigurace z webového rozhraní kvůli neshodě schématu v metadatech doplňku.
 
 ## 0.3.7
-- HP config save: strip `null` fields before syncing to Supervisor options and expose better Supervisor error details, fixing `POST /api/config` failures when adding HP entities from the web UI.
-- Add-on permissions: explicitly enable `hassio_api` for Supervisor API access in stricter Home Assistant environments.
-- HP charts: restore hover interaction and external tooltip rendering for line charts, including charts with hidden point markers.
+- Ukládání konfigurace HP: odstranění polí s hodnotou `null` před synchronizací do voleb Supervisora a zobrazení lepších podrobností o chybách Supervisora, což opravuje selhání `POST /api/config` při přidávání HP entit z webového rozhraní.
+- Oprávnění doplňku: explicitní povolení `hassio_api` pro přístup k API Supervisora v přísnějších prostředích Home Assistanta.
+- HP grafy: obnovena interakce při najetí myší a vykreslování externích tooltipů pro čárové grafy, včetně grafů se skrytými bodovými značkami.
 
 ## 0.3.6
-- HP charts: preserve visible gaps when data is missing instead of drawing a continuous line across downtime or missing buckets.
-- HP KPI: keep `LAST` tied to the latest live value while `AVG`, `MIN`, `MAX` and other period stats follow the selected chart range.
-- HP periods: weekly, monthly and yearly charts now fill missing buckets with `null`, so missing days or months stay visibly empty.
+- HP grafy: zachování viditelných mezer při chybějících datech místo kreslení souvislé čáry přes výpadky nebo chybějící časové úseky.
+- HP KPI: hodnota `LAST` zůstává vázána na poslední aktuální hodnotu, zatímco statistiky období jako `AVG`, `MIN`, `MAX` a další sledují vybraný rozsah grafu.
+- HP období: týdenní, měsíční a roční grafy nyní vyplňují chybějící úseky hodnotou `null`, takže chybějící dny nebo měsíce zůstávají viditelně prázdné.
 
 ## 0.3.5
-- Config persistence: save add-on configuration to Home Assistant Supervisor via `/addons/self/options`, so HP settings no longer disappear after add-on restart.
-- Config API: fail the save request explicitly when Supervisor sync fails, instead of reporting a false local-only success.
-- Tests: add regression coverage for Supervisor options sync and the restart persistence scenario for `hp.enabled` and `hp.entities`.
+- Perzistence konfigurace: ukládání konfigurace doplňku do Home Assistant Supervisora přes `/addons/self/options`, takže nastavení HP po restartu doplňku již nemizí.
+- Config API: explicitní selhání požadavku na uložení, pokud synchronizace se Supervisorem selže, místo hlášení falešného úspěchu pouze na lokální úrovni.
+- Testy: přidáno regresní pokrytí pro synchronizaci voleb Supervisora a scénář perzistence po restartu pro `hp.enabled` a `hp.entities`.
 
 ## 0.3.4
-- HP UI: enlarge and center the primary KPI value, hide the redundant KPI footer note, and keep AVG/MIN/MAX in the same card.
-- HP charts: add `day / week / month / year` range switching with matching backend query support; yearly charts use the selected calendar year from January through December.
-- HP config: make the configuration panel collapsible and default it to collapsed after reload.
-- HP stale warning: show a red warning banner only when displayed HP values are older than 60 minutes; otherwise do not show a status warning block.
+- HP UI: zvětšení a vycentrování hlavní hodnoty KPI, skrytí nadbytečné poznámky v patičce KPI a ponechání AVG/MIN/MAX na stejné kartě.
+- HP grafy: přidáno přepínání rozsahů `den / týden / měsíc / rok` s odpovídající podporou dotazů na backendu; roční grafy používají vybraný kalendářní rok od ledna do prosince.
+- HP konfigurace: konfigurační panel je nyní sbalitelný a po načtení je ve výchozím nastavení sbalený.
+- Varování o neaktuálnosti HP: zobrazení červeného varovného banneru pouze v případě, že zobrazené hodnoty HP jsou starší než 60 minut; v opačném případě se stavový varovný blok nezobrazuje.
 
 ## 0.3.3
-- HP: fix graph loading and secondary KPI stats for entities using unit-based Influx measurements such as `°C`; instant-series charts now query bucket averages.
-- HP UI: top KPI tiles on the HP tab now use a compact card layout instead of stretching a single tile across the full row.
-- Config sync: prefer persistent customized backup options over freshly regenerated default HA options after add-on updates or reinstalls.
+- HP: oprava načítání grafů a sekundárních statistik KPI pro entity používající měření Influxu založená na jednotkách, jako je `°C`; grafy okamžitých řad se nyní dotazují na průměry časových úseků.
+- HP UI: horní dlaždice KPI na kartě HP nyní používají kompaktní rozvržení karet místo roztahování jedné dlaždice přes celý řádek.
+- Synchronizace konfigurace: upřednostnění trvalých přizpůsobených zálohovaných voleb před nově vygenerovanými výchozími volbami HA po aktualizaci nebo přeinstalaci doplňku.
 
 ## 0.3.2
-- Fix release CI: static serving test no longer imports the full FastAPI app bootstrap, so backend tests do not try to initialize `/data` paths in GitHub Actions.
+- Oprava CI vydání: test statického servírování již neimportuje celý bootstrap aplikace FastAPI, takže testy backendu se nepokoušejí inicializovat cesty `/data` v GitHub Actions.
 
 ## 0.3.1
-- Hotfix: disable caching of the SPA index shell to avoid stale hashed asset 404s after add-on updates or restarts.
-- HP: infer Influx measurement candidates from Home Assistant metadata, improve empty-data diagnostics, and show secondary KPI stats in the same card.
+- Hotfix: zakázání cachování indexu SPA, aby se předešlo chybám 404 u neaktuálních hashovaných prostředků po aktualizaci nebo restartu doplňku.
+- HP: odvozování kandidátů pro měření Influxu z metadat Home Assistanta, vylepšení diagnostiky prázdných dat a zobrazení sekundárních statistik KPI na stejné kartě.
 
 ## 0.3.0
-- Initial heat pump integration: new HP tab with KPI cards, status cards, daily graphs, configurable HP entities, and Home Assistant metadata auto-fill.
+- Počáteční integrace tepelného čerpadla: nová karta HP s kartami KPI, stavovými kartami, denními grafy, konfigurovatelnými HP entitami a automatickým vyplňováním metadat z Home Assistanta.
 
 ## 0.2.26
 - Fix: vrácena exkluzivita process locku schedulerů; čerstvý lock se už nemaže jen kvůli shodnému PID.
