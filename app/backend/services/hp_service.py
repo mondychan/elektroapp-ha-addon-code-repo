@@ -119,7 +119,7 @@ class HPService:
     def resolve_effective_entities(self, hp_cfg: dict[str, Any]) -> list[dict[str, Any]]:
         source_mode = hp_cfg.get("source_mode", "manual")
         if source_mode == "manual":
-            return hp_cfg.get("entities", [])
+            return [self._apply_smart_defaults(dict(e)) for e in hp_cfg.get("entities", [])]
 
         manual_entities = [dict(entity) for entity in hp_cfg.get("entities", [])]
         discovered = self._discover_entities(hp_cfg, source_mode)
@@ -132,7 +132,7 @@ class HPService:
             entity_id = str(entity.get("entity_id") or "").strip()
             if not entity_id:
                 continue
-            final_entities_by_id[entity_id] = entity
+            final_entities_by_id[entity_id] = self._apply_smart_defaults(entity)
 
         return list(final_entities_by_id.values())
 
@@ -194,7 +194,7 @@ class HPService:
             kpi_mode = defaults_cfg.get("kpi_mode_numeric", "last") if is_numeric else defaults_cfg.get("kpi_mode_state", "last")
             decimals = defaults_cfg.get("decimals")
 
-            entity_cfg = {
+            entity_cfg = self._apply_smart_defaults({
                 "entity_id": metadata["entity_id"],
                 "label": metadata["label"],
                 "display_kind": metadata["display_kind"],
@@ -206,7 +206,7 @@ class HPService:
                 "decimals": decimals,
                 "device_class": metadata["device_class"],
                 "state_class": metadata["state_class"]
-            }
+            })
 
             if entity_cfg["source_kind"] == "counter" and kpi_mode not in ("last", "sum", "delta"):
                 entity_cfg["kpi_mode"] = "delta"
@@ -231,6 +231,34 @@ class HPService:
             final_entities.append(ent)
 
         return final_entities
+
+    def _apply_smart_defaults(self, entity: dict[str, Any]) -> dict[str, Any]:
+        """Automatically detect logical units based on ID/Unit if not explicitly set."""
+        eid = str(entity.get("entity_id") or "").lower()
+        unit = str(entity.get("unit") or "").lower()
+
+        # Only apply if value_format is not already defined in config/override
+        if entity.get("value_format"):
+            return entity
+
+        # Duration detection
+        if unit == "s" or any(x in eid for x in ("seconds", "uptime", "runtime")):
+            entity["value_format"] = "duration_seconds"
+        elif unit in ("min", "m") or "minutes" in eid:
+             # Heuristic to avoid physical length/range collision with 'm' (meters)
+             if not (unit == "m" and any(x in eid for x in ("distance", "length", "range"))):
+                entity["value_format"] = "duration_minutes"
+        elif unit in ("h", "hours") or "hours" in eid:
+            entity["value_format"] = "duration_hours"
+        # Power and Energy auto-scaling detection
+        elif unit in ("w", "wh", "kwh", "va"):
+            entity["value_format"] = "auto_unit"
+
+        if entity.get("value_format") and not entity.get("duration_style"):
+            entity["duration_style"] = "short"
+            entity["duration_max_parts"] = 2
+
+        return entity
 
     def _normalize_anchor(self, period: str, anchor: str | None, tzinfo) -> str:
         now_local = datetime.now(tzinfo)
@@ -269,29 +297,42 @@ class HPService:
         return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), "1w"
 
     def _measurement_candidates(self, entity: dict[str, Any], metadata: dict[str, Any] | None = None) -> list[str] | None:
+        """Heuristic to find matching InfluxDB measurement names."""
+        candidates = []
+
+        # 1. Explicit measurement from config
         measurement = entity.get("measurement")
         if measurement:
-            return [measurement]
+            candidates.append(measurement)
 
-        display_kind = entity.get("display_kind") or metadata.get("display_kind") if metadata else entity.get("display_kind")
-        source_kind = entity.get("source_kind") or metadata.get("source_kind") if metadata else entity.get("source_kind")
+        # 2. Entity ID (The most common one for HA integrations)
+        entity_id = entity.get("entity_id")
+        if entity_id:
+            candidates.append(entity_id)
+            if "." in entity_id:
+                # E.g. sensor.global_uptime -> global_uptime
+                candidates.append(entity_id.split(".", 1)[1])
+
+        # 3. Attributes heuristics
+        display_kind = entity.get("display_kind") or (metadata.get("display_kind") if metadata else None)
+        source_kind = entity.get("source_kind") or (metadata.get("source_kind") if metadata else None)
         raw_unit = str(entity.get("unit") or (metadata or {}).get("unit") or "").strip()
         unit = raw_unit.lower()
         device_class = str(entity.get("device_class") or (metadata or {}).get("device_class") or "").strip().lower()
         state_class = str(entity.get("state_class") or (metadata or {}).get("state_class") or "").strip().lower()
 
         if display_kind == "state" or source_kind == "state":
-            return ["state"]
-        if unit in {"w", "kw"} or device_class == "power":
-            return ["W", "kW"]
-        if unit in {"wh", "kwh"} or device_class == "energy" or source_kind == "counter" or state_class in {"total", "total_increasing"}:
-            return ["kWh", "Wh"]
-        if raw_unit:
-            candidates = [raw_unit]
+            candidates.append("state")
+        elif unit in {"w", "kw"} or device_class == "power":
+            candidates.extend(["W", "kW"])
+        elif unit in {"wh", "kwh"} or device_class == "energy" or source_kind == "counter" or state_class in {"total", "total_increasing"}:
+            candidates.extend(["kWh", "Wh"])
+        elif raw_unit:
+            candidates.append(raw_unit)
             if unit and unit != raw_unit:
                 candidates.append(unit)
-            return candidates
-        return None
+
+        return candidates if candidates else None
 
     def _build_state_card(self, influx: dict[str, Any], entity: dict[str, Any], metadata: dict[str, Any] | None, tzinfo):
         measurement_candidates = self._measurement_candidates(entity, metadata)
@@ -320,12 +361,7 @@ class HPService:
                 display_value = "Vypnuto"
             else:
                 display_value = normalized or "-"
-        if raw_value is None:
-            self.logger.info(
-                "HP state entity returned no data: entity_id=%s measurement_candidates=%s",
-                entity.get("entity_id"),
-                measurement_candidates or [influx.get("measurement")],
-            )
+
         return {
             "entity_id": entity.get("entity_id"),
             "label": entity.get("label"),
@@ -395,14 +431,6 @@ class HPService:
         kpi_value = self._compute_kpi_value(kpi_mode, period_values, latest_value)
         stats = self._compute_stats(period_values, latest_value, decimals)
         updated_at = latest_record.get("time") if latest_record else (clean_period_points[-1]["time"] if clean_period_points else None)
-        if not clean_period_points and latest_value is None:
-            self.logger.info(
-                "HP numeric entity returned no data: entity_id=%s period=%s anchor=%s measurement_candidates=%s",
-                entity.get("entity_id"),
-                effective_period,
-                effective_anchor,
-                measurement_candidates or [influx.get("measurement")],
-            )
 
         return {
             "kpi": {

@@ -184,6 +184,27 @@ const formatDurationValue = (
   return `${sign}${parts.join(" ")}`;
 };
 
+const formatAutoUnitValue = (value: number, originalUnit: string, decimals?: number | null) => {
+  const absValue = Math.abs(value);
+  const unit = (originalUnit || "").toLowerCase();
+  const precision = decimals != null ? decimals : 2;
+
+  if (unit === "w" || unit === "va") {
+    if (absValue >= 1000) return `${(value / 1000).toFixed(precision)} kW`;
+    return `${value.toFixed(decimals ?? 0)} ${originalUnit}`;
+  }
+  if (unit === "wh") {
+    if (absValue >= 1000000) return `${(value / 1000000).toFixed(precision)} MWh`;
+    if (absValue >= 1000) return `${(value / 1000).toFixed(precision)} kWh`;
+    return `${value.toFixed(decimals ?? 0)} Wh`;
+  }
+  if (unit === "kwh") {
+    if (absValue >= 1000) return `${(value / 1000).toFixed(precision)} MWh`;
+    return `${value.toFixed(precision)} kWh`;
+  }
+  return `${value.toFixed(precision)} ${originalUnit}`;
+};
+
 const formatNumber = (
   value: number | null | undefined,
   decimals?: number | null,
@@ -193,7 +214,10 @@ const formatNumber = (
   durationMaxParts?: number | null
 ) => {
   if (value == null || Number.isNaN(value)) return "-";
-  if (valueFormat && valueFormat !== "default") {
+  if (valueFormat === "auto_unit" && unit) {
+    return formatAutoUnitValue(value, unit, decimals);
+  }
+  if (valueFormat && valueFormat !== "default" && valueFormat.startsWith("duration")) {
     return formatDurationValue(value, valueFormat, durationStyle || "short", durationMaxParts ?? 2);
   }
   const precision = decimals != null ? decimals : Math.abs(value) >= 100 ? 0 : 2;
@@ -642,7 +666,7 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                 <div className="hp-status-label">{card.label}</div>
                 <div className="hp-status-value">
                   {card.raw_value != null && typeof card.raw_value !== "boolean" && !Number.isNaN(Number(card.raw_value)) && card.value_format && card.value_format !== "default"
-                    ? formatNumber(Number(card.raw_value), null, card.unit, card.value_format, card.duration_style, card.duration_max_parts)
+                    ? formatNumber(Number(card.raw_value), null, card.unit, card.value_format as HpValueFormat, card.duration_style as HpDurationStyle, card.duration_max_parts as number)
                     : card.value}
                 </div>
                 <div className="hp-status-detail">{[card.unit, formatTime(card.updated_at)].filter(Boolean).join(" | ") || "\u00A0"}</div>
@@ -804,6 +828,10 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                                  <input type="number" min={0} max={6} value={override.decimals ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "decimals", e.target.value || null)} placeholder={entity.decimals ?? "Auto"} disabled={!isEnabled} />
                                </label>
                                <label className="pnd-field">
+                                 <span>Measurement</span>
+                                 <input value={override.measurement ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "measurement", e.target.value || null)} placeholder={entity.measurement || "Influx Measurement..."} disabled={!isEnabled} />
+                               </label>
+                               <label className="pnd-field">
                                  <span>KPI Mode override</span>
                                  <select value={override.kpi_mode ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "kpi_mode", e.target.value || null)} disabled={!isEnabled}>
                                    <option value="">Vychozi ({entity.kpi_mode})</option>
@@ -819,30 +847,32 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                                  </select>
                                </label>
                                <label className="pnd-field">
-                                 <span>Format hodnoty</span>
+                                 <span>Formát hodnoty</span>
                                  <select value={override.value_format ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "value_format", e.target.value || null)} disabled={!isEnabled}>
-                                   <option value="">Vychozi</option>
-                                   <option value="default">Bez formatovani</option>
-                                   <option value="duration_seconds">Doba ze sekund</option>
-                                   <option value="duration_minutes">Doba z minut</option>
-                                   <option value="duration_hours">Doba z hodin</option>
+                                   <option value="">Vychozi ({entity.value_format || "default"})</option>
+                                   <option value="default">default</option>
+                                   <option value="duration_seconds">duration_seconds</option>
+                                   <option value="duration_minutes">duration_minutes</option>
+                                   <option value="duration_hours">duration_hours</option>
+                                   <option value="auto_unit">auto_unit (W/Wh scaling)</option>
                                  </select>
                                </label>
-                               <label className="pnd-field">
-                                 <span>Styl trvani</span>
-                                 <select value={override.duration_style ?? "short"} onChange={(e) => handleOverrideField(entity.entity_id, "duration_style", e.target.value || "short")} disabled={!isEnabled || !override.value_format || override.value_format === "default"}>
-                                   <option value="short">kratky</option>
-                                   <option value="long">dlouhy</option>
-                                 </select>
-                               </label>
-                               <label className="pnd-field">
-                                 <span>Max casti</span>
-                                 <input type="number" min={1} max={6} value={override.duration_max_parts ?? 2} onChange={(e) => handleOverrideField(entity.entity_id, "duration_max_parts", e.target.value || 2)} disabled={!isEnabled || !override.value_format || override.value_format === "default"} />
-                               </label>
-                            </div>
-                            <div className="hp-entity-meta" style={{ marginTop: "0.5rem" }}>
-                              <span>Device: {entity.device_class || "-"} | State C.: {entity.state_class || "-"}</span>
-                              <span>Display: {entity.display_kind} | Source: {entity.source_kind} | Unit: {entity.unit || "-"}</span>
+                               {isEnabled && (override.value_format || entity.value_format)?.startsWith("duration") && (
+                                 <>
+                                   <label className="pnd-field">
+                                     <span>Styl trvání</span>
+                                     <select value={override.duration_style ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "duration_style", e.target.value || null)}>
+                                       <option value="">Vychozi ({entity.duration_style || "short"})</option>
+                                       <option value="short">Krátký (19 h 20 min)</option>
+                                       <option value="long">Dlouhý (19 hodin 20 minut)</option>
+                                     </select>
+                                   </label>
+                                   <label className="pnd-field">
+                                     <span>Max částí</span>
+                                     <input type="number" min={1} max={6} value={override.duration_max_parts ?? ""} onChange={(e) => handleOverrideField(entity.entity_id, "duration_max_parts", e.target.value || null)} placeholder={entity.duration_max_parts || "2"} />
+                                   </label>
+                                 </>
+                               )}
                             </div>
                           </div>
                         );
@@ -851,96 +881,85 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
                   )}
                 </div>
               ) : (
-                <>
-                  <div className="hp-entity-list">
-                {form.entities.map((entity: any, index: number) => (
-                  <div key={`${entity.entity_id || "new"}-${index}`} className="hp-entity-card">
-                    <div className="hp-entity-grid">
-                      <label className="pnd-field">
-                        <span>Entity ID</span>
-                        <input value={entity.entity_id} onChange={(event) => handleEntityField(index, "entity_id", event.target.value)} placeholder="sensor.ebusd_ha_daemon_hmu_currentyieldpower" />
-                      </label>
-                      <label className="pnd-field">
-                        <span>Label</span>
-                        <input value={entity.label} onChange={(event) => handleEntityField(index, "label", event.target.value)} placeholder="Current yield power" />
-                      </label>
-                      <label className="pnd-field">
-                        <span>Zobrazeni</span>
-                        <select value={entity.display_kind} onChange={(event) => handleEntityField(index, "display_kind", event.target.value)}>
-                          <option value="numeric">numeric</option>
-                          <option value="state">state</option>
-                        </select>
-                      </label>
-                      <label className="pnd-field">
-                        <span>Source kind</span>
-                        <select value={entity.source_kind} onChange={(event) => handleEntityField(index, "source_kind", event.target.value)}>
-                          <option value="instant">instant</option>
-                          <option value="counter">counter</option>
-                          <option value="state">state</option>
-                        </select>
-                      </label>
-                      <label className="pnd-field">
-                        <span>KPI mode</span>
-                        <select value={entity.kpi_mode} onChange={(event) => handleEntityField(index, "kpi_mode", event.target.value)} disabled={entity.display_kind === "state"}>
-                          {entity.source_kind === "counter" ? (
-                            <>
-                              <option value="last">last</option>
-                              <option value="delta">delta</option>
-                              <option value="sum">sum</option>
-                            </>
-                          ) : entity.display_kind === "state" ? (
-                            <option value="last">last</option>
-                          ) : (
-                            <>
-                              <option value="last">last</option>
-                              <option value="min">min</option>
-                              <option value="max">max</option>
-                              <option value="avg">avg</option>
-                            </>
-                          )}
-                        </select>
-                      </label>
-                      <label className="pnd-field">
-                        <span>Unit</span>
-                        <input value={entity.unit} onChange={(event) => handleEntityField(index, "unit", event.target.value)} placeholder="kW" />
-                      </label>
-                      <label className="pnd-field">
-                        <span>Measurement override</span>
-                        <input value={entity.measurement} onChange={(event) => handleEntityField(index, "measurement", event.target.value)} placeholder="W" />
-                      </label>
-                      <label className="pnd-field">
-                        <span>Decimals</span>
-                        <input type="number" min={0} max={6} value={entity.decimals} onChange={(event) => handleEntityField(index, "decimals", event.target.value)} placeholder="2" />
-                      </label>
+                <div className="hp-entities-edit" style={{ marginTop: "1rem" }}>
+                  <span className="config-muted" style={{ display: "block", marginBottom: "0.5rem" }}>Rucne vybrane entity:</span>
+                  {form.entities.map((entity: any, index: number) => (
+                    <div key={index} className="hp-entity-card">
+                      <div className="hp-entity-grid">
+                        <label className="pnd-field">
+                          <span>Entity ID</span>
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <input value={entity.entity_id} onChange={(event) => handleEntityField(index, "entity_id", event.target.value)} placeholder="sensor.x" />
+                            <button type="button" onClick={() => handleResolveEntity(index)} disabled={resolveLoading === entity.entity_id} style={{ padding: "0 0.75rem" }}>
+                              {resolveLoading === entity.entity_id ? "..." : "Auto"}
+                            </button>
+                          </div>
+                        </label>
+                        <label className="pnd-field">
+                          <span>Label</span>
+                          <input value={entity.label} onChange={(event) => handleEntityField(index, "label", event.target.value)} placeholder="Muj senzor" />
+                        </label>
+                        <label className="pnd-field">
+                          <span>Unit</span>
+                          <input value={entity.unit} onChange={(event) => handleEntityField(index, "unit", event.target.value)} placeholder="kW" />
+                        </label>
+                        <label className="pnd-field">
+                          <span>Measurement</span>
+                          <input value={entity.measurement} onChange={(event) => handleEntityField(index, "measurement", event.target.value)} placeholder="Influx name..." />
+                        </label>
+                        <label className="pnd-field">
+                          <span>Des. místa</span>
+                          <input type="number" min={0} max={6} value={entity.decimals} onChange={(event) => handleEntityField(index, "decimals", event.target.value)} placeholder="Auto" />
+                        </label>
+                        <label className="pnd-field">
+                          <span>Formátování</span>
+                          <select value={entity.value_format} onChange={(event) => handleEntityField(index, "value_format", event.target.value)}>
+                            <option value="">default</option>
+                            <option value="duration_seconds">duration_seconds</option>
+                            <option value="duration_minutes">duration_minutes</option>
+                            <option value="duration_hours">duration_hours</option>
+                            <option value="auto_unit">auto_unit (W/Wh scaling)</option>
+                          </select>
+                        </label>
+                        {entity.value_format?.startsWith("duration") && (
+                          <>
+                            <label className="pnd-field">
+                              <span>Styl trvání</span>
+                              <select value={entity.duration_style} onChange={(event) => handleEntityField(index, "duration_style", event.target.value)}>
+                                <option value="short">Krátký (19 h 20 min)</option>
+                                <option value="long">Dlouhý (19 hodin 20 minut)</option>
+                              </select>
+                            </label>
+                            <label className="pnd-field">
+                              <span>Max částí</span>
+                              <input type="number" min={1} max={6} value={entity.duration_max_parts} onChange={(event) => handleEntityField(index, "duration_max_parts", event.target.value)} placeholder="2" />
+                            </label>
+                          </>
+                        )}
+                        <label className="pnd-field">
+                           <span>KPI mode</span>
+                           <select value={entity.kpi_mode} onChange={(event) => handleEntityField(index, "kpi_mode", event.target.value)}>
+                             <option value="last">last</option><option value="avg">avg</option><option value="min">min</option><option value="max">max</option><option value="sum">sum</option><option value="delta">delta</option>
+                           </select>
+                        </label>
+                        <div className="pnd-toggle-grid">
+                          <label><input type="checkbox" checked={entity.kpi_enabled} onChange={(event) => handleEntityField(index, "kpi_enabled", event.target.checked)} /> KPI</label>
+                          <label><input type="checkbox" checked={entity.chart_enabled} onChange={(event) => handleEntityField(index, "chart_enabled", event.target.checked)} /> Graf</label>
+                        </div>
+                        <button type="button" className="btn-remove" onClick={() => setForm((p: any) => ({ ...p, entities: p.entities.filter((_: any, i: number) => i !== index) }))}>Odstranit</button>
+                      </div>
                     </div>
-                    <div className="pnd-toggle-grid">
-                      <label><input type="checkbox" checked={entity.kpi_enabled} onChange={(event) => handleEntityField(index, "kpi_enabled", event.target.checked)} /> KPI</label>
-                      <label><input type="checkbox" checked={entity.chart_enabled} disabled={entity.display_kind === "state"} onChange={(event) => handleEntityField(index, "chart_enabled", event.target.checked)} /> Graf</label>
-                    </div>
-                    <div className="hp-entity-meta">
-                      <span>device_class: {entity.device_class || "-"}</span>
-                      <span>state_class: {entity.state_class || "-"}</span>
-                    </div>
-                    <div className="fees-history-actions">
-                      <button onClick={() => handleResolveEntity(index)} disabled={!entity.entity_id?.trim() || resolveLoading === entity.entity_id}>
-                        {resolveLoading === entity.entity_id ? "Nacitam metadata..." : "Auto-fill z HA"}
-                      </button>
-                      <button className="danger-button" onClick={() => setForm((prev: any) => ({ ...prev, entities: prev.entities.filter((_: any, currentIndex: number) => currentIndex !== index) }))}>
-                        Odebrat
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                  </div>
+                  ))}
                   <div className="fees-history-actions">
-                    <button onClick={() => setForm((prev: any) => ({ ...prev, entities: [...prev.entities, emptyEntityRow()] }))}>Pridat entitu</button>
+                    <button type="button" onClick={() => setForm((p: any) => ({ ...p, entities: [...p.entities, emptyEntityRow()] }))}>Pridat entitu</button>
                     <button onClick={handleSave} disabled={saveLoading || !config}>{saveLoading ? "Ukladam..." : "Ulozit HP konfiguraci"}</button>
                   </div>
-                </>
+                </div>
               )}
-              {resolveError ? <div className="alert error">{resolveError}</div> : null}
-              {saveMessage ? <div className="config-muted">{saveMessage}</div> : null}
-              {saveError ? <div className="alert error">{saveError}</div> : null}
+
+              {saveMessage && <div className="alert success" style={{ marginTop: "1rem" }}>{saveMessage}</div>}
+              {saveError && <div className="alert error" style={{ marginTop: "1rem" }}>{saveError}</div>}
+              {resolveError && <div className="alert error" style={{ marginTop: "1rem" }}>{resolveError}</div>}
             </div>
           </div>
         ) : null}

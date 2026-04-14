@@ -92,7 +92,7 @@ export interface HpOverrideConfig extends Partial<HpEntityConfig> {
   enabled?: boolean;
 }
 
-export type HpValueFormat = "default" | "duration_seconds" | "duration_minutes" | "duration_hours";
+export type HpValueFormat = "default" | "duration_seconds" | "duration_minutes" | "duration_hours" | "auto_unit";
 export type HpDurationStyle = "short" | "long";
 
 export interface HpEntityConfig {

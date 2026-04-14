@@ -232,7 +232,7 @@ schema:
         decimals: int?
         device_class: str?
         state_class: str?
-        value_format: list(default|duration_seconds|duration_minutes|duration_hours)?
+        value_format: list(default|duration_seconds|duration_minutes|duration_hours|auto_unit)?
         duration_style: list(short|long)?
         duration_max_parts: int?
     overrides:
@@ -247,6 +247,6 @@ schema:
         unit: str?
         measurement: str?
         decimals: int?
-        value_format: list(default|duration_seconds|duration_minutes|duration_hours)?
+        value_format: list(default|duration_seconds|duration_minutes|duration_hours|auto_unit)?
         duration_style: list(short|long)?
         duration_max_parts: int?

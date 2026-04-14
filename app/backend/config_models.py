@@ -159,7 +159,7 @@ class HPEntityConfig(StrictModel):
     decimals: int | None = Field(default=None, ge=0, le=6)
     device_class: str | None = None
     state_class: str | None = None
-    value_format: Literal["default", "duration_seconds", "duration_minutes", "duration_hours"] | None = None
+    value_format: Literal["default", "duration_seconds", "duration_minutes", "duration_hours", "auto_unit"] | None = None
     duration_style: Literal["short", "long"] | None = None
     duration_max_parts: int | None = Field(default=None, ge=1, le=6)
 
@@ -216,7 +216,7 @@ class HPOverrideConfig(StrictModel):
     unit: str | None = None
     measurement: str | None = None
     decimals: int | None = Field(default=None, ge=0, le=6)
-    value_format: Literal["default", "duration_seconds", "duration_minutes", "duration_hours"] | None = None
+    value_format: Literal["default", "duration_seconds", "duration_minutes", "duration_hours", "auto_unit"] | None = None
     duration_style: Literal["short", "long"] | None = None
     duration_max_parts: int | None = Field(default=None, ge=1, le=6)
 
