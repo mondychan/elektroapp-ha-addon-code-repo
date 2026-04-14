@@ -309,9 +309,14 @@ class HPService:
         entity_id = entity.get("entity_id")
         if entity_id:
             candidates.append(entity_id)
+            if "_" in entity_id:
+                candidates.append(entity_id.replace("_", "-"))
             if "." in entity_id:
                 # E.g. sensor.global_uptime -> global_uptime
-                candidates.append(entity_id.split(".", 1)[1])
+                sub = entity_id.split(".", 1)[1]
+                candidates.append(sub)
+                if "_" in sub:
+                     candidates.append(sub.replace("_", "-"))
 
         # 3. Attributes heuristics
         display_kind = entity.get("display_kind") or (metadata.get("display_kind") if metadata else None)
