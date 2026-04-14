@@ -328,12 +328,29 @@ class HPService:
                      candidates.append(sub.split("_")[-1])
 
         # 3. Attributes heuristics
+        vf = entity.get("value_format") or (metadata or {}).get("value_format")
+        eid = (entity.get("entity_id") or "").lower()
+        label = (entity.get("label") or "").lower()
+        
         display_kind = entity.get("display_kind") or (metadata.get("display_kind") if metadata else None)
         source_kind = entity.get("source_kind") or (metadata.get("source_kind") if metadata else None)
         raw_unit = str(entity.get("unit") or (metadata or {}).get("unit") or "").strip()
         unit = raw_unit.lower()
         device_class = str(entity.get("device_class") or (metadata or {}).get("device_class") or "").strip().lower()
         state_class = str(entity.get("state_class") or (metadata or {}).get("state_class") or "").strip().lower()
+
+        # Infer measurement from format or name if unit is missing
+        if not raw_unit:
+            if vf == "duration_seconds" or any(x in eid or x in label for x in ("uptime", "runtime", "seconds")):
+                candidates.append("s")
+            if vf == "duration_hours" or "hours" in eid or "hours" in label:
+                candidates.append("h")
+            if "temp" in eid or "temp" in label or device_class == "temperature":
+                candidates.extend(["°C", "°c"])
+            if "humidity" in eid or "humidity" in label or device_class == "humidity":
+                candidates.append("%")
+            if "pressure" in eid or "pressure" in label or device_class == "pressure":
+                candidates.append("bar")
 
         if display_kind == "state" or source_kind == "state":
             candidates.append("state")
