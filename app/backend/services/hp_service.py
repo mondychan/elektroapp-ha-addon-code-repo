@@ -109,6 +109,7 @@ class HPService:
                 effective_anchor,
                 effective_period,
             )
+
             if entity.get("kpi_enabled", True):
                 result["kpis"].append(numeric_payload["kpi"])
             if entity.get("chart_enabled"):
@@ -436,7 +437,15 @@ class HPService:
         kpi_value = self._compute_kpi_value(kpi_mode, period_values, latest_value)
         stats = self._compute_stats(period_values, latest_value, decimals)
         updated_at = latest_record.get("time") if latest_record else (clean_period_points[-1]["time"] if clean_period_points else None)
-
+        if not clean_period_points:
+            self.logger.info(
+                "HP entity chart has no data from InfluxDB: entity_id=%s period=%s anchor=%s tried_measurements=%s",
+                entity.get("entity_id"),
+                effective_period,
+                effective_anchor,
+                measurement_candidates or [influx.get("measurement")],
+            )
+        
         return {
             "kpi": {
                 "entity_id": entity.get("entity_id"),
