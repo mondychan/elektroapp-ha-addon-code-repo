@@ -328,47 +328,36 @@ class HPService:
                      candidates.append(sub.split("_")[-1])
 
         # 3. Attributes heuristics
-        vf = entity.get("value_format") or (metadata or {}).get("value_format")
-        eid = (entity.get("entity_id") or "").lower()
-        label = (entity.get("label") or "").lower()
-        
-        display_kind = entity.get("display_kind") or (metadata.get("display_kind") if metadata else None)
-        source_kind = entity.get("source_kind") or (metadata.get("source_kind") if metadata else None)
         raw_unit = str(entity.get("unit") or (metadata or {}).get("unit") or "").strip()
         unit = raw_unit.lower()
         device_class = str(entity.get("device_class") or (metadata or {}).get("device_class") or "").strip().lower()
         state_class = str(entity.get("state_class") or (metadata or {}).get("state_class") or "").strip().lower()
 
-        # Infer measurement from format or name if unit is missing
-        if not raw_unit:
-            if vf == "duration_seconds" or any(x in eid or x in label for x in ("uptime", "runtime", "seconds")):
-                candidates.append("s")
-            if vf == "duration_hours" or "hours" in eid or "hours" in label:
-                candidates.append("h")
-            if "temp" in eid or "temp" in label or device_class == "temperature":
-                candidates.extend(["°C", "°c"])
-            if "humidity" in eid or "humidity" in label or device_class == "humidity":
-                candidates.append("%")
-            if "pressure" in eid or "pressure" in label or device_class == "pressure":
-                candidates.append("bar")
-
-        if display_kind == "state" or source_kind == "state":
-            candidates.append("state")
-        elif unit in {"w", "kw"} or device_class == "power":
-            candidates.extend(["W", "kW"])
-        elif unit in {"wh", "kwh"} or device_class == "energy" or source_kind == "counter" or state_class in {"total", "total_increasing"}:
-            candidates.extend(["kWh", "Wh"])
-        elif raw_unit:
+        # If we have a specific unit from HA, that is our BEST candidate for Influx measurement
+        if raw_unit:
             candidates.append(raw_unit)
-            if unit and unit != raw_unit:
+            if unit != raw_unit:
                 candidates.append(unit)
+        
+        # Add fallbacks based on class if unit didn't give us enough
+        if device_class == "power" or unit in {"w", "kw"}:
+            for u in ["W", "kW"]:
+                if u not in candidates: candidates.append(u)
+        elif device_class == "energy" or unit in {"wh", "kwh"} or (state_class in {"total", "total_increasing"} and unit not in {"s", "h"}):
+            for u in ["kWh", "Wh"]:
+                if u not in candidates: candidates.append(u)
+        elif device_class == "duration" or unit in {"s", "h"}:
+            for u in ["s", "h"]:
+                if u not in candidates: candidates.append(u)
+        elif unit == "°c":
+             if "°C" not in candidates: candidates.append("°C")
 
-        # 4. Common HA InfluxDB fallbacks
+        # 4. Common HA InfluxDB fallbacks (always try 'state')
         if "state" not in candidates:
             candidates.append("state")
         
         # 5. Global config fallback
-        if influx and influx.get("measurement"):
+        if influx and influx.get("measurement") and influx.get("measurement") not in candidates:
             candidates.append(influx.get("measurement"))
 
         return candidates if candidates else None

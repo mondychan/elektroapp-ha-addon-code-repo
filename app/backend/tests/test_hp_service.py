@@ -222,7 +222,7 @@ def test_hp_service_infers_power_measurements_and_falls_back_to_ha_state():
         "ebusd_ha_daemon_hmu_powerconsumptionhmu", 
         "ebusd-ha-daemon-hmu-powerconsumptionhmu", 
         "powerconsumptionhmu",
-        "W", "kW", "state", "kWh"
+        "kW", "kw", "W", "state", "kWh"
     ]
     assert payload["kpis"][0]["value"] == pytest.approx(4.25)
     assert payload["kpis"][0]["secondary_metrics"] == []
