@@ -79,8 +79,9 @@ export const createExternalTooltip = ({ renderTooltip }) => ({
       renderSections(inner, tooltipModel.sections);
     }
 
-    const { offsetLeft, offsetTop } = chart.canvas;
     const host = chart.canvas.parentNode;
+    const hostRect = host?.getBoundingClientRect?.();
+    const canvasRect = chart.canvas.getBoundingClientRect();
     tooltipEl.style.opacity = "1";
     tooltipEl.style.pointerEvents = "none";
     tooltipEl.style.left = "0px";
@@ -89,11 +90,15 @@ export const createExternalTooltip = ({ renderTooltip }) => ({
     const margin = 8;
     const tooltipWidth = tooltipEl.offsetWidth;
     const tooltipHeight = tooltipEl.offsetHeight;
-    const hostWidth = host?.clientWidth || chart.width || tooltipWidth;
-    const hostHeight = host?.clientHeight || chart.height || tooltipHeight;
-
-    const left = clamp(offsetLeft + tooltip.caretX + 16, margin, hostWidth - tooltipWidth - margin);
-    const top = clamp(offsetTop + tooltip.caretY - tooltipHeight / 2, margin, hostHeight - tooltipHeight - margin);
+    const hostWidth = hostRect?.width || host?.clientWidth || chart.width || tooltipWidth;
+    const hostHeight = hostRect?.height || host?.clientHeight || chart.height || tooltipHeight;
+    const caretLeft = canvasRect.left - (hostRect?.left || 0) + tooltip.caretX;
+    const caretTop = canvasRect.top - (hostRect?.top || 0) + tooltip.caretY;
+    const prefersRight = caretLeft + 16 + tooltipWidth <= hostWidth - margin;
+    const left = prefersRight
+      ? clamp(caretLeft + 16, margin, hostWidth - tooltipWidth - margin)
+      : clamp(caretLeft - tooltipWidth - 16, margin, hostWidth - tooltipWidth - margin);
+    const top = clamp(caretTop - tooltipHeight / 2, margin, hostHeight - tooltipHeight - margin);
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;

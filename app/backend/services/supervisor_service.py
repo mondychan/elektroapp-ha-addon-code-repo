@@ -52,6 +52,7 @@ class SupervisorService:
 
         url = f"{self.base_url}/addons/self/options"
         payload = {"options": options}
+        self.logger.info("Syncing add-on options to Supervisor: keys=%s", sorted(options.keys()))
         try:
             response = self.session.post(url, headers=self._build_headers(), json=payload, timeout=10)
         except SupervisorSyncError:
@@ -77,6 +78,12 @@ class SupervisorService:
                     detail["message"] = parsed.get("message")
                 if parsed.get("data") is not None:
                     detail["data"] = parsed.get("data")
+            self.logger.error(
+                "Supervisor options sync failed: status=%s payload=%s response=%s",
+                response.status_code,
+                payload,
+                parsed,
+            )
             raise SupervisorSyncError(
                 "Supervisor vratil chybu pri ukladani add-on options.",
                 status_code=response.status_code,
@@ -95,6 +102,7 @@ class SupervisorService:
                 },
             )
 
+        self.logger.info("Supervisor options sync succeeded")
         return {
             "ok": True,
             "message": "Konfigurace byla synchronizovana do Supervisor options.",

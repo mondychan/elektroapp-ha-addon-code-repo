@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DataCard from "../components/common/DataCard";
 import DateNavigator from "../components/DateNavigator";
 import MonthNavigator from "../components/MonthNavigator";
@@ -24,7 +24,7 @@ import {
 interface HpPageProps {
   config: Config | null;
   refreshConfig: () => Promise<any>;
-  onKpisChange: (items: Array<{ key: string; label: string; value: string; detail?: string | null; tone?: string }>) => void;
+  onKpisChange: (items: Array<{ key: string; label: string; value: string; detail?: string | null; tone?: string; secondaryMetrics?: any[]; onClick?: () => void }>) => void;
   maxDate: string;
 }
 
@@ -106,7 +106,7 @@ const convertAnchorForPeriod = (value: string, period: HpPeriod, maxDate: string
   return clampDateValue(value, maxDate);
 };
 
-const toScreenKpis = (kpis: HpKpiItem[]) =>
+const toScreenKpis = (kpis: HpKpiItem[], chartEntityIds: Set<string>, onChartFocus: (entityId: string) => void) =>
   kpis.map((item) => ({
     key: item.entity_id,
     label: item.label,
@@ -118,6 +118,7 @@ const toScreenKpis = (kpis: HpKpiItem[]) =>
     })),
     detail: null,
     tone: "neutral",
+    onClick: chartEntityIds.has(item.entity_id) ? () => onChartFocus(item.entity_id) : undefined,
   }));
 
 const formatChartLabel = (value: string, period: HpPeriod) => {
@@ -146,9 +147,9 @@ const buildChartData = (chart: HpChart, period: HpPeriod) => ({
       borderWidth: 2,
       fill: true,
       spanGaps: false,
-      pointRadius: 0,
+      pointRadius: chart.points.some((point) => point.value == null) ? 2 : 1.25,
       pointHoverRadius: 4,
-      pointHitRadius: 10,
+      pointHitRadius: 14,
     },
   ],
 });
@@ -218,6 +219,7 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
   const [resolveLoading, setResolveLoading] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [configExpanded, setConfigExpanded] = useState(false);
+  const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setForm(buildFormState(config));
@@ -234,6 +236,12 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
     return clampDateValue(chartAnchor, maxDate);
   }, [chartAnchor, chartPeriod, maxDate, maxMonth, maxYear]);
 
+  const scrollToChart = useCallback((entityId: string) => {
+    const target = chartRefs.current[entityId];
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const loadData = useCallback(
     async (periodValue: HpPeriod, anchorValue: string) => {
       setLoading(true);
@@ -241,7 +249,8 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
       try {
         const payload = await elektroappApi.getHpData(periodValue, anchorValue);
         setData(payload);
-        onKpisChange(toScreenKpis(payload?.kpis || []));
+        const chartEntityIds = new Set<string>((payload?.charts || []).map((chart: HpChart) => chart.entity_id));
+        onKpisChange(toScreenKpis(payload?.kpis || [], chartEntityIds, scrollToChart));
       } catch (err) {
         setError(formatApiError(err, "Nepodarilo se nacist HP data."));
         onKpisChange([]);
@@ -249,7 +258,7 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
         setLoading(false);
       }
     },
-    [onKpisChange]
+    [onKpisChange, scrollToChart]
   );
 
   useEffect(() => {
@@ -489,14 +498,15 @@ const HpPage: React.FC<HpPageProps> = ({ config, refreshConfig, onKpisChange, ma
       <div className="hp-charts-grid">
         {data?.charts?.length ? (
           data.charts.map((chart) => (
-            <DataCard
-              key={chart.entity_id}
-              title={chart.label}
-              empty={!chart.points?.some((point) => point.value != null)}
-              emptyMessage="Pro vybrane obdobi nejsou k dispozici zadna data."
-            >
-              {chart.points?.some((point) => point.value != null) ? <LineTimeChart data={buildChartData(chart, chartPeriod)} options={buildChartOptions(chart, chartPeriod)} height={260} /> : null}
-            </DataCard>
+            <div key={chart.entity_id} ref={(node) => { chartRefs.current[chart.entity_id] = node; }}>
+              <DataCard
+                title={chart.label}
+                empty={!chart.points?.some((point) => point.value != null)}
+                emptyMessage="Pro vybrane obdobi nejsou k dispozici zadna data."
+              >
+                {chart.points?.some((point) => point.value != null) ? <LineTimeChart data={buildChartData(chart, chartPeriod)} options={buildChartOptions(chart, chartPeriod)} height={260} /> : null}
+              </DataCard>
+            </div>
           ))
         ) : (
           <DataCard title="HP grafy">

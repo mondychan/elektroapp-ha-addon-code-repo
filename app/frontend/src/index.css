@@ -835,7 +835,7 @@ body[data-theme="dark"] .row-weekend {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
   color: var(--text);
   min-width: 0;
-  max-width: min(260px, calc(100% - 12px), calc(100vw - 24px));
+  max-width: min(320px, calc(100% - 12px), calc(100vw - 24px));
   z-index: 10;
   transition: opacity 0.12s ease;
 }
@@ -852,7 +852,7 @@ body[data-theme="dark"] .row-weekend {
 
 .chartjs-tooltip-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-top: 5px;
@@ -862,12 +862,17 @@ body[data-theme="dark"] .row-weekend {
   color: var(--text-muted);
   border-left: 3px solid var(--tooltip-accent, var(--accent));
   padding-left: 8px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  flex: 1 1 auto;
 }
 
 .chartjs-tooltip-value {
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-weight: 600;
+  text-align: right;
+  flex: 0 1 auto;
 }
 
 .toolbar {

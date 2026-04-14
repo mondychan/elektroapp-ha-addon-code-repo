@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9
+- HP KPI: clicking a KPI card now scrolls to the matching chart when that entity has a rendered graph.
+- HP charts: improve sparse-series visibility with point markers and clamp the tooltip left/right so it stays inside the visible chart area; tooltip rows also wrap long labels and values instead of overflowing.
+- Supervisor sync: add stronger runtime diagnostics for add-on option sync failures, including logged payload/response details from the Supervisor API.
+
 ## 0.3.8
 - Add-on schema: align `price_provider` values with backend-normalized options and add the missing `alerts` block to `options/schema`.
 - Fix Supervisor config sync: prevent `400 Bad Request` when saving configuration from the web UI due to schema mismatch in add-on metadata.
