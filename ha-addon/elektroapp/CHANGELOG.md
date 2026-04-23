@@ -1,4 +1,13 @@
 # Changelog
+
+## 0.3.21
+- Frontend build migrovan z CRA/react-scripts na Vite, testy na Vitest a Docker/CI build vystup na `dist`.
+- Backend doplnen o explicitni application container, typed request payloady, mutacni API guard, diagnostiku a request latency logging.
+- Influx query builder nyni centralne escapuje identifikatory/tag values a validuje intervaly/agregace.
+- Cache zapisy jsou atomicke a sdili metadata kontrakt s `cache_version`, `key`, `fetched_at`, `complete_after`, `source` a `status`.
+- Dashboard snapshot vraci rozsireny payload pro prvni obrazovku vcetne cen dnes/zitra/vybraneho data, diagnostiky a doporuceni bez duplicitniho prvotniho volani cen.
+- Pridana read-only karta Doporuceni a endpoint `/api/recommendations` s akcnimi radky pro spotrebu, baterii, FV vyrobu a export.
+
 # Seznam změn
 
 ## 0.3.13
