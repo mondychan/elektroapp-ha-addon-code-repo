@@ -24,6 +24,8 @@ def get_pnd_lock_path(storage_dir: Optional[Path]):
 def _is_pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if pid == os.getpid():
+        return True
     try:
         os.kill(pid, 0)
     except OSError:

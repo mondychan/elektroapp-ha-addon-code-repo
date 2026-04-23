@@ -155,7 +155,7 @@ if (Test-Path $frontendDir) {
         $env:CI = "true"
         Push-Location $frontendDir
         Invoke-CheckedCommand -Label "frontend tests" -Script {
-            npm test -- --watchAll=false
+            npm test -- --run
         }
     }
     finally {

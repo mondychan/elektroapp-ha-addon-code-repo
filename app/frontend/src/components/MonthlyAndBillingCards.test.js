@@ -3,9 +3,9 @@ import BillingCard from "./BillingCard";
 import MonthlySummaryCard from "./MonthlySummaryCard";
 import DataCard from "./common/DataCard";
 
-jest.mock("../api/elektroappApi", () => ({
+vi.mock("../api/elektroappApi", () => ({
   elektroappApi: {
-    exportMonthlyCsv: jest.fn(),
+    exportMonthlyCsv: vi.fn(),
   },
 }));
 

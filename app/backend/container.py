@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 
+from application import ApplicationServices
+from services.runtime_state import RuntimeState
+
 
 @dataclass
 class AppConfig:
@@ -17,11 +20,18 @@ class AppConfig:
 
 
 @dataclass
-class AppContainer:
+class ApplicationContainer:
     config: AppConfig
+    application: ApplicationServices
+    runtime_state: RuntimeState
+    cors_origins: list[str]
+    api_token_configured: bool
 
 
-def build_container() -> AppContainer:
+AppContainer = ApplicationContainer
+
+
+def build_container() -> ApplicationContainer:
     config_file = "config.yaml"
     ha_options_file = Path("/data/options.json")
     config_dir = Path("/config")
@@ -38,7 +48,13 @@ def build_container() -> AppContainer:
     options_backup_file = storage_dir / "options.json"
     fees_history_file = storage_dir / "fees-history.json"
 
-    return AppContainer(
+    cors_origins = [
+        item.strip()
+        for item in os.getenv("ELEKTROAPP_CORS_ORIGINS", "").split(",")
+        if item.strip()
+    ]
+
+    return ApplicationContainer(
         config=AppConfig(
             config_file=config_file,
             ha_options_file=ha_options_file,
@@ -49,5 +65,9 @@ def build_container() -> AppContainer:
             pnd_cache_dir=pnd_cache_dir,
             options_backup_file=options_backup_file,
             fees_history_file=fees_history_file,
-        )
+        ),
+        application=ApplicationServices(),
+        runtime_state=RuntimeState(),
+        cors_origins=cors_origins,
+        api_token_configured=bool(os.getenv("ELEKTROAPP_API_TOKEN")),
     )

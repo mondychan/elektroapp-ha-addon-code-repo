@@ -1,15 +1,43 @@
 import re
 
 
+_INTERVAL_RE = re.compile(r"^\d+[smhdw]$")
+_AGGREGATE_FUNCTIONS = {"last", "mean", "min", "max", "sum"}
+
+
+def escape_influx_identifier(value):
+    raw = str(value or "")
+    return raw.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def quote_influx_identifier(value):
+    return f'"{escape_influx_identifier(value)}"'
+
+
+def escape_influx_tag_value(value):
+    raw = str(value or "")
+    return raw.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def validate_influx_interval(interval_value, default="15m"):
+    raw = str(interval_value or default).strip().lower()
+    return raw if _INTERVAL_RE.fullmatch(raw) else default
+
+
+def validate_influx_aggregate(value, default="last"):
+    raw = str(value or default).strip().lower()
+    return raw if raw in _AGGREGATE_FUNCTIONS else default
+
+
 def build_influx_from_clause(influx):
     rp = influx.get("retention_policy")
     measurement = influx["measurement"]
-    return f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
+    return quote_influx_identifier(measurement) if not rp else f'{quote_influx_identifier(rp)}.{quote_influx_identifier(measurement)}'
 
 
 def build_influx_from_clause_for_measurement(influx, measurement):
     rp = influx.get("retention_policy")
-    return f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
+    return quote_influx_identifier(measurement) if not rp else f'{quote_influx_identifier(rp)}.{quote_influx_identifier(measurement)}'
 
 
 def parse_influx_interval_to_minutes(interval_value, default_minutes=15):

@@ -1,9 +1,9 @@
 import { buildInfluxError, extractApiError, formatApiError } from "./elektroappApi";
 
-jest.mock("axios", () => ({
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
+vi.mock("axios", () => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
 }));
 
 test("extractApiError parses unified backend envelope", () => {

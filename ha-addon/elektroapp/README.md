@@ -11,6 +11,7 @@ Elektroapp je pokročilý Home Assistant add-on pro sledování spotových cen e
 - **Hybridní Solární Předpověď**: Kombinuje Forecast.Solar s reálnou historickou křivkou vašeho systému pro nejpřesnější odhad výroby.
 - **Energetická Bilance**: Přehledné grafy a tabulky nákupu, prodeje a vlastní spotřeby (týden/měsíc/rok).
 - **Bateriace**: Pokročilý monitoring SoC, predikce času nabití/vybití a slotový profil.
+- **Doporučení**: Read-only karta s akčními doporučeními pro spotřebu, baterii, FV výrobu a export.
 - **Billing**: Odhad aktuálního měsíčního a ročního vyúčtování včetně fixních poplatků.
 
 ## Instalace
@@ -39,6 +40,7 @@ Aktivujte import dat z distribuce:
 
 - Dashboard je dostupný v postranním panelu HA přes **Ingress**.
 - **Přehled**: Rychlý pohled na ceny, bilanci a stav baterie.
+- **Doporučení**: Akční řádky jako `Spustit spotřebič`, `Šetřit baterii`, `Nabít baterii`, `Exportovat` nebo `Bez akce`.
 - **Statistiky**: Modulární sekce pro podrobné srovnání výkonu.
 - **PND Portál**: Správa importovaných dat a srovnání s lokálními senzory.
 

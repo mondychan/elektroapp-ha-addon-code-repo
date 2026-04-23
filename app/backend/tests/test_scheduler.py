@@ -8,30 +8,18 @@ import pytest
 def test_start_prefetch_scheduler_starts_only_once_per_process(monkeypatch, backend_main, isolated_storage):
     starts = []
 
-    class FakeThread:
-        def __init__(self, target=None, daemon=None, name=None):
-            self.target = target
-            self.daemon = daemon
-            self.name = name
-            self._alive = False
-
-        def start(self):
-            self._alive = True
-            starts.append(self.name)
-
-        def is_alive(self):
-            return self._alive
-
-    monkeypatch.setattr(backend_main.threading, "Thread", FakeThread)
-    monkeypatch.setattr(backend_main, "acquire_prefetch_process_lock", lambda: True)
-    backend_main.RUNTIME_STATE.prefetch_thread = None
+    monkeypatch.setattr(
+        backend_main,
+        "start_scheduler_fn",
+        lambda runtime_state, storage_dir, schedule_loop_target: starts.append("prefetch-scheduler") is None and len(starts) == 1,
+    )
 
     started_first = backend_main.start_prefetch_scheduler()
     started_second = backend_main.start_prefetch_scheduler()
 
     assert started_first is True
     assert started_second is False
-    assert starts == ["prefetch-scheduler"]
+    assert starts == ["prefetch-scheduler", "prefetch-scheduler"]
 
 
 def test_start_pnd_scheduler_starts_only_once_per_process(monkeypatch, backend_main, isolated_storage):

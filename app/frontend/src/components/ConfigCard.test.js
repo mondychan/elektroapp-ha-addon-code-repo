@@ -3,7 +3,7 @@ import ConfigCard from "./ConfigCard";
 
 describe("ConfigCard", () => {
   test("renders API refresh error and disabled refresh button", () => {
-    const onRefreshPrices = jest.fn();
+    const onRefreshPrices = vi.fn();
 
     render(
       <ConfigCard

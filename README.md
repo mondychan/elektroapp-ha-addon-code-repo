@@ -9,6 +9,7 @@ Elektroapp je pokročilý Home Assistant add-on pro komplexní sledování energ
 - **Srovnání dat**: Unikátní možnost porovnání "oficiálních" dat z elektroměru (PND) s lokálními senzory střídače pro odhalení nepřesností.
 - **Solární předpověď**: Hybridní odhad výroby (Forecast.Solar) kalibrovaný podle reálného chování vašeho systému, včetně historického backfillu z InfluxDB, hodinového biasu a systémově upraveného odhadu zítřka.
 - **Baterie**: Detailní monitoring SoC, výkonu a inteligentní projekce času nabití/vybití.
+- **Doporučení**: Nová read-only karta kombinuje ceny, baterii, solární forecast, bilanci a plánovač do akčních doporučení typu spustit spotřebič, šetřit baterii nebo odložit spotřebu.
 - **Interaktivní Dashboard**: Moderní, modulární UI s toggle-sekcemi (Statistiky, Detailní grafy) a responsivní heatmapou cen.
 
 ## Struktura projektu
@@ -42,4 +43,6 @@ Backend poskytuje bohaté rozhraní:
 - `GET /api/pnd/data?from=...&to=...` - Data z distribuce + lokální srovnání
 - `GET /api/energy-balance` - Týdenní/měsíční energetická bilance
 - `GET /api/solar-forecast` - Kalibrovaná solární předpověď
+- `GET /api/recommendations` - Akční doporučení pro spotřebu, baterii a export
+- `GET /api/diagnostics` - Provozní diagnostika cache, schedulerů a runtime stavu
 - `GET /api/daily-summary?month=YYYY-MM` - Měsíční billing souhrn

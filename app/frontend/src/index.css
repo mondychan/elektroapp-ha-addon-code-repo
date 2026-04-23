@@ -1858,3 +1858,66 @@ a:hover {
   text-align: center;
   gap: 10px;
 }
+
+.recommendation-card {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendation-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.recommendation-metric {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.recommendation-metric span,
+.recommendation-action p,
+.recommendation-empty {
+  color: var(--muted);
+}
+
+.recommendation-metric strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.recommendation-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.recommendation-action {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  border-left: 3px solid var(--accent);
+  padding: 10px 12px;
+  background: var(--panel-soft);
+  border-radius: 6px;
+}
+
+.recommendation-action-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.recommendation-action-title span,
+.recommendation-confidence {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.recommendation-action p {
+  margin: 4px 0 0;
+}

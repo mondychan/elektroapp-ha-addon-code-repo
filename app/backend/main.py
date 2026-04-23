@@ -1,6 +1,7 @@
 from pathlib import Path
+import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,13 +39,31 @@ app = FastAPI(title="Elektroapp API")
 app.state.container = _wire_service_from_container()
 register_error_handling(app, app_service.logger)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if app.state.container.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=app.state.container.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+    app_service.logger.info(
+        "request method=%s path=%s status=%s duration_ms=%s request_id=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+        getattr(request.state, "request_id", None),
+    )
+    response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
+    return response
 
 app.include_router(api_router)
 
@@ -58,7 +77,11 @@ def startup_hook():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": app_service.APP_VERSION}
+    return {
+        "status": "ok",
+        "version": app_service.APP_VERSION,
+        "api_token_configured": app.state.container.api_token_configured,
+    }
 
 
 build_path = Path(__file__).parent / "frontend_build"

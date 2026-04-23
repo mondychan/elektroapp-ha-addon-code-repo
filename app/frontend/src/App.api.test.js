@@ -3,36 +3,36 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { elektroappApi } from "./api/elektroappApi";
 
-jest.mock("./components/PriceChartCard", () => () => null);
-jest.mock("./api/elektroappApi", () => ({
+vi.mock("./components/PriceChartCard", () => ({ default: () => null }));
+vi.mock("./api/elektroappApi", () => ({
   elektroappApi: {
-    getPrices: jest.fn(),
-    refreshPrices: jest.fn(),
-    getConfig: jest.fn(),
-    saveConfig: jest.fn(),
-    getVersion: jest.fn(),
-    getCacheStatus: jest.fn(),
-    getCosts: jest.fn(),
-    getExport: jest.fn(),
-    getBattery: jest.fn(),
-    getDailySummary: jest.fn(),
-    getBillingMonth: jest.fn(),
-    getBillingYear: jest.fn(),
-    getEnergyBalance: jest.fn(),
-    getHistoryHeatmap: jest.fn(),
-    getFeesHistory: jest.fn(),
-    saveFeesHistory: jest.fn(),
-    getSchedule: jest.fn(),
-    getDashboardSnapshot: jest.fn(),
-    getSolarForecast: jest.fn(),
-    getPndStatus: jest.fn(),
-    getPndCacheStatus: jest.fn(),
-    verifyPnd: jest.fn(),
-    backfillPnd: jest.fn(),
-    getPndData: jest.fn(),
-    purgePndCache: jest.fn(),
-    getHpData: jest.fn(),
-    resolveHpEntity: jest.fn(),
+    getPrices: vi.fn(),
+    refreshPrices: vi.fn(),
+    getConfig: vi.fn(),
+    saveConfig: vi.fn(),
+    getVersion: vi.fn(),
+    getCacheStatus: vi.fn(),
+    getCosts: vi.fn(),
+    getExport: vi.fn(),
+    getBattery: vi.fn(),
+    getDailySummary: vi.fn(),
+    getBillingMonth: vi.fn(),
+    getBillingYear: vi.fn(),
+    getEnergyBalance: vi.fn(),
+    getHistoryHeatmap: vi.fn(),
+    getFeesHistory: vi.fn(),
+    saveFeesHistory: vi.fn(),
+    getSchedule: vi.fn(),
+    getDashboardSnapshot: vi.fn(),
+    getSolarForecast: vi.fn(),
+    getPndStatus: vi.fn(),
+    getPndCacheStatus: vi.fn(),
+    verifyPnd: vi.fn(),
+    backfillPnd: vi.fn(),
+    getPndData: vi.fn(),
+    purgePndCache: vi.fn(),
+    getHpData: vi.fn(),
+    resolveHpEntity: vi.fn(),
   },
   extractApiError: (err) => {
     const status = err?.response?.status ?? null;
@@ -63,9 +63,9 @@ jest.mock("./api/elektroappApi", () => ({
 
 describe("App API states", () => {
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     localStorage.clear();
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     elektroappApi.getPrices.mockResolvedValue({ prices: [] });
     elektroappApi.getConfig.mockResolvedValue({
@@ -122,7 +122,7 @@ describe("App API states", () => {
 
   afterEach(() => {
     cleanup();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     if (console.error.mockRestore) {
       console.error.mockRestore();
     }
@@ -146,16 +146,14 @@ describe("App API states", () => {
     });
   });
 
-  test("loads overview prices separately so tomorrow card can use published next-day data", async () => {
+  test("loads initial overview data from dashboard snapshot without duplicate prices calls", async () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(elektroappApi.getPrices).toHaveBeenCalledWith();
+      expect(elektroappApi.getDashboardSnapshot).toHaveBeenCalled();
     });
 
-    await waitFor(() => {
-      expect(elektroappApi.getPrices).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
-    });
+    expect(elektroappApi.getPrices).not.toHaveBeenCalled();
   });
 
   test("planner preset button immediately loads matching duration", async () => {

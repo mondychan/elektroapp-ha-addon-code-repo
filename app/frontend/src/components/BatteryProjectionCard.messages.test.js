@@ -2,8 +2,8 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import BatteryProjectionCard from "./BatteryProjectionCard";
 
-jest.mock("../charting/components/ForecastLineChart", () => () => <div data-testid="soc-chart" />);
-jest.mock("../charting/components/BarTimeChart", () => () => <div data-testid="power-chart" />);
+vi.mock("../charting/components/ForecastLineChart", () => ({ default: () => <div data-testid="soc-chart" /> }));
+vi.mock("../charting/components/BarTimeChart", () => ({ default: () => <div data-testid="power-chart" /> }));
 
 describe("BatteryProjectionCard messages", () => {
   test("prefers charging ETA and also shows later reserve ETA", () => {

@@ -3,7 +3,7 @@ import os
 import asyncio
 import atexit
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import Body, HTTPException, Query
 from typing import Any, Dict, List, Optional
 
@@ -104,6 +104,7 @@ from services.alerts_service import AlertsService
 from services.comparison_service import ComparisonService
 from services.solar_service import SolarService
 from services.data_export_service import DataExportService
+from services.recommendation_service import RecommendationService
 
 logger = logging.getLogger("uvicorn.error")
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -146,16 +147,26 @@ def save_prices_cache(date_str, entries, provider=None):
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / f"prices-{date_str}.json"
     import json
-    with open(path, "w", encoding="utf-8") as f:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(entries, f)
+    tmp_path.replace(path)
     if provider:
         meta_path = CACHE_DIR / f"prices-meta-{date_str}.json"
+        fetched_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         meta_payload = {
+            "cache_version": 2,
+            "key": {"date": date_str, "provider": normalize_price_provider(provider)},
             "provider": normalize_price_provider(provider),
-            "fetched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "fetched_at": fetched_at,
+            "complete_after": fetched_at,
+            "source": "prices",
+            "status": "complete",
         }
-        with open(meta_path, "w", encoding="utf-8") as f:
+        tmp_meta_path = meta_path.with_suffix(meta_path.suffix + ".tmp")
+        with open(tmp_meta_path, "w", encoding="utf-8") as f:
             json.dump(meta_payload, f)
+        tmp_meta_path.replace(meta_path)
 
 # Legacy aliases and constants for tests
 CONSUMPTION_CACHE_TTL_SECONDS = 3600
@@ -414,6 +425,7 @@ HP_SERVICE = HPService(
 )
 
 EXPORT_DATA_SERVICE = DataExportService(billing_service=BILLING_SERVICE)
+RECOMMENDATION_SERVICE = RecommendationService()
 
 # --- Public API Functions (Compatibility) ---
 
@@ -498,6 +510,50 @@ def get_cache_status():
         "pnd": PND_SERVICE.get_cache_status() if PND_SERVICE else {},
     }
 
+def invalidate_cache(domain: str, date: str | None = None):
+    domain = str(domain or "").strip().lower()
+    valid_domains = {"prices", "consumption", "export", "pnd", "all"}
+    if domain not in valid_domains:
+        raise HTTPException(status_code=400, detail="Invalid cache domain.")
+
+    removed = []
+
+    def remove_path(path):
+        if path and path.exists():
+            path.unlink(missing_ok=True)
+            removed.append(str(path))
+
+    def remove_dir_files(path, pattern):
+        if not path or not path.exists():
+            return
+        for item in path.glob(pattern):
+            if item.is_file():
+                item.unlink(missing_ok=True)
+                removed.append(str(item))
+
+    domains = {"prices", "consumption", "export", "pnd"} if domain == "all" else {domain}
+    if "prices" in domains and CACHE_DIR:
+        if date:
+            clear_prices_cache_for_date(date, remove_files=True)
+            removed.extend([str(CACHE_DIR / f"prices-{date}.json"), str(CACHE_DIR / f"prices-meta-{date}.json")])
+        else:
+            PRICES_CACHE.clear()
+            PRICES_CACHE_PROVIDER.clear()
+            remove_dir_files(CACHE_DIR, "prices-*.json")
+            remove_dir_files(CACHE_DIR, "prices-meta-*.json")
+    if "consumption" in domains and CONSUMPTION_CACHE_DIR:
+        remove_path(CONSUMPTION_CACHE_DIR / f"consumption-{date}.json") if date else remove_dir_files(CONSUMPTION_CACHE_DIR, "consumption-*.json")
+    if "export" in domains and EXPORT_CACHE_DIR:
+        remove_path(EXPORT_CACHE_DIR / f"export-{date}.json") if date else remove_dir_files(EXPORT_CACHE_DIR, "export-*.json")
+    if "pnd" in domains and PND_SERVICE:
+        if date:
+            remove_path(PND_SERVICE.normalized_dir / f"{date}.json")
+        else:
+            purge = PND_SERVICE.purge_cache()
+            return {"ok": True, "domain": domain, "date": date, "removed": removed, "pnd": purge}
+
+    return {"ok": True, "domain": domain, "date": date, "removed": removed}
+
 def cache_status_for_dir(path, prefix):
     if not path or not path.exists(): return {"count": 0, "size_bytes": 0}
     import re
@@ -508,6 +564,20 @@ def cache_status_for_dir(path, prefix):
         "count": len(files),
         "latest": files[-1].stem.replace(f"{prefix}-", "") if files else None,
         "size_bytes": sum(f.stat().st_size for f in files)
+    }
+
+def get_diagnostics(cfg=None):
+    cfg = cfg if isinstance(cfg, dict) else load_config()
+    return {
+        "version": APP_VERSION,
+        "cache": get_cache_status(),
+        "runtime": {
+            "ote_backoff_seconds": get_ote_backoff_remaining_seconds(),
+            "ote_unavailable": is_ote_unavailable(),
+            "prefetch_scheduler_running": bool(RUNTIME_STATE.prefetch_thread and RUNTIME_STATE.prefetch_thread.is_alive()),
+            "pnd_scheduler_running": bool(RUNTIME_STATE.pnd_thread and RUNTIME_STATE.pnd_thread.is_alive()),
+        },
+        "pnd": get_pnd_status(cfg=cfg) if PND_SERVICE else {"enabled": False, "configured": False},
     }
 
 def get_version(): return {"version": APP_VERSION}
@@ -563,6 +633,26 @@ def get_comparison(date=None, cfg=None, tzinfo=None):
 def get_solar_forecast(cfg=None):
     cfg = cfg if isinstance(cfg, dict) else load_config()
     return SOLAR_SERVICE.get_solar_forecast(cfg)
+
+def get_recommendations(date=None, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    if not date:
+        date = datetime.now(tzinfo).strftime("%Y-%m-%d")
+    prices = get_prices(date=date, cfg=cfg, tzinfo=tzinfo).get("prices", [])
+    schedule = get_schedule(duration=120, count=3, cfg=cfg, tzinfo=tzinfo)
+    costs = get_costs(date=date, cfg=cfg, tzinfo=tzinfo)
+    export = get_export(date=date, cfg=cfg, tzinfo=tzinfo)
+    battery = get_battery(date=date, cfg=cfg, tzinfo=tzinfo)
+    solar = get_solar_forecast(cfg=cfg)
+    return RECOMMENDATION_SERVICE.build(
+        date=date,
+        prices=prices,
+        schedule=schedule,
+        battery=battery,
+        solar=solar,
+        costs=costs,
+        export=export,
+    )
 
 def get_hp_data(period="day", anchor=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
@@ -671,16 +761,23 @@ async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     if not date:
         date = datetime.now(tzinfo).strftime("%Y-%m-%d")
+    today_str = datetime.now(tzinfo).strftime("%Y-%m-%d")
+    tomorrow_str = (datetime.now(tzinfo) + timedelta(days=1)).strftime("%Y-%m-%d")
     
     # Paralelní spuštění všech dashboardových dotazů
     tasks = [
         asyncio.to_thread(get_prices, date, cfg, tzinfo),
+        asyncio.to_thread(get_prices, None, cfg, tzinfo),
+        asyncio.to_thread(get_prices, today_str, cfg, tzinfo),
+        asyncio.to_thread(get_prices, tomorrow_str, cfg, tzinfo),
         asyncio.to_thread(get_costs, date, None, None, cfg, tzinfo),
         asyncio.to_thread(get_export, date, None, None, cfg, tzinfo),
         asyncio.to_thread(get_battery, date, cfg, tzinfo),
         asyncio.to_thread(get_alerts, cfg, tzinfo),
         asyncio.to_thread(get_comparison, date, cfg, tzinfo),
         asyncio.to_thread(get_solar_forecast, cfg),
+        asyncio.to_thread(get_recommendations, date, cfg, tzinfo),
+        asyncio.to_thread(get_diagnostics, cfg),
     ]
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -695,12 +792,18 @@ async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
 
     return {
         "prices": safe_res(0, {}),
-        "costs": safe_res(1, {}),
-        "export": safe_res(2, {}),
-        "battery": safe_res(3, {}),
-        "alerts": safe_res(4, {}),
-        "comparison": safe_res(5, {}),
-        "solar": safe_res(6, {}),
+        "overview_prices": safe_res(1, {}),
+        "today_prices": safe_res(2, {}).get("prices", []),
+        "tomorrow_prices": safe_res(3, {}).get("prices", []),
+        "selected_date_prices": safe_res(0, {}).get("prices", []),
+        "costs": safe_res(4, {}),
+        "export": safe_res(5, {}),
+        "battery": safe_res(6, {}),
+        "alerts": safe_res(7, {}),
+        "comparison": safe_res(8, {}),
+        "solar": safe_res(9, {}),
+        "recommendations": safe_res(10, {}),
+        "diagnostics_summary": safe_res(11, {}),
         "date": date,
         "version": APP_VERSION
     }

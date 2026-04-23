@@ -4,7 +4,13 @@ from fastapi import HTTPException
 import requests
 
 from api import to_rfc3339
-from influx import build_influx_from_clause_for_measurement
+from influx import (
+    build_influx_from_clause_for_measurement,
+    escape_influx_tag_value,
+    quote_influx_identifier,
+    validate_influx_aggregate,
+    validate_influx_interval,
+)
 from battery import get_slot_index_for_dt
 
 
@@ -93,19 +99,20 @@ class InfluxService:
     ):
         if not entity_id:
             return []
-        field = influx["field"]
+        field = quote_influx_identifier(influx["field"])
         values = []
         used_entity_id = None
         used_measurement = None
-        aggregate = aggregate_fn if aggregate_fn in {"last", "mean", "min", "max", "sum"} else "last"
+        aggregate = validate_influx_aggregate(aggregate_fn)
+        interval = validate_influx_interval(interval)
         for measurement in self.get_measurement_candidates(influx, measurement_candidates):
             from_clause = build_influx_from_clause_for_measurement(influx, measurement)
             for candidate_entity_id in self.get_entity_id_candidates(entity_id):
                 q = (
-                    f'SELECT {aggregate}("{field}") AS "value" '
+                    f'SELECT {aggregate}({field}) AS "value" '
                     f"FROM {from_clause} "
                     f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
-                    f'AND "entity_id"=\'{candidate_entity_id}\' '
+                    f'AND "entity_id"=\'{escape_influx_tag_value(candidate_entity_id)}\' '
                     f"GROUP BY time({interval}) fill(null)"
                 )
                 data = self.influx_query(influx, q)
@@ -155,7 +162,7 @@ class InfluxService:
             return None
         end_utc = datetime.now(timezone.utc)
         start_utc = end_utc - timedelta(hours=max(1, int(lookback_hours)))
-        field = influx["field"]
+        field = quote_influx_identifier(influx["field"])
         values = []
         used_entity_id = None
         used_measurement = None
@@ -163,10 +170,10 @@ class InfluxService:
             from_clause = build_influx_from_clause_for_measurement(influx, measurement)
             for candidate_entity_id in self.get_entity_id_candidates(entity_id):
                 q = (
-                    f'SELECT last("{field}") AS "value" '
+                    f'SELECT last({field}) AS "value" '
                     f"FROM {from_clause} "
                     f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
-                    f'AND "entity_id"=\'{candidate_entity_id}\''
+                    f'AND "entity_id"=\'{escape_influx_tag_value(candidate_entity_id)}\''
                 )
                 data = self.influx_query(influx, q)
                 series = data.get("results", [{}])[0].get("series", [])

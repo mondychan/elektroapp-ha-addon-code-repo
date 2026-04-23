@@ -3,20 +3,20 @@ import userEvent from "@testing-library/user-event";
 import PndPage from "./PndPage";
 import { elektroappApi } from "../api/elektroappApi";
 
-jest.mock("../api/elektroappApi", () => ({
+vi.mock("../api/elektroappApi", () => ({
   elektroappApi: {
-    getPndStatus: jest.fn(),
-    saveConfig: jest.fn(),
-    verifyPnd: jest.fn(),
-    backfillPnd: jest.fn(),
-    getPndData: jest.fn(),
+    getPndStatus: vi.fn(),
+    saveConfig: vi.fn(),
+    verifyPnd: vi.fn(),
+    backfillPnd: vi.fn(),
+    getPndData: vi.fn(),
   },
   formatApiError: (err, fallbackMessage = "Request failed.") => fallbackMessage,
 }));
 
 describe("PndPage", () => {
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     elektroappApi.getPndStatus.mockResolvedValue({
       enabled: true,
       configured: true,
@@ -34,7 +34,7 @@ describe("PndPage", () => {
   });
 
   test("saves config and triggers verify/backfill actions", async () => {
-    const refreshConfig = jest.fn().mockResolvedValue({});
+    const refreshConfig = vi.fn().mockResolvedValue({});
     render(
       <PndPage
         config={{
@@ -125,7 +125,7 @@ describe("PndPage", () => {
             nightly_sync_window_end_hour: 7,
           },
         }}
-        refreshConfig={jest.fn().mockResolvedValue({})}
+        refreshConfig={vi.fn().mockResolvedValue({})}
       />
     );
 

@@ -1,9 +1,18 @@
 from fastapi import APIRouter, Body, Depends, Query, Response
 
 import app_service as svc
+from api_models import (
+    CacheInvalidateRequest,
+    FeesHistoryUpdateRequest,
+    HpResolveEntityRequest,
+    PndBackfillRequest,
+    PricesRefreshRequest,
+    RecommendationQuery,
+)
 from config_models import AppConfigModel
 from dependencies import RequestContext, get_request_context
 from query_models import DateRangeQuery, EnergyBalanceQuery, HeatmapQuery, HpDataQuery, MonthQuery, OptionalDateQuery
+from security import require_mutation_access
 
 
 router = APIRouter(prefix="/api")
@@ -14,7 +23,7 @@ def get_config():
     return AppConfigModel.model_validate(svc.get_config())
 
 
-@router.post("/config")
+@router.post("/config", dependencies=[Depends(require_mutation_access)])
 def save_config(new_config: AppConfigModel = Body(...)):
     return svc.save_config(new_config.model_dump(mode="python", exclude_none=True))
 
@@ -24,14 +33,24 @@ def get_fees_history(ctx: RequestContext = Depends(get_request_context)):
     return svc.get_fees_history(cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
-@router.put("/fees-history")
-def update_fees_history(payload: dict = Body(...), ctx: RequestContext = Depends(get_request_context)):
-    return svc.update_fees_history(payload, cfg=ctx.config, tzinfo=ctx.tzinfo)
+@router.put("/fees-history", dependencies=[Depends(require_mutation_access)])
+def update_fees_history(payload: FeesHistoryUpdateRequest = Body(...), ctx: RequestContext = Depends(get_request_context)):
+    return svc.update_fees_history(payload.model_dump(mode="python"), cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.get("/cache-status")
 def get_cache_status():
     return svc.get_cache_status()
+
+
+@router.post("/cache/invalidate", dependencies=[Depends(require_mutation_access)])
+def invalidate_cache(payload: CacheInvalidateRequest = Body(...)):
+    return svc.invalidate_cache(domain=payload.domain, date=payload.date)
+
+
+@router.get("/diagnostics")
+def get_diagnostics(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_diagnostics(cfg=ctx.config)
 
 
 @router.get("/pnd/status")
@@ -44,17 +63,17 @@ def get_pnd_cache_status():
     return svc.get_pnd_cache_status()
 
 
-@router.post("/pnd/verify")
+@router.post("/pnd/verify", dependencies=[Depends(require_mutation_access)])
 def verify_pnd(ctx: RequestContext = Depends(get_request_context)):
     return svc.verify_pnd(cfg=ctx.config)
 
 
-@router.post("/pnd/backfill")
-def backfill_pnd(payload: dict = Body(...), ctx: RequestContext = Depends(get_request_context)):
-    return svc.backfill_pnd(range_name=str(payload.get("range") or ""), cfg=ctx.config, tzinfo=ctx.tzinfo)
+@router.post("/pnd/backfill", dependencies=[Depends(require_mutation_access)])
+def backfill_pnd(payload: PndBackfillRequest = Body(...), ctx: RequestContext = Depends(get_request_context)):
+    return svc.backfill_pnd(range_name=payload.range, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
-@router.post("/pnd/purge-cache")
+@router.post("/pnd/purge-cache", dependencies=[Depends(require_mutation_access)])
 def purge_pnd_cache():
     return svc.purge_pnd_cache()
 
@@ -74,8 +93,8 @@ def get_hp_data(params: HpDataQuery = Depends(), ctx: RequestContext = Depends(g
 
 
 @router.post("/hp/resolve-entity")
-def resolve_hp_entity(payload: dict = Body(...)):
-    return svc.resolve_hp_entity(entity_id=str(payload.get("entity_id") or "").strip())
+def resolve_hp_entity(payload: HpResolveEntityRequest = Body(...)):
+    return svc.resolve_hp_entity(entity_id=payload.entity_id.strip())
 
 @router.post("/hp/discovery/preview")
 def preview_hp_discovery(payload: dict = Body(...)):
@@ -92,9 +111,9 @@ def get_prices(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depe
     return svc.get_prices(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
-@router.post("/prices/refresh")
-def refresh_prices(payload: dict = Body(default=None), ctx: RequestContext = Depends(get_request_context)):
-    return svc.refresh_prices(payload=payload, cfg=ctx.config, tzinfo=ctx.tzinfo)
+@router.post("/prices/refresh", dependencies=[Depends(require_mutation_access)])
+def refresh_prices(payload: PricesRefreshRequest | None = Body(default=None), ctx: RequestContext = Depends(get_request_context)):
+    return svc.refresh_prices(payload=payload.model_dump(mode="python") if payload else None, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.get("/consumption")
@@ -216,6 +235,11 @@ def export_csv(params: MonthQuery = Depends(), ctx: RequestContext = Depends(get
 @router.get("/solar-forecast")
 def get_solar_forecast(ctx: RequestContext = Depends(get_request_context)):
     return svc.get_solar_forecast(cfg=ctx.config)
+
+
+@router.get("/recommendations")
+def get_recommendations(params: RecommendationQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_recommendations(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.get("/dashboard-snapshot")

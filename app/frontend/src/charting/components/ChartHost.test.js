@@ -2,10 +2,10 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import ChartHost from "./ChartHost";
 
-const mockGetElementsAtEventForMode = jest.fn();
-const mockUpdate = jest.fn();
+const mockGetElementsAtEventForMode = vi.fn();
+const mockUpdate = vi.fn();
 
-jest.mock("react-chartjs-2", () => {
+vi.mock("react-chartjs-2", () => {
   const React = require("react");
   return {
     Chart: React.forwardRef((props, ref) => {
@@ -34,19 +34,19 @@ jest.mock("react-chartjs-2", () => {
 
 describe("ChartHost interactions", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockGetElementsAtEventForMode.mockReset();
     mockUpdate.mockReset();
     mockGetElementsAtEventForMode.mockReturnValue([{ index: 1, datasetIndex: 0 }]);
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   test("fires long press callback with resolved payload", () => {
-    const onLongPressPoint = jest.fn();
+    const onLongPressPoint = vi.fn();
     render(
       <ChartHost
         type="bar"
@@ -58,13 +58,13 @@ describe("ChartHost interactions", () => {
     );
 
     fireEvent.mouseDown(screen.getByTestId("chart-canvas"));
-    jest.advanceTimersByTime(560);
+    vi.advanceTimersByTime(560);
 
     expect(onLongPressPoint).toHaveBeenCalledWith(expect.objectContaining({ slot: 5, index: 1, datasetIndex: 0 }));
   });
 
   test("cancels long press when interaction ends early", () => {
-    const onLongPressPoint = jest.fn();
+    const onLongPressPoint = vi.fn();
     render(
       <ChartHost
         type="bar"
@@ -76,15 +76,15 @@ describe("ChartHost interactions", () => {
     );
 
     fireEvent.mouseDown(screen.getByTestId("chart-canvas"));
-    jest.advanceTimersByTime(200);
+    vi.advanceTimersByTime(200);
     fireEvent.mouseUp(screen.getByTestId("chart-canvas"));
-    jest.advanceTimersByTime(400);
+    vi.advanceTimersByTime(400);
 
     expect(onLongPressPoint).not.toHaveBeenCalled();
   });
 
   test("fires point click callback with resolved payload", () => {
-    const onPointClick = jest.fn();
+    const onPointClick = vi.fn();
     render(
       <ChartHost
         type="matrix"

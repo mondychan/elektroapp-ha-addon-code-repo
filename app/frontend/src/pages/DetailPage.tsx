@@ -7,6 +7,7 @@ import DateNavigator from "../components/DateNavigator";
 import EnergyBalanceCard from "../components/EnergyBalanceCard";
 import HistoryHeatmapCard from "../components/HistoryHeatmapCard";
 import BatteryProjectionCard from "../components/BatteryProjectionCard";
+import RecommendationCard from "../components/RecommendationCard";
 import DataCard from "../components/common/DataCard";
 import { formatDate, formatSlotToTime } from "../utils/formatters";
 import {
@@ -61,6 +62,7 @@ interface DetailPageProps {
   batteryError: any;
   refreshBattery: () => void;
   thresholds: any;
+  recommendations?: any;
 }
 
 const DetailPage: React.FC<DetailPageProps> = (props) => {
@@ -123,6 +125,10 @@ const DetailPage: React.FC<DetailPageProps> = (props) => {
       transition={{ duration: 0.3 }}
     >
       <section className="section">
+        <DataCard title="Doporučení">
+          <RecommendationCard recommendations={props.recommendations} />
+        </DataCard>
+
         <DataCard
           loading={selectedDatePricesLoading}
           error={selectedDatePricesError}

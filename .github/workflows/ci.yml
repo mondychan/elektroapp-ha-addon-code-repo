@@ -59,7 +59,7 @@ jobs:
           CI: "true"
 
       - name: Run frontend tests
-        run: npm run test --prefix app/frontend -- --watchAll=false
+        run: npm run test --prefix app/frontend -- --run
         env:
           CI: "true"
 

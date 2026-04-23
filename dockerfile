@@ -4,7 +4,6 @@ ARG TARGETPLATFORM
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 WORKDIR /app
 COPY app/frontend/package*.json ./
-COPY app/frontend/scripts ./scripts
 RUN npm ci
 COPY app/frontend/ ./
 RUN npm run build
@@ -16,7 +15,7 @@ COPY app/backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Zkopíruj React build do backendu
-COPY --from=frontend-builder /app/build ./frontend_build
+COPY --from=frontend-builder /app/dist ./frontend_build
 
 # Zkopíruj backend soubory
 COPY app/backend/ ./

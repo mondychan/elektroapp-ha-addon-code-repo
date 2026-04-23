@@ -2,20 +2,22 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import PriceChartCard from "./PriceChartCard";
 
-jest.mock("../charting/components/BarTimeChart", () => (props) => (
-  <div>
-    <button type="button" data-testid="bar-chart-long-press" onMouseDown={() => props.onLongPressPoint?.({ slot: 5 })}>
-      long-press
-    </button>
-    <button type="button" data-testid="bar-chart-touch" onTouchStart={() => props.onLongPressPoint?.({ slot: 7 })}>
-      touch
-    </button>
-  </div>
-));
+vi.mock("../charting/components/BarTimeChart", () => ({
+  default: (props) => (
+    <div>
+      <button type="button" data-testid="bar-chart-long-press" onMouseDown={() => props.onLongPressPoint?.({ slot: 5 })}>
+        long-press
+      </button>
+      <button type="button" data-testid="bar-chart-touch" onTouchStart={() => props.onLongPressPoint?.({ slot: 7 })}>
+        touch
+      </button>
+    </div>
+  ),
+}));
 
 describe("PriceChartCard pin forwarding", () => {
   test("pins slot forwarded from the internal chart wrapper", () => {
-    const onPinSlot = jest.fn();
+    const onPinSlot = vi.fn();
     render(
       <PriceChartCard
         chartData={[
@@ -33,7 +35,7 @@ describe("PriceChartCard pin forwarding", () => {
   });
 
   test("supports touch forwarding from the internal chart wrapper", () => {
-    const onPinSlot = jest.fn();
+    const onPinSlot = vi.fn();
     render(
       <PriceChartCard
         chartData={[
@@ -50,4 +52,3 @@ describe("PriceChartCard pin forwarding", () => {
     expect(onPinSlot).toHaveBeenCalledWith(7);
   });
 });
-

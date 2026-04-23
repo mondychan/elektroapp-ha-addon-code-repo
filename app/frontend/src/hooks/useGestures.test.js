@@ -4,8 +4,8 @@ import { useSwipeGesture } from "./useSwipeGesture";
 
 describe("useSwipeGesture", () => {
   test("calls onSwipeLeft for horizontal left swipe", () => {
-    const onSwipeLeft = jest.fn();
-    const onSwipeRight = jest.fn();
+    const onSwipeLeft = vi.fn();
+    const onSwipeRight = vi.fn();
     const { result } = renderHook(() =>
       useSwipeGesture({
         onSwipeLeft,
@@ -24,8 +24,8 @@ describe("useSwipeGesture", () => {
   });
 
   test("calls onSwipeRight for horizontal right swipe", () => {
-    const onSwipeLeft = jest.fn();
-    const onSwipeRight = jest.fn();
+    const onSwipeLeft = vi.fn();
+    const onSwipeRight = vi.fn();
     const { result } = renderHook(() =>
       useSwipeGesture({
         onSwipeLeft,
@@ -44,8 +44,8 @@ describe("useSwipeGesture", () => {
   });
 
   test("does not trigger when gesture is mostly vertical", () => {
-    const onSwipeLeft = jest.fn();
-    const onSwipeRight = jest.fn();
+    const onSwipeLeft = vi.fn();
+    const onSwipeRight = vi.fn();
     const { result } = renderHook(() =>
       useSwipeGesture({
         onSwipeLeft,
@@ -66,7 +66,7 @@ describe("useSwipeGesture", () => {
 
 describe("usePullToRefresh", () => {
   test("arms and triggers refresh when threshold is reached", async () => {
-    const onRefresh = jest.fn().mockResolvedValue(undefined);
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       usePullToRefresh({
         threshold: 40,
@@ -75,7 +75,7 @@ describe("usePullToRefresh", () => {
       })
     );
 
-    const preventDefault = jest.fn();
+    const preventDefault = vi.fn();
     await act(async () => {
       result.current.gestureHandlers.onTouchStart({ touches: [{ clientY: 100 }] });
       result.current.gestureHandlers.onTouchMove({ touches: [{ clientY: 160 }], preventDefault });
@@ -90,7 +90,7 @@ describe("usePullToRefresh", () => {
   });
 
   test("does not refresh below threshold", async () => {
-    const onRefresh = jest.fn().mockResolvedValue(undefined);
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       usePullToRefresh({
         threshold: 80,

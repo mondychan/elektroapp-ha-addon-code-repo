@@ -13,6 +13,7 @@ import DataCard from "../components/common/DataCard";
 import AlertBanner from "../components/common/AlertBanner";
 import ComparisonCard from "../components/ComparisonCard";
 import SolarForecastCard from "../components/SolarForecastCard";
+import RecommendationCard from "../components/RecommendationCard";
 import { formatDate, formatSlotToTime } from "../utils/formatters";
 import {
   getMaxEnergyBalanceAnchor,
@@ -115,6 +116,7 @@ interface OverviewPageProps {
   comparisonLoading: boolean;
   solarForecast: any;
   solarForecastLoading: boolean;
+  recommendations?: any;
   defaultFeesValues: any;
   thresholds: any;
 }
@@ -215,6 +217,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     comparisonLoading,
     solarForecast,
     solarForecastLoading,
+    recommendations,
   } = props;
 
   const selectedDateLabel = formatDate(new Date(`${selectedDate}T00:00:00`));
@@ -231,6 +234,10 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
       transition={{ duration: 0.3 }}
     >
       <AlertBanner alerts={alerts} />
+
+      <DataCard title="Doporučení">
+        <RecommendationCard recommendations={recommendations} />
+      </DataCard>
 
       {solarForecast?.enabled && (
         <DataCard title="Solární předpověď" loading={solarForecastLoading}>

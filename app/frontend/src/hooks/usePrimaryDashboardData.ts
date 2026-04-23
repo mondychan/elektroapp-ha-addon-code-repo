@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { getTodayDateStr } from "./dashboardUtils";
-import { Config, BatteryData, CostsKpi, ExportKpi, SolarForecast } from "../types/elektroapp";
+import {
+  Config,
+  BatteryData,
+  CostsKpi,
+  ExportKpi,
+  SolarForecast,
+  RecommendationsResponse,
+  DiagnosticsSummary,
+  RawPriceEntry,
+} from "../types/elektroapp";
 
 interface UsePrimaryDashboardDataProps {
   selectedDate: string;
@@ -11,8 +20,8 @@ interface UsePrimaryDashboardDataProps {
 }
 
 export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshEnabled, isPageVisible }: UsePrimaryDashboardDataProps) => {
-  const [prices, setPrices] = useState<any[]>([]);
-  const [selectedDatePrices, setSelectedDatePrices] = useState<any[]>([]);
+  const [prices, setPrices] = useState<RawPriceEntry[]>([]);
+  const [selectedDatePrices, setSelectedDatePrices] = useState<RawPriceEntry[]>([]);
   const [selectedDatePricesLoading, setSelectedDatePricesLoading] = useState(false);
   const [selectedDatePricesError, setSelectedDatePricesError] = useState<string | null>(null);
   
@@ -47,6 +56,8 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [solarForecast, setSolarForecast] = useState<SolarForecast | null>(null);
   const [solarForecastLoading, setSolarForecastLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
+  const [diagnosticsSummary, setDiagnosticsSummary] = useState<DiagnosticsSummary | null>(null);
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
 
@@ -69,25 +80,27 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     }
     
     try {
-      const [data, overviewPricesData, selectedDatePricesData] = await Promise.all([
-        elektroappApi.getDashboardSnapshot(dateValue),
-        elektroappApi.getPrices(),
-        elektroappApi.getPrices(dateValue),
-      ]);
+      const data = await elektroappApi.getDashboardSnapshot(dateValue);
       
-      // Update states from snapshot
-      setPrices(overviewPricesData?.prices || []);
-      setSelectedDatePrices(selectedDatePricesData?.prices || []);
+      const legacyPrices = Array.isArray(data.prices) ? data.prices : data.prices?.prices;
+      const overviewPrices = data.overview_prices?.prices || legacyPrices || [
+        ...(data.today_prices || []),
+        ...(data.tomorrow_prices || []),
+      ];
+      setPrices(overviewPrices || []);
+      setSelectedDatePrices(data.selected_date_prices || legacyPrices || []);
       setCosts(data.costs?.points || []);
       setCostsSummary(data.costs?.summary || null);
       setCostsFromCache(Boolean(data.costs?.from_cache));
       setExportPoints(data.export?.points || []);
       setExportSummary(data.export?.summary || null);
       setExportFromCache(Boolean(data.export?.from_cache));
-      setBatteryData(data.battery);
+      setBatteryData(data.battery || null);
       setAlerts(data.alerts);
       setComparison(data.comparison);
-      setSolarForecast(data.solar);
+      setSolarForecast(data.solar || null);
+      setRecommendations(data.recommendations || null);
+      setDiagnosticsSummary(data.diagnostics_summary || null);
       
       if (dateValue === todayDate) {
         setTodayCostsKpi(data.costs?.summary || null);
@@ -211,6 +224,8 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     comparisonLoading,
     solarForecast,
     solarForecastLoading,
+    recommendations,
+    diagnosticsSummary,
     refreshConfig,
   };
 };

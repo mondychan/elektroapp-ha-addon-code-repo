@@ -1,5 +1,6 @@
 .git
 app/frontend/node_modules
 app/frontend/build
+app/frontend/dist
 **/__pycache__
 **/*.pyc

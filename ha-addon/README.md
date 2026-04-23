@@ -12,8 +12,10 @@ Toto je metadata repo pro Home Assistant Add-on Store.
 
 ## Aktualni core zmeny
 
-- Solarni forecast umi doplnit historickou kalibraci z InfluxDB, aby po update nebylo nutne cekat na nove dny v cache.
-- Solarni forecast nyni pouziva i hodinovy bias a zobrazuje vedle raw Forecast.Solar i systemove upraveny odhad dnes a zitra.
+- Frontend build byl migrovan z CRA na Vite a testy na Vitest.
+- Dashboard snapshot nyni nacita prvni obrazovku jednim rozsireny API kontraktem bez duplicitnich volani cen.
+- Nova karta Doporuceni kombinuje ceny, baterii, solarni forecast, bilanci a planner do akcnich radku bez automatickeho rizeni Home Assistanta.
+- API ma prisnejsi mutacni guard, diagnostiku a bezpecnejsi Influx query builder.
 
 ## Poznamka k forecastu
 

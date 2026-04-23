@@ -1,5 +1,6 @@
 app/frontend/node_modules/
 app/frontend/build/
+app/frontend/dist/
 
 # Python caches / test caches
 __pycache__/

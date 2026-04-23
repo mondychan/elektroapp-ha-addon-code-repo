@@ -3,6 +3,9 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+import { vi } from "vitest";
+
+globalThis.jest = vi;
 
 if (!window.matchMedia) {
   window.matchMedia = () => ({
@@ -25,10 +28,10 @@ if (!global.ResizeObserver) {
   };
 }
 
-jest.mock("react-day-picker", () => ({
+vi.mock("react-day-picker", () => ({
   DayPicker: () => null,
 }));
 
-jest.mock("react-day-picker/locale", () => ({
+vi.mock("react-day-picker/locale", () => ({
   cs: {},
 }));

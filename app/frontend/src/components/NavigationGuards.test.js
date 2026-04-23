@@ -8,16 +8,16 @@ import { getCurrentMonthStr, getCurrentYearStr, getTodayDateStr, shiftEnergyBala
 
 describe("navigation guards", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date("2026-04-05T12:00:00+02:00"));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-05T12:00:00+02:00"));
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   test("DateNavigator disables moving to a future day", () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<DateNavigator value="2026-04-05" onChange={onChange} maxDate="2026-04-05" />);
 
     const nextButton = screen.getByRole("button", { name: "Next" });
@@ -28,7 +28,7 @@ describe("navigation guards", () => {
   });
 
   test("MonthNavigator disables moving to a future month", () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<MonthNavigator value="2026-04" onChange={onChange} maxMonth="2026-04" />);
 
     const nextButton = screen.getByRole("button", { name: "Next" });
@@ -39,7 +39,7 @@ describe("navigation guards", () => {
   });
 
   test("YearNavigator disables moving to a future year", () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<YearNavigator value="2026" onChange={onChange} maxYear="2026" />);
 
     const nextButton = screen.getByRole("button", { name: "Next" });

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { DashboardSnapshotResponse, RecommendationsResponse } from "../types/elektroapp";
 
 const API_PREFIX = "./api";
 
@@ -27,7 +28,10 @@ export const elektroappApi = {
   getAlerts: () => get("/alerts"),
   getComparison: (date?: string) => get("/comparison", date ? { date } : undefined),
   getSolarForecast: () => get("/solar-forecast"),
-  getDashboardSnapshot: (date?: string) => get("/dashboard-snapshot", date ? { date } : undefined),
+  getDashboardSnapshot: (date?: string): Promise<DashboardSnapshotResponse> => get("/dashboard-snapshot", date ? { date } : undefined),
+  getRecommendations: (date?: string): Promise<RecommendationsResponse> => get("/recommendations", date ? { date } : undefined),
+  getDiagnostics: () => get("/diagnostics"),
+  invalidateCache: (payload: { domain: "prices" | "consumption" | "export" | "pnd" | "all"; date?: string }) => post("/cache/invalidate", payload),
   getExportCsv: (month: string) => get("/export-csv", { month }),
   getPndStatus: () => get("/pnd/status"),
   getPndCacheStatus: () => get("/pnd/cache-status"),

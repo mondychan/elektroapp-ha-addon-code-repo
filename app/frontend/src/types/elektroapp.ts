@@ -188,6 +188,14 @@ export interface PriceItem {
   rawSpot: number;
 }
 
+export interface RawPriceEntry {
+  time: string;
+  hour?: number;
+  minute?: number;
+  spot: number;
+  final: number;
+}
+
 export interface BatteryData {
   status?: {
     soc_percent?: number;
@@ -299,6 +307,44 @@ export interface SolarForecast {
   };
 }
 
+export interface RecommendationMetric {
+  key: string;
+  label: string;
+  value: number | string | null;
+  unit?: string | null;
+}
+
+export interface RecommendationAction {
+  type: string;
+  title: string;
+  reason: string;
+  start?: string | null;
+  end?: string | null;
+  confidence: number;
+  impact?: string | null;
+}
+
+export interface RecommendationsResponse {
+  date: string;
+  generated_at?: string;
+  confidence?: number;
+  metrics: RecommendationMetric[];
+  actions: RecommendationAction[];
+  inputs?: Record<string, boolean>;
+}
+
+export interface DiagnosticsSummary {
+  version?: string;
+  cache?: any;
+  runtime?: {
+    ote_backoff_seconds?: number;
+    ote_unavailable?: boolean;
+    prefetch_scheduler_running?: boolean;
+    pnd_scheduler_running?: boolean;
+  };
+  pnd?: any;
+}
+
 export interface MonthlyDayData {
   date: string;
   kwh_total: number | null;
@@ -318,8 +364,8 @@ export interface MonthlyTotals {
 
 export interface DashboardSnapshot {
   config: Config;
-  prices: any[];
-  selectedDatePrices: any[];
+  prices: RawPriceEntry[];
+  selectedDatePrices: RawPriceEntry[];
   batteryData: BatteryData;
   todayCostsKpi: CostsKpi;
   todayExportKpi: ExportKpi;
@@ -328,6 +374,24 @@ export interface DashboardSnapshot {
   alerts: any;
   comparison: any;
   solar: any;
+}
+
+export interface DashboardSnapshotResponse {
+  prices?: { prices?: RawPriceEntry[] } | RawPriceEntry[];
+  overview_prices?: { prices?: RawPriceEntry[] };
+  today_prices?: RawPriceEntry[];
+  tomorrow_prices?: RawPriceEntry[];
+  selected_date_prices?: RawPriceEntry[];
+  costs?: { points?: any[]; summary?: CostsKpi; from_cache?: boolean; cache_fallback?: boolean };
+  export?: { points?: any[]; summary?: ExportKpi; from_cache?: boolean; cache_fallback?: boolean };
+  battery?: BatteryData;
+  alerts?: any;
+  comparison?: any;
+  solar?: SolarForecast;
+  recommendations?: RecommendationsResponse;
+  diagnostics_summary?: DiagnosticsSummary;
+  date?: string;
+  version?: string;
 }
 
 export interface PndStatus {

@@ -40,18 +40,25 @@ class SeriesCache:
             return None, None, None
         return data, path, meta
 
-    def save(self, date_str: str, cache_key: Any, data: Any):
+    def save(self, date_str: str, cache_key: Any, data: Any, *, source: str | None = None, status: str = "complete"):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         path = self.build_path(date_str)
+        fetched_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         payload = {
             "meta": {
-                "key": cache_key, 
-                "fetched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                "cache_version": self.version,
+                "key": cache_key,
+                "fetched_at": fetched_at,
+                "complete_after": fetched_at,
+                "source": source or self.prefix,
+                "status": status,
             },
             "data": data,
         }
-        with open(path, "w", encoding="utf-8") as f:
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(payload, f)
+        tmp_path.replace(path)
         logger.info("Saved %s cache for %s to %s", self.prefix, date_str, path)
 
     def get_status(self) -> dict:

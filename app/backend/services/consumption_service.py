@@ -5,6 +5,12 @@ from requests import RequestException
 from api import parse_time_range, to_rfc3339
 from services.cache_manager import build_series_cache_key, SeriesCache
 from cache import should_use_daily_cache
+from influx import (
+    build_influx_from_clause_for_measurement,
+    escape_influx_tag_value,
+    quote_influx_identifier,
+    validate_influx_interval,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -38,18 +44,16 @@ def get_consumption_points(
 
     start_utc, end_utc = parse_time_range(date, start, end, tzinfo)
 
-    rp = influx.get("retention_policy")
-    measurement = influx["measurement"]
-    from_clause = f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
-    field = influx["field"]
+    from_clause = build_influx_from_clause_for_measurement(influx, influx["measurement"])
+    field = quote_influx_identifier(influx["field"])
     entity_id = influx["entity_id"]
-    interval = influx.get("interval", "15m")
+    interval = validate_influx_interval(influx.get("interval", "15m"))
 
     q = (
-        f'SELECT last("{field}") AS "kwh_total" '
+        f'SELECT last({field}) AS "kwh_total" '
         f"FROM {from_clause} "
         f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
-        f'AND "entity_id"=\'{entity_id}\' '
+        f'AND "entity_id"=\'{escape_influx_tag_value(entity_id)}\' '
         f"GROUP BY time({interval}) fill(null)"
     )
 
@@ -151,17 +155,15 @@ def get_export_points(
 
     start_utc, end_utc = parse_time_range(date, start, end, tzinfo)
 
-    rp = influx.get("retention_policy")
-    measurement = influx["measurement"]
-    from_clause = f'"{measurement}"' if not rp else f'"{rp}"."{measurement}"'
-    field = influx["field"]
-    interval = influx.get("interval", "15m")
+    from_clause = build_influx_from_clause_for_measurement(influx, influx["measurement"])
+    field = quote_influx_identifier(influx["field"])
+    interval = validate_influx_interval(influx.get("interval", "15m"))
 
     q = (
-        f'SELECT last("{field}") AS "kwh_total" '
+        f'SELECT last({field}) AS "kwh_total" '
         f"FROM {from_clause} "
         f"WHERE time >= '{to_rfc3339(start_utc)}' AND time < '{to_rfc3339(end_utc)}' "
-        f'AND "entity_id"=\'{export_entity_id}\' '
+        f'AND "entity_id"=\'{escape_influx_tag_value(export_entity_id)}\' '
         f"GROUP BY time({interval}) fill(null)"
     )
 
