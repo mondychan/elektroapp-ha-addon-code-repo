@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.22
+- Hotfix: backend uz pri Vite buildu nemountuje neexistujici `frontend_build/static` a podporuje novy `frontend_build/assets` adresar.
+- Pridan regresni test, ze Vite assets layout lze servirovat bez CRA `static` slozky.
+
 ## 0.3.21
 - Frontend build migrovan z CRA/react-scripts na Vite, testy na Vitest a Docker/CI build vystup na `dist`.
 - Backend doplnen o explicitni application container, typed request payloady, mutacni API guard, diagnostiku a request latency logging.
