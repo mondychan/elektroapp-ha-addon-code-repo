@@ -4,14 +4,13 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 import app_service
 import config_loader
 from container import build_container
 from errors import register_error_handling
 from routers.api_router import router as api_router
-from static_serving import spa_index_response
+from static_serving import mount_frontend_static_dirs, spa_index_response
 
 
 def _wire_service_from_container():
@@ -88,7 +87,7 @@ build_path = Path(__file__).parent / "frontend_build"
 
 
 if build_path.exists():
-    app.mount("/static", StaticFiles(directory=build_path / "static"), name="static")
+    mount_frontend_static_dirs(app, build_path)
 
     @app.get("/site.webmanifest")
     def manifest():
