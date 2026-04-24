@@ -16,6 +16,7 @@ from pricing import (
     get_price_provider,
     normalize_fee_snapshot,
     normalize_price_provider,
+    display_price_provider,
     calculate_sell_coefficient,
     is_price_cache_provider_match,
 )
@@ -441,12 +442,15 @@ def _can_start_pnd_scheduler(cfg: Optional[dict[str, Any]] = None) -> bool:
 def save_config(new_config: dict = Body(...)):
     if isinstance(new_config, dict):
         new_config["price_provider"] = normalize_price_provider(new_config.get("price_provider"))
+        supervisor_options = {**new_config, "price_provider": display_price_provider(new_config.get("price_provider"))}
+    else:
+        supervisor_options = {}
     import yaml
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.safe_dump(new_config, f, allow_unicode=True)
-    option_sync = save_options_sync(new_config if isinstance(new_config, dict) else {})
+    option_sync = save_options_sync(supervisor_options)
     try:
-        supervisor_sync = SUPERVISOR_SERVICE.sync_addon_options(new_config if isinstance(new_config, dict) else {})
+        supervisor_sync = SUPERVISOR_SERVICE.sync_addon_options(supervisor_options)
     except SupervisorSyncError as exc:
         detail = exc.detail if isinstance(exc.detail, dict) else {"detail": exc.detail}
         raise HTTPException(

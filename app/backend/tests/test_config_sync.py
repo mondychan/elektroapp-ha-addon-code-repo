@@ -84,10 +84,13 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage, monkeypatch)
     ha_options = json.loads(isolated_storage["ha_options_file"].read_text(encoding="utf-8"))
     backup_options = json.loads((isolated_storage["storage_dir"] / "options.json").read_text(encoding="utf-8"))
     assert ha_options["pnd"]["username"] == "user@example.com"
+    assert ha_options["price_provider"] == "spotovaelektrina.cz"
     assert backup_options["pnd"]["username"] == "user@example.com"
+    assert backup_options["price_provider"] == "spotovaelektrina.cz"
     assert ha_options["hp"]["entities"][0]["entity_id"] == "sensor.ebusd_ha_daemon_hmu_currentyieldpower"
     assert backup_options["hp"]["enabled"] is True
     assert supervisor.calls and supervisor.calls[0]["hp"]["enabled"] is True
+    assert supervisor.calls[0]["price_provider"] == "spotovaelektrina.cz"
     assert response["supervisor_sync"]["ok"] is True
 
 

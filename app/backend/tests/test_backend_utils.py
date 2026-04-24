@@ -12,6 +12,13 @@ def test_normalize_price_provider_aliases(backend_main):
     assert backend_main.normalize_price_provider("unknown") == "spotovaelektrina"
 
 
+def test_display_price_provider_uses_ha_schema_values():
+    from pricing import display_price_provider
+
+    assert display_price_provider("spotovaelektrina") == "spotovaelektrina.cz"
+    assert display_price_provider("ote") == "ote-cr.cz"
+
+
 def test_parse_influx_interval_to_minutes(backend_main):
     assert backend_main.parse_influx_interval_to_minutes("15m") == 15
     assert backend_main.parse_influx_interval_to_minutes("2h") == 120

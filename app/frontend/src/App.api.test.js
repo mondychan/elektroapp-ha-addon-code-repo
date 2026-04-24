@@ -156,10 +156,10 @@ describe("App API states", () => {
     expect(elektroappApi.getPrices).not.toHaveBeenCalled();
   });
 
-  test("planner preset button immediately loads matching duration", async () => {
+  test("recommendations page shows planner directly and preset button loads matching duration", async () => {
     render(<App />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Zobrazit plánovač" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Doporučení" }));
 
     await waitFor(() => {
       expect(elektroappApi.getSchedule).toHaveBeenCalledWith(120, 3);

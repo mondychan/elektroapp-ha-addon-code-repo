@@ -1,23 +1,25 @@
 configuration:
   dph:
-    name: "DPH %"
-    description: "Napr. 21"
+    name: "Cenove poplatky - DPH"
+    description: "Sazba DPH v procentech, napr. 21."
   price_provider:
-    name: "Zdroj cen"
-    description: "spotovaelektrina nebo ote"
+    name: "Ceny - zdroj spotovych cen"
+    description: "Vyber citelny zdroj spotovych cen."
   poplatky:
-    name: "Poplatky"
+    name: "Cenove poplatky - variabilni"
+    description: "Variabilni slozky ceny bez DPH: obchod, OZE, dan, systemove sluzby a distribuce VT/NT."
   fixni:
-    name: "Fixni poplatky"
+    name: "Cenove poplatky - fixni"
+    description: "Fixni denni a mesicni poplatky bez DPH."
   tarif:
-    name: "Tarif"
+    name: "Cenove poplatky - tarif"
     description: "VT intervaly jako \"6-7,9-10,13-14,16-17\""
   influxdb:
     name: "InfluxDB"
     description: "Nastaveni pripojeni pro spotrebu"
   prodej:
-    name: "Prodej"
-    description: "Nastaveni prodeje elektriny"
+    name: "Cenove poplatky - prodej"
+    description: "Nastaveni snizeni ceny pri prodeji elektriny."
   hp:
     name: "HP"
     description: "Konfigurace zalozky tepelneho cerpadla"

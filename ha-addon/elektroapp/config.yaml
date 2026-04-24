@@ -25,7 +25,7 @@ map:
   - config:rw
 options:
   dph: 21
-  price_provider: "spotovaelektrina"
+  price_provider: "spotovaelektrina.cz"
   poplatky:
     komodita_sluzba: 0.35
     oze: 0.0
@@ -123,7 +123,7 @@ options:
     overrides: []
 schema:
   dph: float
-  price_provider: list(spotovaelektrina|spotovaelektrina.cz|ote|ote-cr.cz)?
+  price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
   poplatky:
     komodita_sluzba: float
     oze: float

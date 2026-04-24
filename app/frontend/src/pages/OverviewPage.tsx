@@ -6,14 +6,12 @@ import ExportChartCard from "../components/ExportChartCard";
 import MonthlySummaryCard from "../components/MonthlySummaryCard";
 import BillingCard from "../components/BillingCard";
 import BatteryProjectionCard from "../components/BatteryProjectionCard";
-import PlannerCard from "../components/PlannerCard";
 import ConfigCard from "../components/ConfigCard";
 import EnergyBalanceCard from "../components/EnergyBalanceCard";
 import DataCard from "../components/common/DataCard";
 import AlertBanner from "../components/common/AlertBanner";
 import ComparisonCard from "../components/ComparisonCard";
 import SolarForecastCard from "../components/SolarForecastCard";
-import RecommendationCard from "../components/RecommendationCard";
 import { formatDate, formatSlotToTime } from "../utils/formatters";
 import {
   getMaxEnergyBalanceAnchor,
@@ -82,15 +80,6 @@ interface OverviewPageProps {
   energyBalanceData: any;
   energyBalanceLoading: boolean;
   energyBalanceError: any;
-  showPlanner: boolean;
-  handlePlannerToggle: () => void;
-  plannerDuration: string;
-  setPlannerDuration: (dur: string) => void;
-  handleLoadPlanner: (dur?: string) => Promise<void>;
-  finalPlannerError: any;
-  plannerLoading: boolean;
-  plannerNote: string | null;
-  plannerResults: any;
   showConfig: boolean;
   setShowConfig: (show: boolean) => void;
   configRows: any[];
@@ -116,7 +105,6 @@ interface OverviewPageProps {
   comparisonLoading: boolean;
   solarForecast: any;
   solarForecastLoading: boolean;
-  recommendations?: any;
   defaultFeesValues: any;
   thresholds: any;
 }
@@ -183,15 +171,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     energyBalanceData,
     energyBalanceLoading,
     energyBalanceError,
-    showPlanner,
-    handlePlannerToggle,
-    plannerDuration,
-    setPlannerDuration,
-    handleLoadPlanner,
-    finalPlannerError,
-    plannerLoading,
-    plannerNote,
-    plannerResults,
     showConfig,
     setShowConfig,
     configRows,
@@ -217,7 +196,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     comparisonLoading,
     solarForecast,
     solarForecastLoading,
-    recommendations,
   } = props;
 
   const selectedDateLabel = formatDate(new Date(`${selectedDate}T00:00:00`));
@@ -234,10 +212,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
       transition={{ duration: 0.3 }}
     >
       <AlertBanner alerts={alerts} />
-
-      <DataCard title="Doporučení">
-        <RecommendationCard recommendations={recommendations} />
-      </DataCard>
 
       {solarForecast?.enabled && (
         <DataCard title="Solární předpověď" loading={solarForecastLoading}>
@@ -406,24 +380,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
               />
             </DataCard>
           </section>
-        )}
-
-        <button onClick={handlePlannerToggle} className="ghost-button">
-          {showPlanner ? "Skrýt plánovač" : "Zobrazit plánovač"}
-        </button>
-
-        {showPlanner && (
-          <DataCard title="Plánovač" loading={plannerLoading}>
-            <PlannerCard
-              plannerDuration={plannerDuration}
-              setPlannerDuration={setPlannerDuration}
-              loadPlanner={handleLoadPlanner}
-              plannerError={finalPlannerError}
-              plannerLoading={plannerLoading}
-              plannerNote={plannerNote}
-              plannerResults={plannerResults}
-            />
-          </DataCard>
         )}
 
         <button onClick={() => setShowConfig(!showConfig)} className="ghost-button">

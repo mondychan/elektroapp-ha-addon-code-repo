@@ -59,6 +59,13 @@ def normalize_price_provider(value):
     return DEFAULT_PRICE_PROVIDER
 
 
+def display_price_provider(value):
+    provider = normalize_price_provider(value)
+    if provider == PRICE_PROVIDER_OTE:
+        return "ote-cr.cz"
+    return "spotovaelektrina.cz"
+
+
 def get_price_provider(cfg):
     if not isinstance(cfg, dict):
         return DEFAULT_PRICE_PROVIDER

@@ -1,7 +1,7 @@
 import React from "react";
 import ThemeToggle from "../common/ThemeToggle";
 
-export type PageMode = "overview" | "costs" | "battery" | "hp" | "pnd" | "settings";
+export type PageMode = "overview" | "costs" | "recommendations" | "battery" | "hp" | "pnd" | "settings";
 
 interface AppHeaderProps {
   pageMode: PageMode;
@@ -36,6 +36,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({ pageMode, setPageMode, theme, set
             aria-selected={pageMode === "costs"}
           >
             Detail
+          </button>
+          <button
+            type="button"
+            className={`view-mode-btn ${pageMode === "recommendations" ? "is-active" : ""}`}
+            onClick={() => setPageMode("recommendations")}
+            role="tab"
+            aria-selected={pageMode === "recommendations"}
+          >
+            Doporučení
           </button>
           <button
             type="button"

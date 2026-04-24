@@ -1,23 +1,25 @@
 configuration:
   dph:
-    name: "VAT %"
-    description: "Example: 21"
+    name: "Price fees - VAT"
+    description: "VAT rate in percent, for example 21."
   price_provider:
-    name: "Price source"
-    description: "spotovaelektrina or ote"
+    name: "Prices - spot price source"
+    description: "Select the readable spot price source."
   poplatky:
-    name: "Fees"
+    name: "Price fees - variable"
+    description: "Variable price components without VAT: supplier fee, OZE, tax, system services and VT/NT distribution."
   fixni:
-    name: "Fixed fees"
+    name: "Price fees - fixed"
+    description: "Fixed daily and monthly fees without VAT."
   tarif:
-    name: "Tariff"
+    name: "Price fees - tariff"
     description: "VT periods as \"6-7,9-10,13-14,16-17\""
   influxdb:
     name: "InfluxDB"
     description: "Connection settings for consumption data"
   prodej:
-    name: "Sales"
-    description: "Energy export settings"
+    name: "Price fees - export"
+    description: "Price reduction settings for exported electricity."
   hp:
     name: "HP"
     description: "Heat pump tab configuration"

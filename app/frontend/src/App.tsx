@@ -5,6 +5,7 @@ import BottomNav from "./components/layout/BottomNav";
 import KPIScreen from "./components/layout/KPIScreen";
 import OverviewPage from "./pages/OverviewPage";
 import DetailPage from "./pages/DetailPage";
+import RecommendationsPage from "./pages/RecommendationsPage";
 import PndPage from "./pages/PndPage";
 import HpPage from "./pages/HpPage";
 
@@ -65,7 +66,6 @@ const App: React.FC = () => {
   const [pageMode, setPageMode] = useState<PageMode>("overview");
   const [showConfig, setShowConfig] = useState(false);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
-  const [showPlanner, setShowPlanner] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
   const [showFeesHistory, setShowFeesHistory] = useState(false);
   const [showBatteryPanel, setShowBatteryPanel] = useState(false);
@@ -170,7 +170,7 @@ const App: React.FC = () => {
     onRefresh: refreshPrices,
   });
 
-  const handleLoadPlanner = async (durationOverride: number | string = plannerDuration): Promise<void> => {
+  const handleLoadPlanner = useCallback(async (durationOverride: number | string = plannerDuration): Promise<void> => {
     const parsed = typeof durationOverride === "number" ? durationOverride : Number.parseInt(durationOverride, 10);
     if (!parsed || parsed <= 0 || parsed > 360) {
       setPlannerValidationError("Okna musi byt 1-360 minut.");
@@ -181,16 +181,7 @@ const App: React.FC = () => {
     try {
       await (dashboard as any).loadPlanner(parsed);
     } catch {}
-  };
-
-  const handlePlannerToggle = () => {
-    if (showPlanner) {
-      setShowPlanner(false);
-      return;
-    }
-    setShowPlanner(true);
-    handleLoadPlanner();
-  };
+  }, [dashboard, plannerDuration, setPlannerDuration]);
 
   const dphMultiplier = useMemo(() => {
     const dphVal = config?.dph != null ? Number(config.dph) : 21;
@@ -396,12 +387,6 @@ const App: React.FC = () => {
                 setShowBatteryPanel,
                 refreshPrices,
                 refreshBattery: dashboard.refreshBattery,
-                showPlanner,
-                handlePlannerToggle,
-                plannerDuration,
-                setPlannerDuration: (d: string) => setPlannerDuration(d),
-                handleLoadPlanner,
-                finalPlannerError: (plannerValidationError || (dashboard as any).plannerError) as any,
                 showConfig,
                 setShowConfig,
                 configRows,
@@ -455,6 +440,19 @@ const App: React.FC = () => {
               }}
             />
           )}
+          {pageMode === "recommendations" && (
+            <RecommendationsPage
+              key="recommendations"
+              recommendations={(dashboard as any).recommendations}
+              plannerDuration={plannerDuration}
+              setPlannerDuration={(d: string) => setPlannerDuration(d)}
+              handleLoadPlanner={handleLoadPlanner}
+              finalPlannerError={(plannerValidationError || (dashboard as any).plannerError) as any}
+              plannerLoading={(dashboard as any).plannerLoading}
+              plannerNote={(dashboard as any).plannerNote}
+              plannerResults={(dashboard as any).plannerResults || []}
+            />
+          )}
           {pageMode === "battery" && (
             <div key="battery" className="page-battery">
               <OverviewPage
@@ -490,12 +488,6 @@ const App: React.FC = () => {
                   setShowBatteryPanel: () => {},
                   refreshPrices,
                   refreshBattery: dashboard.refreshBattery,
-                  showPlanner: false,
-                  handlePlannerToggle: () => {},
-                  plannerDuration,
-                  setPlannerDuration: () => {},
-                  handleLoadPlanner: async () => {},
-                  finalPlannerError: null,
                   showConfig: false,
                   setShowConfig: () => {},
                   configRows: [],
@@ -555,12 +547,6 @@ const App: React.FC = () => {
                   setShowBatteryPanel,
                   refreshPrices,
                   refreshBattery: dashboard.refreshBattery,
-                  showPlanner: false,
-                  handlePlannerToggle: () => {},
-                  plannerDuration,
-                  setPlannerDuration: () => {},
-                  handleLoadPlanner: async () => {},
-                  finalPlannerError: null,
                   showConfig: true,
                   setShowConfig: () => {},
                   configRows,
