@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.24
+- Oprava mobilniho zobrazeni tabulky Mesicni souhrn: na uzkych displejich se radky skladaji do kompaktniho gridu bez horizontalniho posouvani.
+- Tabulka Mesicni souhrn uz nereaguje na horizontalni swipe pro zmenu mesice, aby gesto nekolidovalo s prohlizenim hodnot.
+
 ## 0.3.23
 - Nova samostatna karta Doporuceni s plannerem dostupnym primo z hlavni navigace.
 - Doporuceni a planovac byly odebrany z preplneneho Prehledu a Detailu.
