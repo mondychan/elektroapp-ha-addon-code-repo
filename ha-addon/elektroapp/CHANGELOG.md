@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.25
+- Oprava spodni mobilni navigace: aktivni prouzek je centrovany bez konfliktu s animacnim transformem a sedi nad aktivni zalozkou.
+
 ## 0.3.24
 - Oprava mobilniho zobrazeni tabulky Mesicni souhrn: na uzkych displejich se radky skladaji do kompaktniho gridu bez horizontalniho posouvani.
 - Tabulka Mesicni souhrn uz nereaguje na horizontalni swipe pro zmenu mesice, aby gesto nekolidovalo s prohlizenim hodnot.
