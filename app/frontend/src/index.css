@@ -357,7 +357,16 @@ body[data-theme="dark"] .row-weekend {
 }
 
 .bottom-nav-icon {
-  font-size: 20px;
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
 }
 
 .bottom-nav-label {
