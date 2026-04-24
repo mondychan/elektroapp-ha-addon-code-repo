@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.27
+- Oprava mobilnich ikon ve spodni navigaci: ikony jsou inline SVG, ne CSS masky, takze se v HA mobile/webview nevykresluji jako prazdne ctverce.
+- Odstranena nepotrebna zavislost na balicku SVG assetu pro navigacni ikony.
+
 ## 0.3.26
 - Spodni mobilni navigace misto pismen pouziva piktogramy z Google Material Symbols.
 - Ikony jsou balene jako konkretni SVG assety, bez externiho nacitani fontu a bez velkeho Material Symbols font souboru.
