@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.23
+- Nova samostatna karta Doporuceni s plannerem dostupnym primo z hlavni navigace.
+- Doporuceni a planovac byly odebrany z preplneneho Prehledu a Detailu.
+- HP grafy se vykresluji jako spojnicove grafy i u ridkych dat s mezerami.
+- HA add-on schema pro zdroj cen zobrazuje jen citelne volby `spotovaelektrina.cz` a `ote-cr.cz`; backend dale pracuje s kompatibilnimi internimi hodnotami.
+- Viditelne nazvy cenovych nastaveni v HA add-onu byly sjednoceny pod cenove poplatky pro lepsi orientaci bez breaking migrace ulozenych optionu.
+
 ## 0.3.22
 - Hotfix: backend uz pri Vite buildu nemountuje neexistujici `frontend_build/static` a podporuje novy `frontend_build/assets` adresar.
 - Pridan regresni test, ze Vite assets layout lze servirovat bez CRA `static` slozky.
