@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.26
+- Spodni mobilni navigace misto pismen pouziva piktogramy z Google Material Symbols.
+- Ikony jsou balene jako konkretni SVG assety, bez externiho nacitani fontu a bez velkeho Material Symbols font souboru.
+
 ## 0.3.25
 - Oprava spodni mobilni navigace: aktivni prouzek je centrovany bez konfliktu s animacnim transformem a sedi nad aktivni zalozkou.
 
