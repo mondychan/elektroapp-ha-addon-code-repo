@@ -134,7 +134,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   if (!monthlySummary.length && !monthlyError) return null;
 
   return (
-    <div className="summary-card-inner">
+    <div className="summary-card-inner monthly-summary-card">
       <div className="summary-header">
         <div className="summary-header-nav">
           <MonthNavigator value={selectedMonth} onChange={setSelectedMonth} maxMonth={maxMonth} />
@@ -153,8 +153,8 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         </button>
       </div>
 
-      <div className="table-responsive sticky-container" style={{ maxHeight: "450px" }}>
-        <table className="data-table table-spaced">
+      <div className="table-responsive sticky-container monthly-summary-table-container" style={{ maxHeight: "450px" }}>
+        <table className="data-table table-spaced monthly-summary-table">
           <thead className="sticky-header">
             <tr>
               <th className="cell-left sortable" onClick={() => requestSort("date")}>
@@ -192,16 +192,16 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
 
               return (
                 <tr key={day.date} className={isWeekend ? "row-weekend" : ""}>
-                  <td>{dayName}</td>
-                  <td>{formatDate(dt)}</td>
-                  <td className="cell-right">{day.kwh_total == null ? "-" : day.kwh_total.toFixed(2)}</td>
-                  <td className="cell-right cell-buy">{day.cost_total == null ? "-" : day.cost_total.toFixed(2)}</td>
-                  <td className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
-                  <td className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
-                  <td className={`cell-right ${kwhClass}`}>
+                  <td data-label="Den">{dayName}</td>
+                  <td data-label="Datum">{formatDate(dt)}</td>
+                  <td data-label="Nakup kWh" className="cell-right">{day.kwh_total == null ? "-" : day.kwh_total.toFixed(2)}</td>
+                  <td data-label="Naklady Kc" className="cell-right cell-buy">{day.cost_total == null ? "-" : day.cost_total.toFixed(2)}</td>
+                  <td data-label="Prodej kWh" className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
+                  <td data-label="Trzby Kc" className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
+                  <td data-label="Netto kWh" className={`cell-right ${kwhClass}`}>
                     {day.netKwh == null ? "-" : `${day.netKwh > 0 ? "+" : ""}${day.netKwh.toFixed(2)}`}
                   </td>
-                  <td className={`cell-right ${costClass}`}>
+                  <td data-label="Netto Kc" className={`cell-right ${costClass}`}>
                     {day.netCost == null ? "-" : `${day.netCost > 0 ? "+" : ""}${day.netCost.toFixed(2)}`}
                   </td>
                 </tr>
@@ -211,15 +211,15 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
           {monthlyTotals && (
             <tfoot>
               <tr className="sticky-footer">
-                <td colSpan={2}>Součet</td>
-                <td className="cell-right">{monthlyTotals.kwh_total?.toFixed(2)}</td>
-                <td className="cell-right cell-buy">{monthlyTotals.cost_total?.toFixed(2)}</td>
-                <td className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
-                <td className="cell-right cell-sell">{monthlyTotals.sell_total?.toFixed(2)}</td>
-                <td className={`cell-right ${footerKwhClass}`}>
+                <td data-label="Souhrn" colSpan={2}>Součet</td>
+                <td data-label="Nakup kWh" className="cell-right">{monthlyTotals.kwh_total?.toFixed(2)}</td>
+                <td data-label="Naklady Kc" className="cell-right cell-buy">{monthlyTotals.cost_total?.toFixed(2)}</td>
+                <td data-label="Prodej kWh" className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
+                <td data-label="Trzby Kc" className="cell-right cell-sell">{monthlyTotals.sell_total?.toFixed(2)}</td>
+                <td data-label="Netto kWh" className={`cell-right ${footerKwhClass}`}>
                   {footerNetKwh == null ? "-" : `${footerNetKwh > 0 ? "+" : ""}${footerNetKwh.toFixed(2)}`}
                 </td>
-                <td className={`cell-right ${footerCostClass}`}>
+                <td data-label="Netto Kc" className={`cell-right ${footerCostClass}`}>
                   {footerNetCost == null ? "-" : `${footerNetCost > 0 ? "+" : ""}${footerNetCost.toFixed(2)}`}
                 </td>
               </tr>

@@ -18,7 +18,6 @@ import { useSwipeGesture } from "./hooks/useSwipeGesture";
 import { useDashboardData } from "./hooks/useDashboardData";
 import {
   clampDateValue,
-  clampMonthValue,
   getCurrentMonthStr,
   getCurrentYearStr,
   getTodayDateStr,
@@ -49,13 +48,6 @@ const shiftDateValue = (value: string, dayDelta: number) => {
   const m = String(dt.getMonth() + 1).padStart(2, "0");
   const d = String(dt.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-};
-
-const shiftMonthValue = (value: string, monthDelta: number) => {
-  const [year, month] = (value || "").split("-").map(Number);
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return value;
-  const dt = new Date(year, month - 1 + monthDelta, 1);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const App: React.FC = () => {
@@ -157,12 +149,6 @@ const App: React.FC = () => {
   const dateSwipeHandlers = useSwipeGesture({
     onSwipeLeft: () => setSelectedDate((prev) => clampDateValue(shiftDateValue(prev, 1), todayDateStr)),
     onSwipeRight: () => setSelectedDate((prev) => shiftDateValue(prev, -1)),
-  });
-
-  const monthSwipeHandlers = useSwipeGesture({
-    enabled: showMonthlySummary,
-    onSwipeLeft: () => setSelectedMonth((prev) => clampMonthValue(shiftMonthValue(prev, 1), currentMonthStr)),
-    onSwipeRight: () => setSelectedMonth((prev) => shiftMonthValue(prev, -1)),
   });
 
   const { pullDistance, isRefreshing: pullRefreshing, isArmed: pullArmed, gestureHandlers: pullHandlers } = usePullToRefresh({
@@ -369,7 +355,6 @@ const App: React.FC = () => {
                 maxDate: todayDateStr,
                 showMonthlySummary,
                 setShowMonthlySummary,
-                monthSwipeHandlers,
                 selectedMonth,
                 setSelectedMonth,
                 maxMonth: currentMonthStr,
@@ -470,7 +455,6 @@ const App: React.FC = () => {
                   maxDate: todayDateStr,
                   showMonthlySummary: false,
                   setShowMonthlySummary: () => {},
-                  monthSwipeHandlers,
                   selectedMonth,
                   setSelectedMonth,
                   maxMonth: currentMonthStr,
@@ -529,7 +513,6 @@ const App: React.FC = () => {
                   maxDate: todayDateStr,
                   showMonthlySummary: false,
                   setShowMonthlySummary: () => {},
-                  monthSwipeHandlers,
                   selectedMonth,
                   setSelectedMonth,
                   maxMonth: currentMonthStr,

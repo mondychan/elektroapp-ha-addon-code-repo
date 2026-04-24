@@ -1356,6 +1356,106 @@ input {
   margin-top: 10px;
 }
 
+.monthly-summary-table-container {
+  overflow-x: hidden;
+}
+
+.monthly-summary-table {
+  min-width: 0;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-summary-table th,
+.monthly-summary-table td {
+  overflow-wrap: anywhere;
+}
+
+.monthly-summary-table th {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+@media (max-width: 640px) {
+  .monthly-summary-table-container {
+    max-height: none !important;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .monthly-summary-table,
+  .monthly-summary-table thead,
+  .monthly-summary-table tbody,
+  .monthly-summary-table tfoot,
+  .monthly-summary-table tr,
+  .monthly-summary-table th,
+  .monthly-summary-table td {
+    display: block;
+  }
+
+  .monthly-summary-table {
+    width: 100%;
+  }
+
+  .monthly-summary-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .monthly-summary-table tbody tr,
+  .monthly-summary-table tfoot tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--row-border);
+  }
+
+  .monthly-summary-table tfoot tr {
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+    margin-top: 6px;
+    padding-top: 10px;
+  }
+
+  .monthly-summary-table tbody td,
+  .monthly-summary-table tfoot td,
+  .monthly-summary-table .sticky-footer td {
+    position: static;
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    font-size: 12px;
+    line-height: 1.25;
+    text-align: right;
+  }
+
+  .monthly-summary-table td::before {
+    content: attr(data-label);
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .monthly-summary-table tbody td:nth-child(1),
+  .monthly-summary-table tbody td:nth-child(2),
+  .monthly-summary-table tfoot td:first-child {
+    font-weight: 600;
+  }
+}
+
 .table-spaced-sm {
   margin-top: 8px;
 }

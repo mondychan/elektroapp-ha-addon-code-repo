@@ -46,7 +46,6 @@ interface OverviewPageProps {
   exportCacheFallback: boolean;
   showMonthlySummary: boolean;
   setShowMonthlySummary: (show: boolean) => void;
-  monthSwipeHandlers: any;
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
   maxMonth: string;
@@ -137,7 +136,6 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
     exportCacheFallback,
     showMonthlySummary,
     setShowMonthlySummary,
-    monthSwipeHandlers,
     selectedMonth,
     setSelectedMonth,
     maxMonth,
@@ -298,7 +296,7 @@ const OverviewPage: React.FC<OverviewPageProps> = (props) => {
         </button>
 
         {showMonthlySummary && (
-          <section className="section swipe-zone" {...monthSwipeHandlers}>
+          <section className="section">
             <DataCard title="Měsíční souhrn" loading={monthlyLoading} error={monthlyError}>
               <MonthlySummaryCard
                 selectedMonth={selectedMonth}
