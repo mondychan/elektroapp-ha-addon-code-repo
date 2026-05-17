@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.29
+- new UI polish
+
 ## 0.3.28
 - Moderni dashboard je vychozi UI: desktop sidebar, topbar, KPI grid, status strip a mobilni bottom navigace.
 - Puvodni legacy vzhled zustava dostupny pres prepinac `Moderni / Legacy` pro A/B testovani a rychly navrat.
