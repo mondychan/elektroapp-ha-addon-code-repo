@@ -1,6 +1,22 @@
 import React, { useState } from "react";
 import { PageMode } from "../layout/AppHeader";
 import ThemeToggle from "../common/ThemeToggle";
+import {
+  IconBattery,
+  IconBolt,
+  IconBulb,
+  IconCalendar,
+  IconChart,
+  IconGrid,
+  IconGridTower,
+  IconMenu,
+  IconPlug,
+  IconRefresh,
+  IconSettings,
+  IconSun,
+  IconTable,
+  IconTrend,
+} from "./icons";
 
 type UiLayout = "modern" | "legacy";
 
@@ -20,16 +36,24 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-const navItems: Array<{ id: PageMode; label: string; short?: string; icon: string; ariaLabel?: string }> = [
-  { id: "overview", label: "Přehled", icon: "▦" },
-  { id: "costs", label: "Detail", icon: "↗" },
-  { id: "recommendations", label: "Doporučení", short: "Dop.", icon: "◌" },
-  { id: "battery", label: "Baterie", icon: "▣" },
-  { id: "solar", label: "Soláry / FV", icon: "☀" },
-  { id: "pnd", label: "Síť / PND", ariaLabel: "PND", icon: "⌁" },
-  { id: "monthly", label: "Měsíční přehled", icon: "▤" },
-  { id: "stats", label: "Statistiky", icon: "▥" },
-  { id: "settings", label: "Nastavení", icon: "⚙" },
+type NavItem = {
+  id: PageMode;
+  label: string;
+  short?: string;
+  icon: React.ReactNode;
+  ariaLabel?: string;
+};
+
+const navItems: NavItem[] = [
+  { id: "overview", label: "Přehled", icon: <IconGrid /> },
+  { id: "costs", label: "Detail", icon: <IconChart /> },
+  { id: "recommendations", label: "Doporučení", short: "Dop.", icon: <IconBulb /> },
+  { id: "battery", label: "Baterie", icon: <IconBattery /> },
+  { id: "solar", label: "Soláry / FV", icon: <IconSun /> },
+  { id: "pnd", label: "Síť / PND", ariaLabel: "PND", icon: <IconGridTower /> },
+  { id: "monthly", label: "Měsíční přehled", icon: <IconTable /> },
+  { id: "stats", label: "Statistiky", icon: <IconTrend /> },
+  { id: "settings", label: "Nastavení", icon: <IconSettings /> },
 ];
 
 const mobileItems = navItems.filter((item) => ["overview", "costs", "recommendations", "battery", "settings"].includes(item.id));
@@ -47,7 +71,7 @@ const NavButton = ({
   onClick,
   compact = false,
 }: {
-  item: { id: PageMode; label: string; short?: string; icon: string; ariaLabel?: string };
+  item: NavItem;
   active: boolean;
   onClick: () => void;
   compact?: boolean;
@@ -93,7 +117,7 @@ const AppShell: React.FC<AppShellProps> = ({
     <div className="modern-app-shell">
       <aside className={`modern-sidebar ${sidebarOpen ? "is-open" : ""}`.trim()} aria-label="Hlavní navigace">
         <div className="modern-sidebar__brand">
-          <span className="modern-brand-mark" aria-hidden="true">ϟ</span>
+          <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>
           <strong>Elektroapp</strong>
         </div>
         <nav className="modern-sidebar__nav" role="tablist" aria-label="Hlavní navigace">
@@ -102,7 +126,7 @@ const AppShell: React.FC<AppShellProps> = ({
           ))}
           <div className="modern-sidebar__divider" />
           <NavButton
-            item={{ id: "hp", label: "HP", icon: "⌘" }}
+            item={{ id: "hp", label: "HP", icon: <IconPlug /> }}
             active={pageMode === "hp"}
             onClick={() => handleNav("hp")}
           />
@@ -119,19 +143,20 @@ const AppShell: React.FC<AppShellProps> = ({
         <header className="modern-topbar">
           <div className="modern-topbar__title">
             <button type="button" className="modern-icon-button modern-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Otevřít navigaci">
-              ☰
+              <IconMenu size={20} />
             </button>
-            <span className="modern-brand-mark" aria-hidden="true">ϟ</span>
+            <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>
             <strong>Elektroapp</strong>
           </div>
 
           <div className="modern-topbar__controls">
             <span className="modern-updated">{formatUpdated(lastUpdatedAt)}</span>
             <button type="button" className="modern-icon-button" onClick={onRefresh} disabled={refreshing} aria-label="Obnovit data" title="Obnovit data">
-              {refreshing ? "…" : "↻"}
+              {refreshing ? "..." : <IconRefresh size={18} />}
             </button>
             <label className="modern-date-control">
               <span className="sr-only">Datum</span>
+              <IconCalendar size={16} />
               <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
             </label>
             <div className="modern-layout-toggle" role="group" aria-label="Vzhled aplikace">

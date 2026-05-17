@@ -35,83 +35,79 @@ export const buildPriceChartConfig = ({
   const maxFinal = Math.max(...chartData.map((item) => item.final));
   const activeSlot = Number.isInteger(pinnedSlot) ? pinnedSlot : highlightSlot;
   const theme = getChartTheme();
-  const fixedColor = theme.accentBlue || "rgba(45, 127, 249, 0.88)";
-  const coveredNegativeColor = theme.accentCyan || "rgba(34, 211, 238, 0.82)";
-  const variableColor = theme.accentRed || "rgba(239, 68, 68, 0.84)";
-  const negativeColor = theme.accentGreen || "rgba(34, 197, 94, 0.84)";
+  const fixedColor = theme.accentBlue || "rgba(56, 189, 248, 0.9)";
+  const coveredNegativeColor = theme.accentCyan || "rgba(34, 211, 238, 0.9)";
+  const variableColor = theme.accentRed || "rgba(239, 68, 68, 0.88)";
+  const negativeColor = theme.accentGreen || "rgba(34, 197, 94, 0.88)";
 
-  const dataFixni = [];
-  const dataOdecteno = [];
-  const dataVariabilni = [];
-  const bgColorsVariabilni = [];
+  const dataFixed = [];
+  const dataCoveredNegative = [];
+  const dataVariable = [];
+  const variableBackground = [];
 
   chartData.forEach((item) => {
-    let fixni = null;
-    let odecteno = null;
-    let variabilni = null;
+    let fixed = null;
+    let coveredNegative = null;
+    let variable = null;
 
     if (item.spot < 0) {
       const finalPrice = item.extra + item.spot;
       if (finalPrice >= 0) {
-        // Záporná cena jen snižuje fixní složku
-        fixni = finalPrice > 0 ? Number(finalPrice.toFixed(4)) : null;
-        odecteno = Math.abs(item.spot) > 0 ? Number(Math.abs(item.spot).toFixed(4)) : null;
+        fixed = finalPrice > 0 ? Number(finalPrice.toFixed(4)) : null;
+        coveredNegative = Math.abs(item.spot) > 0 ? Number(Math.abs(item.spot).toFixed(4)) : null;
       } else {
-        // Záporná cena pokryla celou fixní složku a zbytek jde pod nulu
-        odecteno = item.extra > 0 ? Number(item.extra.toFixed(4)) : null;
-        variabilni = finalPrice < 0 ? Number(finalPrice.toFixed(4)) : null;
+        coveredNegative = item.extra > 0 ? Number(item.extra.toFixed(4)) : null;
+        variable = finalPrice < 0 ? Number(finalPrice.toFixed(4)) : null;
       }
     } else {
-      // Normální stav
-      fixni = item.extra > 0 ? Number(item.extra.toFixed(4)) : null;
-      variabilni = item.spot > 0 ? Number(item.spot.toFixed(4)) : null;
-      
+      fixed = item.extra > 0 ? Number(item.extra.toFixed(4)) : null;
+      variable = item.spot > 0 ? Number(item.spot.toFixed(4)) : null;
+
       if (item.extra === 0 && item.spot === 0) {
-        fixni = 0;
+        fixed = 0;
       }
     }
 
-    dataFixni.push(fixni);
-    dataOdecteno.push(odecteno);
-    dataVariabilni.push(variabilni);
-    bgColorsVariabilni.push(item.final < 0 ? negativeColor : colorScale(item.final, minFinal, maxFinal));
+    dataFixed.push(fixed);
+    dataCoveredNegative.push(coveredNegative);
+    dataVariable.push(variable);
+    variableBackground.push(item.final < 0 ? negativeColor : colorScale(item.final, minFinal, maxFinal));
   });
 
   const datasets = [
     {
       type: "bar",
       label: "Fixní složka",
-      data: dataFixni,
+      data: dataFixed,
       backgroundColor: fixedColor,
-      borderRadius: 7,
+      borderRadius: 5,
       borderSkipped: false,
       stack: "price",
-      barPercentage: 0.92,
+      barPercentage: 0.9,
       categoryPercentage: 1,
     },
     {
       type: "bar",
       label: "Pokryto zápornou cenou",
-      data: dataOdecteno,
+      data: dataCoveredNegative,
       backgroundColor: coveredNegativeColor,
       borderColor: coveredNegativeColor,
-      borderWidth: 1.5,
-      borderDash: [4, 4],
-      borderRadius: 7,
+      borderWidth: 1,
+      borderRadius: 5,
       borderSkipped: false,
       stack: "price",
-      barPercentage: 0.92,
+      barPercentage: 0.9,
       categoryPercentage: 1,
     },
     {
       type: "bar",
       label: "Variabilní složka",
-      data: dataVariabilni,
-      backgroundColor: bgColorsVariabilni.map((color, index) => (dataVariabilni[index] != null ? variableColor : color)),
-      borderRadius: 7,
+      data: dataVariable,
+      backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? variableColor : color)),
+      borderRadius: 5,
       borderSkipped: false,
       stack: "price",
-      barPercentage: 0.92,
+      barPercentage: 0.9,
       categoryPercentage: 1,
     },
   ];
@@ -131,44 +127,44 @@ export const buildPriceChartConfig = ({
       scales: {
         x: {
           ...buildCategoryTimeAxis({
-            tickColor: (ctx) => (getVTStatus(ctx.tick.value, vtPeriods) === "VT" ? "#c7392f" : "#2f8f49"),
+            tickColor: (ctx) => (getVTStatus(ctx.tick.value, vtPeriods) === "VT" ? theme.accentRed : theme.accentGreen),
+            minLabelWidth: 68,
           }),
           stacked: true,
         },
         y: {
-          ...buildLinearAxis({ title: "Cena" }),
+          ...buildLinearAxis({ title: "Kč/kWh" }),
           stacked: true,
+          grid: {
+            color: "rgba(148, 163, 184, 0.12)",
+          },
           ticks: {
-            callback: (value) => `${Number(value).toFixed(2)},-Kč`,
+            callback: (value) => `${Number(value).toFixed(2).replace(".", ",")}`,
           },
         },
       },
       plugins: {
         legend: {
           labels: {
-            filter: (item) => {
-              // Hide empty legend items optionally, but we want all 3 to show.
-              return true;
-            }
+            padding: 18,
+            filter: () => true,
           },
         },
         tooltip: buildTooltip(({ points }) => {
           const point = chartData[points?.[0]?.dataIndex] || null;
-          if (!point) {
-            return null;
-          }
-          
+          if (!point) return null;
+
           const sections = [
-            { label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"},-Kč`, color: "rgba(45, 127, 249, 0.88)" }
+            { label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor },
           ];
-          
+
           if (point.spot < 0) {
-            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"},-Kč`, color: "rgba(45, 127, 249, 0.6)" });
+            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
           } else {
-            sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"},-Kč`, color: "rgba(255, 122, 89, 0.84)" });
+            sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: variableColor });
           }
-          
-          sections.push({ label: "Konečná cena", value: `${point.final?.toFixed(2) ?? "-"},-Kč`, color: "rgba(255, 255, 255, 0.92)" });
+
+          sections.push({ label: "Konečná cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: theme.text });
 
           return {
             title: `${formatSlotToTime(point.slot)} (${getVTStatus(point.slot, vtPeriods)})`,
@@ -179,9 +175,9 @@ export const buildPriceChartConfig = ({
           annotations: {
             ...buildTimeBandAnnotations(buildVtBands(vtPeriods)),
             ...buildCurrentSlotAnnotations({ slot: activeSlot }),
-            ...(thresholds ? buildThresholdAnnotations({ 
-              minThreshold: thresholds.min_price_today, 
-              maxThreshold: thresholds.max_price_today 
+            ...(thresholds ? buildThresholdAnnotations({
+              minThreshold: thresholds.min_price_today,
+              maxThreshold: thresholds.max_price_today,
             }) : {}),
           },
         },

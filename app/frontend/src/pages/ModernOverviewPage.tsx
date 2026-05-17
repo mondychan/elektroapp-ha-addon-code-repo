@@ -1,14 +1,14 @@
 import React from "react";
 import PriceChartCard from "../components/PriceChartCard";
 import MonthlySummaryCard from "../components/MonthlySummaryCard";
-import BatteryProjectionCard from "../components/BatteryProjectionCard";
 import EnergyBalanceCard from "../components/EnergyBalanceCard";
-import SolarForecastCard from "../components/SolarForecastCard";
 import KpiCard from "../components/modern/KpiCard";
 import StatusStrip from "../components/modern/StatusStrip";
 import EnergyFlowCard from "../components/modern/EnergyFlowCard";
 import DailySummaryCard from "../components/modern/DailySummaryCard";
 import SectionCard from "../components/modern/SectionCard";
+import ModernSolarForecastCard from "../components/modern/ModernSolarForecastCard";
+import ModernBatteryProjectionCard from "../components/modern/ModernBatteryProjectionCard";
 import { PageMode } from "../components/layout/AppHeader";
 import { formatCurrency, formatDate, formatSlotRange } from "../utils/formatters";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../hooks/useDashboardData";
 
 const formatKwh = (value?: number | null) => (value == null || Number.isNaN(Number(value)) ? null : `${Number(value).toFixed(2)} kWh`);
+
 const formatPowerW = (value?: number | null) => {
   if (value == null || Number.isNaN(Number(value))) return "-";
   const numeric = Number(value);
@@ -25,10 +26,19 @@ const formatPowerW = (value?: number | null) => {
   return `${Math.round(numeric)} W`;
 };
 
+const formatPrice = (value?: number | null) => (value == null || Number.isNaN(Number(value)) ? "-" : `${Number(value).toFixed(2)} Kč/kWh`);
+const formatPriceValue = (value?: number | null) => (value == null || Number.isNaN(Number(value)) ? "-" : `${Number(value).toFixed(2)} Kč`);
+
 const buildStatusLabel = (alerts: any) => {
   if (alerts?.is_cheap_now) return "LEVNÉ OKNO";
   if (alerts?.is_expensive_now) return "DRAHÁ ENERGIE";
   return "BĚŽNÝ PROVOZ";
+};
+
+const normalizeTime = (value: unknown) => {
+  if (!value) return null;
+  const text = String(value);
+  return text.includes(" ") ? text.split(" ").pop() || text : text;
 };
 
 const ModernOverviewPage = (props: any) => {
@@ -61,7 +71,6 @@ const ModernOverviewPage = (props: any) => {
     energyBalanceData,
     energyBalanceLoading,
     energyBalanceError,
-    pricesLoading,
     alerts,
     recommendations,
     setPageMode,
@@ -69,16 +78,15 @@ const ModernOverviewPage = (props: any) => {
 
   const currentEnergyBalanceAnchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
   const maxEnergyBalanceAnchor = getMaxEnergyBalanceAnchor(energyBalancePeriod);
-
-  const currentPrice =
+  const currentPriceNumber =
     alerts?.current_price != null
-      ? `${Number(alerts.current_price).toFixed(2)} Kč/kWh`
+      ? Number(alerts.current_price)
       : Number.isInteger(effectiveHighlightSlot) && todayData?.[effectiveHighlightSlot]
-        ? `${todayData[effectiveHighlightSlot].final.toFixed(2)} Kč/kWh`
-        : "-";
+        ? todayData[effectiveHighlightSlot].final
+        : null;
 
   const nextCheapWindow = alerts?.next_cheap_start
-    ? `Další levné okno začne v ${String(alerts.next_cheap_start).split(" ").pop()}${
+    ? `Další levné okno začne v ${normalizeTime(alerts.next_cheap_start)}${
         alerts.next_cheap_price != null ? ` (${Number(alerts.next_cheap_price).toFixed(2)} Kč/kWh)` : ""
       }`
     : null;
@@ -88,15 +96,16 @@ const ModernOverviewPage = (props: any) => {
   const maxPrice = finals.length ? Math.max(...finals) : null;
   const minItem = minPrice != null ? todayData.find((item: any) => item.final === minPrice) : null;
   const maxItem = maxPrice != null ? todayData.find((item: any) => item.final === maxPrice) : null;
-  const netTotal = costsSummary?.cost_total != null || exportSummary?.sell_total != null
-    ? (costsSummary?.cost_total || 0) - (exportSummary?.sell_total || 0)
-    : null;
+  const netTotal =
+    costsSummary?.cost_total != null || exportSummary?.sell_total != null
+      ? (costsSummary?.cost_total || 0) - (exportSummary?.sell_total || 0)
+      : null;
   const pvPower = batteryData?.current_energy?.pv_power_total_w ?? solarForecast?.actual?.power_now_w ?? solarForecast?.status?.power_now_w;
 
   const kpis = [
-    { label: "Aktuální cena", value: currentPrice.replace(" Kč/kWh", " Kč"), unit: "/kWh", detail: todayData?.[effectiveHighlightSlot]?.time || null, tone: "price" },
-    { label: "Dnešní minimum", value: minPrice != null ? `${minPrice.toFixed(2)} Kč` : "-", detail: minItem ? formatSlotRange(minItem.slot) : null, tone: "green" },
-    { label: "Dnešní maximum", value: maxPrice != null ? `${maxPrice.toFixed(2)} Kč` : "-", detail: maxItem ? formatSlotRange(maxItem.slot) : null, tone: "red" },
+    { label: "Aktuální cena", value: formatPriceValue(currentPriceNumber), unit: "/kWh", detail: todayData?.[effectiveHighlightSlot]?.time || null, tone: "price" },
+    { label: "Dnešní minimum", value: formatPriceValue(minPrice), detail: minItem ? formatSlotRange(minItem.slot) : null, tone: "green" },
+    { label: "Dnešní maximum", value: formatPriceValue(maxPrice), detail: maxItem ? formatSlotRange(maxItem.slot) : null, tone: "red" },
     { label: "Nákup dnes", value: formatCurrency(costsSummary?.cost_total), detail: formatKwh(costsSummary?.kwh_total), tone: "red" },
     { label: "Export dnes", value: formatCurrency(exportSummary?.sell_total), detail: formatKwh(exportSummary?.export_kwh_total), tone: "green" },
     { label: "Netto dnes", value: formatCurrency(netTotal), detail: null, tone: "purple" },
@@ -124,7 +133,7 @@ const ModernOverviewPage = (props: any) => {
 
       <StatusStrip
         statusLabel={buildStatusLabel(alerts)}
-        currentPrice={currentPrice}
+        currentPrice={formatPrice(currentPriceNumber)}
         nextCheapWindow={nextCheapWindow}
         recommendation={alerts?.recommendation || recommendations?.actions?.[0]?.title}
         onOpenRecommendations={() => setPageMode("recommendations" as PageMode)}
@@ -156,17 +165,18 @@ const ModernOverviewPage = (props: any) => {
             onPinSlot={setPinnedSlot}
             thresholds={alerts}
             className="modern-price-chart"
+            height={330}
           />
         </SectionCard>
       </div>
 
       <div className="modern-dashboard-grid modern-dashboard-grid--middle">
         <SectionCard title="Solární předpověď">
-          <SolarForecastCard solarForecast={solarForecast} loading={solarForecastLoading} />
+          <ModernSolarForecastCard solarForecast={solarForecast} loading={solarForecastLoading} />
         </SectionCard>
 
         <SectionCard title="Baterie a projekce" className="modern-section-card--wide">
-          <BatteryProjectionCard
+          <ModernBatteryProjectionCard
             batteryData={batteryData}
             batteryLoading={batteryLoading}
             batteryError={batteryError}

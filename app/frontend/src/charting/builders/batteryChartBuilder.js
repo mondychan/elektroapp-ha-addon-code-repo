@@ -1,5 +1,6 @@
 import { getQuarterHourSlotFromIso, parseIsoLocalTimeParts } from "../../utils/timeSeries";
 import { buildCategoryTimeAxis, buildTooltip } from "./common";
+import { getChartTheme } from "../chartTheme";
 
 const formatIsoToTime = (iso) => {
   const parts = parseIsoLocalTimeParts(iso);
@@ -94,37 +95,42 @@ const buildBatteryTimeAxis = () =>
     labelFormatter: (_, label) => (typeof label === "string" && label.endsWith(":00") ? label : ""),
   });
 
-export const buildBatterySocChartConfig = (chartData) => ({
-  pointPayloads: chartData,
-  data: {
-    labels: chartData.map((item) => item.timeLabel),
-    datasets: [
-      {
-        label: "SoC",
-        data: chartData.map((item) => item.soc),
-        borderColor: "rgba(45, 127, 249, 0.92)",
-        backgroundColor: "rgba(45, 127, 249, 0.12)",
-        borderWidth: 2.5,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        spanGaps: true,
-        tension: 0.28,
-      },
-      {
-        label: "Projekce SoC",
-        data: chartData.map((item) => item.socProjected ?? null),
-        borderColor: "rgba(255, 122, 89, 0.98)",
-        backgroundColor: "rgba(255, 122, 89, 0.14)",
-        borderWidth: 3,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        borderDash: [8, 6],
-        spanGaps: true,
-        tension: 0.24,
-      },
-    ],
-  },
-  options: {
+export const buildBatterySocChartConfig = (chartData) => {
+  const theme = getChartTheme();
+  const socColor = theme.accentGreen || "rgba(34, 197, 94, 0.92)";
+  const projectionColor = theme.accentAmber || "rgba(245, 158, 11, 0.98)";
+
+  return {
+    pointPayloads: chartData,
+    data: {
+      labels: chartData.map((item) => item.timeLabel),
+      datasets: [
+        {
+          label: "Stav baterie (%)",
+          data: chartData.map((item) => item.soc),
+          borderColor: socColor,
+          backgroundColor: "rgba(34, 197, 94, 0.12)",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          spanGaps: true,
+          tension: 0.28,
+        },
+        {
+          label: "Projekce SoC",
+          data: chartData.map((item) => item.socProjected ?? null),
+          borderColor: projectionColor,
+          backgroundColor: "rgba(245, 158, 11, 0.14)",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          borderDash: [7, 5],
+          spanGaps: true,
+          tension: 0.24,
+        },
+      ],
+    },
+    options: {
     interaction: {
       mode: "index",
       intersect: false,
@@ -147,42 +153,40 @@ export const buildBatterySocChartConfig = (chartData) => ({
         return {
           title: point.timeLabel,
           sections: [
-            {
-              label: "SoC",
-              value: point.soc == null ? "-" : `${Number(point.soc).toFixed(1)} %`,
-              color: "rgba(45, 127, 249, 0.92)",
-            },
-            {
-              label: "Projekce SoC",
-              value: point.socProjected == null ? "-" : `${Number(point.socProjected).toFixed(1)} %`,
-              color: "rgba(255, 122, 89, 0.98)",
-            },
-            { label: "Vykon baterie", value: `${Math.round(point.batteryPower)} W`, color: "rgba(255,255,255,0.92)" },
+            { label: "Stav baterie", value: point.soc == null ? "-" : `${Number(point.soc).toFixed(1)} %`, color: socColor },
+            { label: "Projekce SoC", value: point.socProjected == null ? "-" : `${Number(point.socProjected).toFixed(1)} %`, color: projectionColor },
+            { label: "Výkon baterie", value: `${Math.round(point.batteryPower)} W`, color: theme.text },
           ],
         };
       }),
     },
   },
-});
+  };
+};
 
-export const buildBatteryPowerChartConfig = (chartData) => ({
-  pointPayloads: chartData,
-  data: {
-    labels: chartData.map((item) => item.timeLabel),
-    datasets: [
-      {
-        type: "bar",
-        label: "Vykon baterie",
-        data: chartData.map((item) => item.batteryPower),
-        backgroundColor: chartData.map((item) =>
-          item.batteryPower >= 0 ? "rgba(255, 122, 89, 0.82)" : "rgba(45, 127, 249, 0.82)"
-        ),
-        borderRadius: 6,
-        borderSkipped: false,
-      },
-    ],
-  },
-  options: {
+export const buildBatteryPowerChartConfig = (chartData) => {
+  const theme = getChartTheme();
+  const chargeColor = theme.accentBlue || "rgba(56, 189, 248, 0.82)";
+  const dischargeColor = theme.accentRed || "rgba(239, 68, 68, 0.82)";
+
+  return {
+    pointPayloads: chartData,
+    data: {
+      labels: chartData.map((item) => item.timeLabel),
+      datasets: [
+        {
+          type: "bar",
+          label: "Nabíjení/Vybíjení (W)",
+          data: chartData.map((item) => item.batteryPower),
+          backgroundColor: chartData.map((item) =>
+            item.batteryPower >= 0 ? dischargeColor : chargeColor
+          ),
+          borderRadius: 5,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
     scales: {
       x: buildBatteryTimeAxis(),
       y: {
@@ -198,7 +202,7 @@ export const buildBatteryPowerChartConfig = (chartData) => ({
         if (!point) return null;
         return {
           title: point.timeLabel,
-          sections: [{ label: "Vykon baterie", value: `${Math.round(point.batteryPower)} W`, color: "rgba(255, 122, 89, 0.82)" }],
+          sections: [{ label: "Výkon baterie", value: `${Math.round(point.batteryPower)} W`, color: point.batteryPower >= 0 ? dischargeColor : chargeColor }],
         };
       }),
       annotation: {
@@ -214,4 +218,5 @@ export const buildBatteryPowerChartConfig = (chartData) => ({
       },
     },
   },
-});
+  };
+};

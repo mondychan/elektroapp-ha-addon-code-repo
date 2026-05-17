@@ -12,6 +12,7 @@ const PriceChartCard = ({
   onPinSlot,
   thresholds,
   highlightSlot,
+  height = 400,
 }) => {
   const chartConfig = useMemo(
     () =>
@@ -38,7 +39,7 @@ const PriceChartCard = ({
         <div className="config-muted">{fallbackMessage}</div>
       ) : (
         <BarTimeChart
-          height={400}
+          height={height}
           animationProfile="progressive"
           {...chartConfig}
           onLongPressPoint={(payload) => {
