@@ -46,3 +46,8 @@ Backend poskytuje bohaté rozhraní:
 - `GET /api/recommendations` - Akční doporučení pro spotřebu, baterii a export
 - `GET /api/diagnostics` - Provozní diagnostika cache, schedulerů a runtime stavu
 - `GET /api/daily-summary?month=YYYY-MM` - Měsíční billing souhrn
+## UI layouty
+
+- Vychozi rozhrani je moderni dashboard se sidebar navigaci na desktopu a spodnim menu na mobilu.
+- Moderni layout zachovava stejne API, Home Assistant entity a vypocty jako puvodni UI; meni pouze rozvrzeni, karty, graficke tokeny a vizualni hierarchii.
+- Puvodni vzhled zustava dostupny pres prepinac `Moderni / Legacy` v hornim panelu a ulozi se do `localStorage` pod klicem `uiLayout`.

@@ -39,6 +39,7 @@ Aktivujte import dat z distribuce:
 ## Použití
 
 - Dashboard je dostupný v postranním panelu HA přes **Ingress**.
+- Vychozi dashboard pouziva moderni layout. Puvodni legacy vzhled zustava dostupny pres prepinac `Moderni / Legacy` v hornim panelu.
 - **Přehled**: Rychlý pohled na ceny, bilanci a stav baterie.
 - **Doporučení**: Akční řádky jako `Spustit spotřebič`, `Šetřit baterii`, `Nabít baterii`, `Exportovat` nebo `Bez akce`.
 - **Statistiky**: Modulární sekce pro podrobné srovnání výkonu.

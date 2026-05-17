@@ -58,6 +58,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [solarForecastLoading, setSolarForecastLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
   const [diagnosticsSummary, setDiagnosticsSummary] = useState<DiagnosticsSummary | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
 
@@ -101,6 +102,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setSolarForecast(data.solar || null);
       setRecommendations(data.recommendations || null);
       setDiagnosticsSummary(data.diagnostics_summary || null);
+      setLastUpdatedAt(new Date().toISOString());
       
       if (dateValue === todayDate) {
         setTodayCostsKpi(data.costs?.summary || null);
@@ -131,6 +133,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     try {
       const data = await elektroappApi.getBattery();
       setBatteryData(data);
+      setLastUpdatedAt(new Date().toISOString());
     } catch (err) {
       console.error("Error fetching battery data:", err);
       setBatteryError(buildInfluxError(err));
@@ -226,6 +229,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     solarForecastLoading,
     recommendations,
     diagnosticsSummary,
+    lastUpdatedAt,
     refreshConfig,
   };
 };

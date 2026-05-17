@@ -8,6 +8,18 @@ import DetailPage from "./pages/DetailPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
 import PndPage from "./pages/PndPage";
 import HpPage from "./pages/HpPage";
+import ModernOverviewPage from "./pages/ModernOverviewPage";
+import AppShell from "./components/modern/AppShell";
+import SectionCard from "./components/modern/SectionCard";
+import DataCard from "./components/common/DataCard";
+import SolarForecastCard from "./components/SolarForecastCard";
+import MonthlySummaryCard from "./components/MonthlySummaryCard";
+import BillingCard from "./components/BillingCard";
+import BatteryProjectionCard from "./components/BatteryProjectionCard";
+import EnergyBalanceCard from "./components/EnergyBalanceCard";
+import ComparisonCard from "./components/ComparisonCard";
+import ConfigCard from "./components/ConfigCard";
+import PriceChartCard from "./components/PriceChartCard";
 
 import { formatSlotToTime, formatSlotRange, formatCurrency, formatBytes } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
@@ -23,6 +35,11 @@ import {
   getTodayDateStr,
 } from "./hooks/dashboardUtils";
 import { PriceItem } from "./types/elektroapp";
+import {
+  normalizeEnergyBalanceAnchor,
+  shiftEnergyBalanceAnchor,
+  getMaxEnergyBalanceAnchor,
+} from "./hooks/useDashboardData";
 
 const formatEtaTime = (iso: string | null) => {
   if (!iso) return null;
@@ -62,7 +79,8 @@ const App: React.FC = () => {
   const [showFeesHistory, setShowFeesHistory] = useState(false);
   const [showBatteryPanel, setShowBatteryPanel] = useState(false);
 
-  const [theme, setTheme] = useLocalStorageState<"light" | "dark" | "system">("theme", "light");
+  const [theme, setTheme] = useLocalStorageState<"light" | "dark" | "system">("theme", "dark");
+  const [uiLayout, setUiLayout] = useLocalStorageState<"modern" | "legacy">("uiLayout", "modern");
   const [plannerDuration, setPlannerDuration] = useLocalStorageState("plannerDuration", "120");
 
   const [plannerValidationError, setPlannerValidationError] = useState<string | null>(null);
@@ -121,12 +139,16 @@ const App: React.FC = () => {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme]);
 
+  useEffect(() => {
+    document.body.dataset.uiLayout = uiLayout || "modern";
+  }, [uiLayout]);
+
   const dashboard = useDashboardData({
     selectedDate,
     selectedMonth,
-    showConfig,
-    showFeesHistory,
-    showBilling,
+    showConfig: showConfig || (uiLayout === "modern" && pageMode === "settings"),
+    showFeesHistory: showFeesHistory || (uiLayout === "modern" && pageMode === "settings"),
+    showBilling: showBilling || (uiLayout === "modern" && pageMode === "monthly"),
     billingMode,
     billingMonth,
     billingYear,
@@ -327,13 +349,17 @@ const App: React.FC = () => {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
-  return (
+  if (uiLayout === "legacy") {
+    return (
     <div className={`app ${pageMode !== "overview" ? "app--detail" : ""}`.trim()} {...(pullHandlers as any)}>
       <div className={`pull-indicator ${pullArmed ? "is-armed" : ""} ${pullRefreshing ? "is-refreshing" : ""}`} style={{ height: pullRefreshing ? 42 : Math.min(42, pullDistance) }}>
         <span>{pullRefreshing ? "Obnovuji ceny..." : pullArmed ? "Uvolni pro obnoveni" : "Stahni pro obnoveni"}</span>
       </div>
 
       <AppHeader pageMode={pageMode} setPageMode={setPageMode} theme={theme!} setTheme={setTheme} />
+      <div className="legacy-layout-switch">
+        <button type="button" onClick={() => setUiLayout("modern")}>Přepnout na moderní vzhled</button>
+      </div>
       <KPIScreen items={screenKpiItems as any} layout={pageMode === "hp" ? "compact" : "default"} />
 
       <main className="app-main">
@@ -573,6 +599,235 @@ const App: React.FC = () => {
       </footer>
 
       <BottomNav pageMode={pageMode} setPageMode={setPageMode} />
+    </div>
+  );
+  }
+
+  const currentEnergyBalanceAnchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
+  const maxEnergyBalanceAnchor = getMaxEnergyBalanceAnchor(energyBalancePeriod);
+
+  const renderModernContent = () => {
+    if (pageMode === "overview") {
+      return (
+        <ModernOverviewPage
+          {...dashboard}
+          today={today}
+          tomorrow={tomorrow}
+          todayData={todayData}
+          tomorrowData={tomorrowData}
+          pinnedSlot={pinnedSlot}
+          setPinnedSlot={setPinnedSlot}
+          effectiveHighlightSlot={effectiveHighlightSlot}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+          maxMonth={currentMonthStr}
+          energyBalancePeriod={energyBalancePeriod}
+          energyBalanceAnchor={energyBalanceAnchor}
+          setEnergyBalanceAnchor={setEnergyBalanceAnchor}
+          setEnergyBalancePeriod={setEnergyBalancePeriod}
+          refreshBattery={dashboard.refreshBattery}
+          setPageMode={setPageMode}
+        />
+      );
+    }
+
+    if (pageMode === "costs") {
+      return (
+        <DetailPage
+          {...dashboard}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          selectedDateObj={new Date(`${selectedDate}T00:00:00`)}
+          selectedDatePriceData={selectedDatePriceData}
+          selectedDatePricesLoading={dashboard.selectedDatePricesLoading}
+          selectedDatePricesError={dashboard.selectedDatePricesError}
+          maxDate={tomorrowDateStr}
+          maxMonth={currentMonthStr}
+          effectiveHighlightSlot={effectiveHighlightSlot as any}
+          pinnedSlot={pinnedSlot as any}
+          setPinnedSlot={setPinnedSlot}
+          dateSwipeHandlers={dateSwipeHandlers}
+          showDetailAnnotations={true}
+          energyBalancePeriod={energyBalancePeriod}
+          energyBalanceAnchor={energyBalanceAnchor}
+          setEnergyBalanceAnchor={setEnergyBalanceAnchor}
+          setEnergyBalancePeriod={setEnergyBalancePeriod}
+          refreshBattery={dashboard.refreshBattery}
+          heatmapMonth={heatmapMonth}
+          setHeatmapMonth={setHeatmapMonth}
+          heatmapMetric={heatmapMetric}
+          setHeatmapMetric={setHeatmapMetric}
+          thresholds={dashboard.alerts?.thresholds || []}
+        />
+      );
+    }
+
+    if (pageMode === "recommendations") {
+      return (
+        <RecommendationsPage
+          recommendations={(dashboard as any).recommendations}
+          plannerDuration={plannerDuration}
+          setPlannerDuration={(d: string) => setPlannerDuration(d)}
+          handleLoadPlanner={handleLoadPlanner}
+          finalPlannerError={(plannerValidationError || (dashboard as any).plannerError) as any}
+          plannerLoading={(dashboard as any).plannerLoading}
+          plannerNote={(dashboard as any).plannerNote}
+          plannerResults={(dashboard as any).plannerResults || []}
+        />
+      );
+    }
+
+    if (pageMode === "battery") {
+      return (
+        <SectionCard title="Baterie a projekce">
+          <BatteryProjectionCard
+            batteryData={batteryData}
+            batteryLoading={dashboard.batteryLoading}
+            batteryError={dashboard.batteryError}
+            onRefresh={dashboard.refreshBattery}
+          />
+        </SectionCard>
+      );
+    }
+
+    if (pageMode === "solar") {
+      return (
+        <div className="modern-dashboard-grid">
+          <SectionCard title="Soláry / FV" className="modern-section-card--wide">
+            <SolarForecastCard solarForecast={dashboard.solarForecast} loading={dashboard.solarForecastLoading} />
+          </SectionCard>
+          <SectionCard title="Cena elektřiny dnes" className="modern-section-card--wide">
+            <PriceChartCard
+              chartData={todayData}
+              fallbackMessage="Načítám data..."
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={effectiveHighlightSlot}
+              pinnedSlot={pinnedSlot}
+              onPinSlot={setPinnedSlot}
+              thresholds={dashboard.alerts}
+              className="modern-price-chart"
+            />
+          </SectionCard>
+        </div>
+      );
+    }
+
+    if (pageMode === "monthly") {
+      return (
+        <div className="modern-dashboard-grid">
+          <SectionCard title="Měsíční přehled" className="modern-section-card--wide">
+            <MonthlySummaryCard
+              selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
+              maxMonth={currentMonthStr}
+              monthlySummary={dashboard.monthlySummary || []}
+              monthlyTotals={dashboard.monthlyTotals}
+              monthlyError={dashboard.monthlyError}
+            />
+          </SectionCard>
+          <SectionCard title="Odhad vyúčtování" className="modern-section-card--wide">
+            <BillingCard
+              billingMode={billingMode}
+              setBillingMode={setBillingMode}
+              billingMonth={billingMonth}
+              setBillingMonth={setBillingMonth}
+              billingYear={billingYear}
+              setBillingYear={setBillingYear}
+              maxMonth={currentMonthStr}
+              maxYear={currentYearStr}
+              billingData={dashboard.billingData}
+              billingLoading={dashboard.billingLoading}
+              billingError={dashboard.billingError}
+            />
+          </SectionCard>
+        </div>
+      );
+    }
+
+    if (pageMode === "stats") {
+      return (
+        <div className="modern-dashboard-grid">
+          <SectionCard title="Srovnání výkonu" className="modern-section-card--wide">
+            <ComparisonCard comparison={dashboard.comparison} loading={dashboard.comparisonLoading} />
+          </SectionCard>
+          <SectionCard title="Energetická bilance" className="modern-section-card--wide">
+            <EnergyBalanceCard
+              period={energyBalancePeriod}
+              anchor={currentEnergyBalanceAnchor}
+              onPrev={() => setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, -1))}
+              onNext={() => setEnergyBalanceAnchor((prev: string) => shiftEnergyBalanceAnchor(energyBalancePeriod, prev, 1))}
+              disableNext={currentEnergyBalanceAnchor === maxEnergyBalanceAnchor}
+              onPeriodChange={(value: any) => {
+                setEnergyBalancePeriod(value as any);
+                setEnergyBalanceAnchor((prev: string) => normalizeEnergyBalanceAnchor(value, prev));
+              }}
+              data={dashboard.energyBalanceData}
+              loading={dashboard.energyBalanceLoading}
+              error={dashboard.energyBalanceError}
+            />
+          </SectionCard>
+        </div>
+      );
+    }
+
+    if (pageMode === "pnd") {
+      return <PndPage config={config} refreshConfig={refreshConfig} />;
+    }
+
+    if (pageMode === "hp") {
+      return <HpPage config={config} refreshConfig={refreshConfig} onKpisChange={setHpKpiItems} maxDate={todayDateStr} />;
+    }
+
+    return (
+      <div className="modern-settings-grid">
+        <ConfigCard
+          configRows={configRows}
+          cacheRows={cacheRows}
+          consumptionCacheRows={consumptionCacheRows}
+          exportCacheRows={exportCacheRows}
+          cacheStatus={dashboard.cacheStatus}
+          showFeesHistory={true}
+          onToggleFeesHistory={() => setShowFeesHistory((prev: boolean) => !prev)}
+          feesHistory={(dashboard as any).feesHistory}
+          feesHistoryLoading={(dashboard as any).feesHistoryLoading}
+          feesHistoryError={(dashboard as any).feesHistoryError}
+          onSaveFeesHistory={(dashboard as any).saveFeesHistory}
+          defaultFeesValues={defaultFeesValues}
+          priceProviderLabel={priceProviderLabel}
+          priceProviderUrl={priceProviderUrl}
+          onRefreshPrices={refreshPrices}
+          refreshingPrices={dashboard.pricesRefreshLoading}
+          pricesRefreshMessage={dashboard.pricesRefreshMessage}
+          pricesRefreshError={dashboard.pricesRefreshError}
+        />
+        <DataCard title="PND">
+          <PndPage config={config} refreshConfig={refreshConfig} />
+        </DataCard>
+      </div>
+    );
+  };
+
+  return (
+    <div {...(pullHandlers as any)}>
+      <div className={`pull-indicator ${pullArmed ? "is-armed" : ""} ${pullRefreshing ? "is-refreshing" : ""}`} style={{ height: pullRefreshing ? 42 : Math.min(42, pullDistance) }}>
+        <span>{pullRefreshing ? "Obnovuji ceny..." : pullArmed ? "Uvolni pro obnoveni" : "Stahni pro obnoveni"}</span>
+      </div>
+      <AppShell
+        pageMode={pageMode}
+        setPageMode={setPageMode}
+        theme={theme!}
+        setTheme={setTheme}
+        uiLayout={uiLayout!}
+        setUiLayout={setUiLayout}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        lastUpdatedAt={(dashboard as any).lastUpdatedAt}
+        refreshing={dashboard.pricesRefreshLoading}
+        onRefresh={refreshPrices}
+        version={dashboard.version}
+      >
+        {renderModernContent()}
+      </AppShell>
     </div>
   );
 };

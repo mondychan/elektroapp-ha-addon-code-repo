@@ -1,7 +1,17 @@
 import React from "react";
 import ThemeToggle from "../common/ThemeToggle";
 
-export type PageMode = "overview" | "costs" | "recommendations" | "battery" | "hp" | "pnd" | "settings";
+export type PageMode =
+  | "overview"
+  | "costs"
+  | "recommendations"
+  | "battery"
+  | "solar"
+  | "monthly"
+  | "stats"
+  | "hp"
+  | "pnd"
+  | "settings";
 
 interface AppHeaderProps {
   pageMode: PageMode;

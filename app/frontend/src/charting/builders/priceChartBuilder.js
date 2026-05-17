@@ -3,6 +3,7 @@ import { buildCurrentSlotAnnotations } from "../plugins/currentSlotPlugin";
 import { buildTimeBandAnnotations } from "../plugins/timeBandPlugin";
 import { buildThresholdAnnotations } from "../plugins/thresholdPlugin";
 import { buildCategoryTimeAxis, buildLinearAxis, buildStaticTimeLabels, buildTooltip, colorScale } from "./common";
+import { getChartTheme } from "../chartTheme";
 
 const getVTStatus = (slot, vtPeriods) =>
   (vtPeriods || []).some(([start, end]) => slot >= start * 4 && slot < end * 4) ? "VT" : "NT";
@@ -33,6 +34,11 @@ export const buildPriceChartConfig = ({
   const minFinal = Math.min(...chartData.map((item) => item.final));
   const maxFinal = Math.max(...chartData.map((item) => item.final));
   const activeSlot = Number.isInteger(pinnedSlot) ? pinnedSlot : highlightSlot;
+  const theme = getChartTheme();
+  const fixedColor = theme.accentBlue || "rgba(45, 127, 249, 0.88)";
+  const coveredNegativeColor = theme.accentCyan || "rgba(34, 211, 238, 0.82)";
+  const variableColor = theme.accentRed || "rgba(239, 68, 68, 0.84)";
+  const negativeColor = theme.accentGreen || "rgba(34, 197, 94, 0.84)";
 
   const dataFixni = [];
   const dataOdecteno = [];
@@ -68,7 +74,7 @@ export const buildPriceChartConfig = ({
     dataFixni.push(fixni);
     dataOdecteno.push(odecteno);
     dataVariabilni.push(variabilni);
-    bgColorsVariabilni.push(colorScale(item.final, minFinal, maxFinal));
+    bgColorsVariabilni.push(item.final < 0 ? negativeColor : colorScale(item.final, minFinal, maxFinal));
   });
 
   const datasets = [
@@ -76,7 +82,7 @@ export const buildPriceChartConfig = ({
       type: "bar",
       label: "Fixní složka",
       data: dataFixni,
-      backgroundColor: "rgba(45, 127, 249, 0.88)",
+      backgroundColor: fixedColor,
       borderRadius: 7,
       borderSkipped: false,
       stack: "price",
@@ -87,8 +93,8 @@ export const buildPriceChartConfig = ({
       type: "bar",
       label: "Pokryto zápornou cenou",
       data: dataOdecteno,
-      backgroundColor: "rgba(45, 127, 249, 0.12)",
-      borderColor: "rgba(45, 127, 249, 0.6)",
+      backgroundColor: coveredNegativeColor,
+      borderColor: coveredNegativeColor,
       borderWidth: 1.5,
       borderDash: [4, 4],
       borderRadius: 7,
@@ -101,7 +107,7 @@ export const buildPriceChartConfig = ({
       type: "bar",
       label: "Variabilní složka",
       data: dataVariabilni,
-      backgroundColor: bgColorsVariabilni,
+      backgroundColor: bgColorsVariabilni.map((color, index) => (dataVariabilni[index] != null ? variableColor : color)),
       borderRadius: 7,
       borderSkipped: false,
       stack: "price",

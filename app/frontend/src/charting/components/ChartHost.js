@@ -57,7 +57,7 @@ const ChartHost = ({
     const observer = new MutationObserver(refreshTheme);
     observer.observe(document.body, {
       attributes: true,
-      attributeFilter: ["data-theme", "class", "style"],
+      attributeFilter: ["data-theme", "data-ui-layout", "class", "style"],
     });
 
     return () => observer.disconnect();

@@ -12,6 +12,7 @@ Toto je metadata repo pro Home Assistant Add-on Store.
 
 ## Aktualni core zmeny
 
+- Vychozi UI je moderni dashboard se sidebar navigaci na desktopu, mobilnim bottom nav a prepinacem zpet na legacy vzhled pro A/B testovani.
 - Frontend build byl migrovan z CRA na Vite a testy na Vitest.
 - Dashboard snapshot nyni nacita prvni obrazovku jednim rozsireny API kontraktem bez duplicitnich volani cen.
 - Nova karta Doporuceni kombinuje ceny, baterii, solarni forecast, bilanci a planner do akcnich radku bez automatickeho rizeni Home Assistanta.
