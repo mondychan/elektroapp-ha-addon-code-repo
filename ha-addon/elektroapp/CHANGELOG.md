@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.28
+- Moderni dashboard je vychozi UI: desktop sidebar, topbar, KPI grid, status strip a mobilni bottom navigace.
+- Puvodni legacy vzhled zustava dostupny pres prepinac `Moderni / Legacy` pro A/B testovani a rychly navrat.
+- Prehled byl preskladan do analytickeho dashboardu se sjednocenymi kartami pro energeticky tok, FV forecast, cenu, baterii, denni souhrn, mesicni prehled a bilanci.
+- Graficke tokeny a chart theme byly sjednoceny pro dark/light rezim, lepsi kontrast a citelnejsi barvy importu, exportu, baterie, FV a cen.
+- Nebyly meneny backend vypocty, Home Assistant entity ani datove zdroje.
+
 ## 0.3.27
 - Oprava mobilnich ikon ve spodni navigaci: ikony jsou inline SVG, ne CSS masky, takze se v HA mobile/webview nevykresluji jako prazdne ctverce.
 - Odstranena nepotrebna zavislost na balicku SVG assetu pro navigacni ikony.
