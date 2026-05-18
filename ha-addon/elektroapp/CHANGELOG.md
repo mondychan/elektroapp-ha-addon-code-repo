@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.33
+- Release 0.3.33 more polish
+
 ## 0.3.32
 - Hlavicka moderniho UI pouziva logo aplikace misto textu a blesku, s oddelenou variantou pro svetly a tmavy rezim.
 - Logo je presunute do frontend assets, optimalizovane pro web a v UI se nezobrazuje duplicitne.
