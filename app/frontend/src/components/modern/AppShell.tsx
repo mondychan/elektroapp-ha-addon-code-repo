@@ -1,9 +1,11 @@
 import React, { useState } from "react";
+import logoDark from "../../assets/elektroapp-logo-dark.png";
+import logoLight from "../../assets/elektroapp-logo-light.png";
 import { PageMode } from "../layout/AppHeader";
 import ThemeToggle from "../common/ThemeToggle";
+import { useLocalStorageState } from "../../hooks/useLocalStorageState";
 import {
   IconBattery,
-  IconBolt,
   IconBulb,
   IconCalendar,
   IconChart,
@@ -58,6 +60,13 @@ const navItems: NavItem[] = [
 
 const mobileItems = navItems.filter((item) => ["overview", "costs", "recommendations", "battery", "settings"].includes(item.id));
 
+const BrandLogo = ({ className = "" }: { className?: string }) => (
+  <span className={`modern-brand-logo ${className}`.trim()} role="img" aria-label="Elektroapp">
+    <img className="modern-brand-logo__image modern-brand-logo__image--dark" src={logoDark} alt="" aria-hidden="true" />
+    <img className="modern-brand-logo__image modern-brand-logo__image--light" src={logoLight} alt="" aria-hidden="true" />
+  </span>
+);
+
 const formatUpdated = (value?: string | null) => {
   if (!value) return "Aktualizováno: -";
   const dt = new Date(value);
@@ -107,7 +116,8 @@ const AppShell: React.FC<AppShellProps> = ({
   children,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCompact, setSidebarCompact] = useState(false);
+  const [sidebarCompactPreference, setSidebarCompactPreference] = useLocalStorageState<"expanded" | "compact">("modernSidebarCompact", "expanded");
+  const sidebarCompact = sidebarCompactPreference === "compact";
 
   const handleNav = (mode: PageMode) => {
     setPageMode(mode);
@@ -119,16 +129,12 @@ const AppShell: React.FC<AppShellProps> = ({
       setSidebarOpen(true);
       return;
     }
-    setSidebarCompact((value) => !value);
+    setSidebarCompactPreference(sidebarCompact ? "expanded" : "compact");
   };
 
   return (
     <div className={`modern-app-shell ${sidebarCompact ? "is-sidebar-compact" : ""}`.trim()}>
       <aside className={`modern-sidebar ${sidebarOpen ? "is-open" : ""}`.trim()} aria-label="Hlavní navigace">
-        <div className="modern-sidebar__brand">
-          <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>
-          <strong>Elektroapp</strong>
-        </div>
         <nav className="modern-sidebar__nav" role="tablist" aria-label="Hlavní navigace">
           {navItems.map((item) => (
             <NavButton key={item.id} item={item} active={pageMode === item.id} onClick={() => handleNav(item.id)} />
@@ -161,8 +167,7 @@ const AppShell: React.FC<AppShellProps> = ({
             >
               <IconMenu size={20} />
             </button>
-            <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>
-            <strong>Elektroapp</strong>
+            <BrandLogo className="modern-brand-logo--topbar" />
           </div>
 
           <div className="modern-topbar__controls">
