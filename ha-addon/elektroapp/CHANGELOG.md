@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.32
+- Hlavicka moderniho UI pouziva logo aplikace misto textu a blesku, s oddelenou variantou pro svetly a tmavy rezim.
+- Logo je presunute do frontend assets, optimalizovane pro web a v UI se nezobrazuje duplicitne.
+- KPI karty jsou kompaktnejsi na desktopu i mobilu a sirka se ridi obsahem misto pevnym gridem.
+- Sbaleni desktop sidebaru se uklada do `localStorage`, takze zustane zachovane i po refreshi stranky.
+
 ## 0.3.31
 - Moderni UI ma kompaktnejsi KPI karty a funkcni desktop hamburger pro sbaleni sidebaru.
 - Moderni prehled zobrazuje graf cen na zitra, jakmile jsou data dostupna.
