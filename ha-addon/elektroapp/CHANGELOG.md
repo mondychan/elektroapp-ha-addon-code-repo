@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.31
+- Moderni UI ma kompaktnejsi KPI karty a funkcni desktop hamburger pro sbaleni sidebaru.
+- Moderni prehled zobrazuje graf cen na zitra, jakmile jsou data dostupna.
+- Energeticky tok ma nove SVG trasy s jemnymi animovanymi pulzy a respektuje omezeni pohybu.
+- Mesicni prehled uz nema vnitrni vertikalni scrollbar a souctovy radek ma nepruhledne pozadi pro lepsi citelnost.
+
 ## 0.3.30
 - 0.3.30 release push
 
