@@ -350,6 +350,12 @@ BILLING_SERVICE = BillingService(
     get_fee_snapshot_for_date=get_fee_snapshot_for_date,
     calculate_sell_coefficient=calculate_sell_coefficient,
     compute_fixed_breakdown_for_day=compute_fixed_breakdown_for_day,
+    get_influx_cfg=get_influx_cfg,
+    get_energy_entities_cfg=get_energy_entities_cfg,
+    parse_influx_interval_to_minutes=parse_influx_interval_to_minutes,
+    query_entity_series=INFLUX_SERVICE.query_entity_series,
+    aggregate_power_points=aggregate_power_points,
+    logger=logger,
 )
 
 BATTERY_SERVICE = BatteryService(

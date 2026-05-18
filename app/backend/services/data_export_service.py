@@ -19,6 +19,7 @@ class DataExportService:
         writer.writerow([
             "Datum", 
             "Nakup (kWh)", 
+            "Vyrobeno FV (kWh)",
             "Naklady (Kc)", 
             "Prodej (kWh)", 
             "Trzby (Kc)", 
@@ -29,6 +30,7 @@ class DataExportService:
         days = data.get("days", [])
         for day in days:
             kwh = day.get("kwh_total") or 0.0
+            pv_kwh = day.get("pv_kwh")
             cost = day.get("cost_total") or 0.0
             export = day.get("export_kwh_total") or 0.0
             sell = day.get("sell_total") or 0.0
@@ -39,6 +41,7 @@ class DataExportService:
             writer.writerow([
                 day.get("date"),
                 f"{kwh:.3f}".replace('.', ','),
+                "" if pv_kwh is None else f"{float(pv_kwh):.3f}".replace('.', ','),
                 f"{cost:.2f}".replace('.', ','),
                 f"{export:.3f}".replace('.', ','),
                 f"{sell:.2f}".replace('.', ','),

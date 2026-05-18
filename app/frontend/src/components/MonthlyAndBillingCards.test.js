@@ -19,6 +19,7 @@ describe("MonthlySummaryCard", () => {
           {
             date: "2026-02-10",
             kwh_total: 12.345,
+            pv_kwh: 33.456,
             cost_total: 45.678,
             export_kwh_total: 1.5,
             sell_total: 2.75,
@@ -26,6 +27,7 @@ describe("MonthlySummaryCard", () => {
         ]}
         monthlyTotals={{
           kwh_total: 12.345,
+          pv_kwh: 33.456,
           cost_total: 45.678,
           export_kwh_total: 1.5,
           sell_total: 2.75,
@@ -36,6 +38,7 @@ describe("MonthlySummaryCard", () => {
 
     expect(screen.getByText(/Sou/)).toBeInTheDocument();
     expect(screen.getAllByText("12.35").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("33.46").length).toBeGreaterThan(0);
     expect(screen.getAllByText("45.68").length).toBeGreaterThan(0);
     expect(container.querySelector(".monthly-summary-table-container")).not.toHaveAttribute("style");
   });

@@ -21,23 +21,23 @@ const flowMeta: Record<FlowTone, { label: string; gradient: string; path: string
   solar: {
     label: "Soláry do domu",
     gradient: "flow-gradient-solar",
-    path: "M 178 90 C 252 90 288 137 344 152",
+    path: "M 0 25 C 18 25 32 42 47 45",
   },
   battery: {
     label: "Baterie do domu",
     gradient: "flow-gradient-battery",
-    path: "M 178 240 C 252 240 288 190 344 176",
-    reversePath: "M 344 192 C 288 222 252 252 178 252",
+    path: "M 0 75 C 18 75 32 58 47 55",
+    reversePath: "M 47 60 C 32 78 18 84 0 82",
   },
   import: {
     label: "Import ze sítě",
     gradient: "flow-gradient-import",
-    path: "M 582 90 C 508 90 472 137 416 152",
+    path: "M 100 25 C 82 25 68 42 53 45",
   },
   export: {
     label: "Export do sítě",
     gradient: "flow-gradient-export",
-    path: "M 416 190 C 472 212 508 240 582 240",
+    path: "M 53 58 C 68 67 82 75 100 75",
   },
 };
 
@@ -111,7 +111,7 @@ const FlowNode = ({
 );
 
 const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
-  <svg className="energy-flow__svg" viewBox="0 0 760 330" role="img" aria-hidden="true">
+  <svg className="energy-flow__svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-hidden="true">
     <defs>
       <linearGradient id="flow-gradient-solar" x1="0%" x2="100%" y1="0%" y2="0%">
         <stop offset="0%" stopColor="var(--accent-amber)" stopOpacity="0.95" />
@@ -140,14 +140,14 @@ const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
         <marker
           key={tone}
           id={`flow-arrow-${tone}`}
-          markerWidth="12"
-          markerHeight="12"
-          refX="10"
-          refY="6"
+          markerWidth="4"
+          markerHeight="4"
+          refX="3.6"
+          refY="2"
           orient="auto"
-          markerUnits="userSpaceOnUse"
+          markerUnits="strokeWidth"
         >
-          <path className={`energy-flow__marker energy-flow__marker--${tone}`} d="M 1 1 L 11 6 L 1 11 z" />
+          <path className={`energy-flow__marker energy-flow__marker--${tone}`} d="M 0.3 0.3 L 3.8 2 L 0.3 3.7 z" />
         </marker>
       ))}
     </defs>

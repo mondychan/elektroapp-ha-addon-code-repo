@@ -349,6 +349,7 @@ export interface MonthlyDayData {
   date: string;
   kwh_total: number | null;
   cost_total: number | null;
+  pv_kwh?: number | null;
   export_kwh_total: number | null;
   sell_total: number | null;
   netKwh?: number | null;
@@ -358,6 +359,7 @@ export interface MonthlyDayData {
 export interface MonthlyTotals {
   kwh_total?: number;
   cost_total?: number;
+  pv_kwh?: number | null;
   export_kwh_total?: number;
   sell_total?: number;
 }

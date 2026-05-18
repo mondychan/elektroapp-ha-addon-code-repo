@@ -122,11 +122,6 @@ const ModernOverviewPage = (props: any) => {
 
   return (
     <div className="modern-dashboard">
-      <div className="modern-page-title">
-        <h1>Dnes</h1>
-        <span>{formatDate(today)}</span>
-      </div>
-
       <section className="modern-kpi-grid" aria-label="Dnešní KPI">
         {kpis.map((item) => (
           <KpiCard key={item.label} {...item} />
@@ -142,7 +137,7 @@ const ModernOverviewPage = (props: any) => {
       />
 
       <div className="modern-dashboard-grid modern-dashboard-grid--top">
-        <SectionCard title="Energetický tok" eyebrow="Aktuálně">
+        <SectionCard title="Energetický tok" hideHeader>
           <EnergyFlowCard batteryData={batteryData} solarForecast={solarForecast} />
         </SectionCard>
 

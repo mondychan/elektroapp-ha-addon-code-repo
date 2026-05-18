@@ -2407,15 +2407,14 @@ body[data-theme="light"] .modern-topbar {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
+  width: 100%;
   gap: 8px;
   margin-bottom: 10px;
 }
 
 .modern-kpi {
-  flex: 0 1 auto;
-  width: fit-content;
-  min-width: 82px;
-  max-width: 148px;
+  flex: 1 1 106px;
+  min-width: 92px;
   min-height: 54px;
   position: relative;
   display: grid;
@@ -2622,6 +2621,11 @@ body[data-theme="light"] .modern-topbar {
 .modern-section-card__body {
   min-width: 0;
   padding: 14px 16px 16px;
+  container-type: inline-size;
+}
+
+.modern-section-card--no-header .modern-section-card__body {
+  padding-top: 16px;
 }
 
 .modern-content .card {
@@ -2648,13 +2652,17 @@ body[data-theme="light"] .modern-topbar {
 .energy-flow {
   position: relative;
   min-height: 276px;
+  --flow-side-inset: 150px;
   isolation: isolate;
 }
 
 .energy-flow__svg {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  bottom: 0;
+  left: var(--flow-side-inset);
+  right: var(--flow-side-inset);
+  width: auto;
   height: 100%;
   z-index: 0;
   overflow: visible;
@@ -2722,7 +2730,8 @@ body[data-theme="light"] .modern-topbar {
 
 .energy-flow-node {
   position: absolute;
-  min-width: 132px;
+  width: 144px;
+  max-width: 144px;
   min-height: 58px;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -2768,7 +2777,8 @@ body[data-theme="light"] .modern-topbar {
   --node-color: var(--accent-cyan);
   left: 50%;
   top: 50%;
-  min-width: 104px;
+  width: 112px;
+  max-width: 112px;
   min-height: 104px;
   text-align: center;
   justify-items: center;
@@ -2784,6 +2794,41 @@ body[data-theme="light"] .modern-topbar {
 .energy-flow-node--home .energy-flow-node__icon { grid-row: auto; }
 .energy-flow-node--import { --node-color: var(--accent-red); right: 0; top: 22px; }
 .energy-flow-node--export { --node-color: var(--accent-cyan); right: 0; bottom: 20px; }
+
+@container (max-width: 380px) {
+  .energy-flow {
+    min-height: 380px;
+    --flow-side-inset: 116px;
+  }
+
+  .energy-flow__nodes {
+    min-height: 380px;
+  }
+
+  .energy-flow-node {
+    width: 112px;
+    max-width: 112px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: 3px;
+    padding: 8px;
+  }
+
+  .energy-flow-node__icon {
+    grid-row: auto;
+  }
+
+  .energy-flow-node--solar { top: 12px; }
+  .energy-flow-node--import { top: 12px; }
+  .energy-flow-node--battery { bottom: 12px; }
+  .energy-flow-node--export { bottom: 12px; }
+  .energy-flow-node--home {
+    width: 92px;
+    max-width: 92px;
+    min-height: 92px;
+  }
+}
 
 .modern-solar {
   display: grid;
@@ -3146,8 +3191,7 @@ select:focus-visible {
   }
 
   .modern-kpi {
-    flex: 0 1 auto;
-    width: fit-content;
+    flex: 1 1 96px;
     min-width: 76px;
     max-width: min(138px, calc(50vw - 14px));
     min-height: 50px;
@@ -3188,11 +3232,11 @@ select:focus-visible {
 
   .energy-flow {
     min-height: 290px;
+    --flow-side-inset: 128px;
   }
 
   .energy-flow__svg {
-    transform: scaleX(0.95);
-    transform-origin: center;
+    transform: none;
   }
 
   .energy-flow__nodes {
@@ -3200,7 +3244,8 @@ select:focus-visible {
   }
 
   .energy-flow-node {
-    min-width: 118px;
+    width: 118px;
+    max-width: 118px;
     padding: 9px 10px;
   }
 
@@ -3215,7 +3260,8 @@ select:focus-visible {
   }
 
   .energy-flow-node--home {
-    min-width: 96px;
+    width: 96px;
+    max-width: 96px;
     min-height: 96px;
   }
 
@@ -3294,20 +3340,21 @@ select:focus-visible {
   }
 
   .energy-flow {
-    min-height: 330px;
+    min-height: 380px;
+    --flow-side-inset: 116px;
   }
 
   .energy-flow__svg {
-    transform: scale(0.9, 1.08);
+    transform: none;
   }
 
   .energy-flow__nodes {
-    min-height: 330px;
+    min-height: 380px;
   }
 
   .energy-flow-node {
-    min-width: 108px;
-    max-width: 122px;
+    width: 112px;
+    max-width: 112px;
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
@@ -3324,7 +3371,8 @@ select:focus-visible {
   .energy-flow-node--battery { bottom: 12px; }
   .energy-flow-node--export { bottom: 12px; }
   .energy-flow-node--home {
-    min-width: 92px;
+    width: 92px;
+    max-width: 92px;
     min-height: 92px;
   }
 

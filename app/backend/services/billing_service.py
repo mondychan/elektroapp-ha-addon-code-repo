@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 from typing import Any, Callable
 
@@ -20,6 +20,12 @@ class BillingService:
         compute_fixed_breakdown_for_day: Callable[..., tuple[dict[str, float], dict[str, float]]],
         calculate_sell_coefficient: Callable[..., float] | None = None,
         get_sell_coefficient_kwh: Callable[..., float] | None = None,
+        get_influx_cfg: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        get_energy_entities_cfg: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        parse_influx_interval_to_minutes: Callable[..., int] | None = None,
+        query_entity_series: Callable[..., list[dict[str, Any]]] | None = None,
+        aggregate_power_points: Callable[..., dict[str, float]] | None = None,
+        logger=None,
     ):
         self._get_consumption_points = get_consumption_points
         self._get_export_points = get_export_points
@@ -30,6 +36,12 @@ class BillingService:
         if self._calculate_sell_coefficient is None:
              raise TypeError("BillingService missing calculate_sell_coefficient or get_sell_coefficient_kwh")
         self._compute_fixed_breakdown_for_day = compute_fixed_breakdown_for_day
+        self._get_influx_cfg = get_influx_cfg
+        self._get_energy_entities_cfg = get_energy_entities_cfg
+        self._parse_influx_interval_to_minutes = parse_influx_interval_to_minutes
+        self._query_entity_series = query_entity_series
+        self._aggregate_power_points = aggregate_power_points
+        self._logger = logger
 
     def calculate_daily_totals(self, cfg: dict[str, Any], date_str: str) -> dict[str, Any]:
         consumption = self._get_consumption_points(cfg, date=date_str)
@@ -100,6 +112,41 @@ class BillingService:
             "sell_total": round(total_sell, 5),
             "has_series": has_series,
         }
+
+    def _get_monthly_pv_totals(self, cfg: dict[str, Any], start: datetime, end: datetime, tzinfo) -> dict[str, float]:
+        if not (
+            self._get_influx_cfg
+            and self._get_energy_entities_cfg
+            and self._parse_influx_interval_to_minutes
+            and self._query_entity_series
+            and self._aggregate_power_points
+        ):
+            return {}
+
+        energy_cfg = self._get_energy_entities_cfg(cfg)
+        pv_entity_id = energy_cfg.get("pv_power_total_entity_id")
+        if not pv_entity_id:
+            return {}
+
+        influx = self._get_influx_cfg(cfg)
+        interval = influx.get("interval", "15m")
+        interval_minutes = self._parse_influx_interval_to_minutes(interval, default_minutes=15)
+        try:
+            points = self._query_entity_series(
+                influx,
+                pv_entity_id,
+                start.astimezone(timezone.utc),
+                end.astimezone(timezone.utc),
+                interval=interval,
+                tzinfo=tzinfo,
+                numeric=True,
+                measurement_candidates=["W", "kW"],
+            )
+            return self._aggregate_power_points(points, interval_minutes, bucket="day", tzinfo=tzinfo)
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning("Monthly PV production query failed (%s): %s", pv_entity_id, exc)
+            return {}
 
     def compute_monthly_billing(
         self,
@@ -224,6 +271,9 @@ class BillingService:
         else:
             next_month = datetime(year, month_num + 1, 1)
         today = datetime.now(tzinfo).date()
+        start_local = start.replace(tzinfo=tzinfo)
+        next_month_local = next_month.replace(tzinfo=tzinfo)
+        pv_totals_by_day = self._get_monthly_pv_totals(cfg, start_local, next_month_local, tzinfo)
 
         days = []
         current = start
@@ -231,12 +281,18 @@ class BillingService:
         total_cost = 0.0
         total_export_kwh = 0.0
         total_sell = 0.0
+        total_pv_kwh = 0.0
+        any_pv_series = False
         any_series = False
         any_export_series = False
         while current < next_month and current.date() <= today:
             date_str = current.strftime("%Y-%m-%d")
             totals = self.calculate_daily_totals(cfg, date_str)
             export_totals = self.calculate_daily_export_totals(cfg, date_str)
+            pv_kwh = pv_totals_by_day.get(date_str)
+            if pv_kwh is not None:
+                any_pv_series = True
+                total_pv_kwh += pv_kwh
             if totals.get("has_series"):
                 any_series = True
             if export_totals.get("has_series"):
@@ -246,6 +302,7 @@ class BillingService:
                     "date": date_str,
                     "kwh_total": totals["kwh_total"],
                     "cost_total": totals["cost_total"],
+                    "pv_kwh": pv_kwh,
                     "export_kwh_total": export_totals["export_kwh_total"],
                     "sell_total": export_totals["sell_total"],
                 }
@@ -272,6 +329,7 @@ class BillingService:
             "summary": {
                 "kwh_total": round(total_kwh, 5),
                 "cost_total": round(total_cost, 5),
+                "pv_kwh": round(total_pv_kwh, 5) if any_pv_series else None,
                 "export_kwh_total": round(total_export_kwh, 5) if any_export_series else None,
                 "sell_total": round(total_sell, 5) if any_export_series else None,
             },
