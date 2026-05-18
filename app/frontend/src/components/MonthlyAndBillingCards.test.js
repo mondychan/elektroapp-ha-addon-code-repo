@@ -11,7 +11,7 @@ vi.mock("../api/elektroappApi", () => ({
 
 describe("MonthlySummaryCard", () => {
   test("renders monthly rows and totals", () => {
-    render(
+    const { container } = render(
       <MonthlySummaryCard
         selectedMonth="2026-02"
         setSelectedMonth={() => {}}
@@ -37,6 +37,7 @@ describe("MonthlySummaryCard", () => {
     expect(screen.getByText(/Sou/)).toBeInTheDocument();
     expect(screen.getAllByText("12.35").length).toBeGreaterThan(0);
     expect(screen.getAllByText("45.68").length).toBeGreaterThan(0);
+    expect(container.querySelector(".monthly-summary-table-container")).not.toHaveAttribute("style");
   });
 
   test("renders monthly error state", () => {

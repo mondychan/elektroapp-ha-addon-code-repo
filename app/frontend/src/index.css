@@ -1369,6 +1369,8 @@ input {
 
 .monthly-summary-table-container {
   overflow-x: hidden;
+  overflow-y: visible;
+  max-height: none;
 }
 
 .monthly-summary-table {
@@ -1385,6 +1387,24 @@ input {
 .monthly-summary-table th {
   font-size: 12px;
   line-height: 1.25;
+}
+
+.monthly-summary-table .sticky-footer td {
+  position: static;
+  bottom: auto;
+  z-index: auto;
+}
+
+.monthly-summary-table tfoot td {
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  box-shadow: inset 0 1px 0 var(--border);
+  font-weight: 800;
+}
+
+body[data-ui-layout="modern"] .monthly-summary-table tfoot td {
+  background: var(--bg-surface-strong, #121f35);
 }
 
 @media (max-width: 640px) {
@@ -2118,6 +2138,10 @@ body[data-ui-layout="modern"][data-theme="light"] {
   color: var(--text-main, var(--text));
 }
 
+.modern-app-shell.is-sidebar-compact {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
 .modern-sidebar {
   position: sticky;
   top: 0;
@@ -2131,6 +2155,10 @@ body[data-ui-layout="modern"][data-theme="light"] {
   backdrop-filter: blur(18px);
   box-sizing: border-box;
   z-index: 900;
+}
+
+.modern-app-shell.is-sidebar-compact .modern-sidebar {
+  padding-inline: 10px;
 }
 
 body[data-theme="light"] .modern-sidebar {
@@ -2216,6 +2244,17 @@ body[data-theme="light"] .modern-sidebar {
   gap: 4px;
   color: var(--text-muted);
   font-size: 0.82rem;
+}
+
+.modern-app-shell.is-sidebar-compact .modern-sidebar__brand strong,
+.modern-app-shell.is-sidebar-compact .modern-sidebar__footer,
+.modern-app-shell.is-sidebar-compact .modern-nav-item span:last-child {
+  display: none;
+}
+
+.modern-app-shell.is-sidebar-compact .modern-nav-item {
+  justify-content: center;
+  padding-inline: 8px;
 }
 
 .modern-workspace {
@@ -2352,19 +2391,19 @@ body[data-theme="light"] .modern-topbar {
 
 .modern-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(126px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(8, minmax(118px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .modern-kpi {
   min-width: 0;
-  min-height: 108px;
+  min-height: 78px;
   position: relative;
   display: grid;
   align-content: start;
-  gap: 8px;
-  padding: 15px 15px 14px;
+  gap: 5px;
+  padding: 10px 11px;
   border: 1px solid var(--border-subtle, var(--border));
   border-left-width: 3px;
   border-radius: 8px;
@@ -2398,12 +2437,12 @@ body[data-theme="light"] .modern-topbar {
 }
 
 .modern-kpi__label {
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .modern-kpi__value {
   min-width: 0;
-  font-size: clamp(1.32rem, 1.35vw, 1.72rem);
+  font-size: clamp(1.02rem, 1.05vw, 1.28rem);
   line-height: 1.05;
   overflow-wrap: anywhere;
 }
@@ -2411,11 +2450,12 @@ body[data-theme="light"] .modern-topbar {
 .modern-kpi__unit {
   white-space: nowrap;
   font-weight: 650;
+  font-size: 0.82rem;
 }
 
 .modern-kpi__detail {
-  min-height: 18px;
-  font-size: 0.82rem;
+  min-height: 14px;
+  font-size: 0.72rem;
 }
 
 .status-strip {
@@ -2521,6 +2561,10 @@ body[data-theme="light"] .modern-topbar {
   grid-column: span 6;
 }
 
+.modern-dashboard-grid > .modern-section-card--full {
+  grid-column: 1 / -1;
+}
+
 .modern-section-card {
   min-width: 0;
   border: 1px solid var(--border-subtle, var(--border));
@@ -2579,7 +2623,7 @@ body[data-theme="light"] .modern-topbar {
 
 .energy-flow {
   position: relative;
-  min-height: 262px;
+  min-height: 276px;
   isolation: isolate;
 }
 
@@ -2592,39 +2636,64 @@ body[data-theme="light"] .modern-topbar {
   overflow: visible;
 }
 
-.energy-flow__path {
+.energy-flow__route {
+  --flow-color: var(--accent-cyan);
+}
+
+.energy-flow__route--solar { --flow-color: var(--accent-amber); }
+.energy-flow__route--battery { --flow-color: var(--accent-green); }
+.energy-flow__route--import { --flow-color: var(--accent-red); }
+.energy-flow__route--export { --flow-color: var(--accent-cyan); }
+
+.energy-flow__rail,
+.energy-flow__stream {
   fill: none;
-  stroke: var(--flow-color);
-  stroke-width: var(--flow-width, 3);
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.18;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--flow-color) 42%, transparent));
 }
 
-.energy-flow__path.is-active {
+.energy-flow__rail {
+  stroke: color-mix(in srgb, var(--flow-color) 34%, rgba(148, 163, 184, 0.34));
+  stroke-width: 11;
+  opacity: 0.1;
+}
+
+.energy-flow__stream {
+  stroke: var(--flow-gradient);
+  stroke-width: var(--flow-width, 3);
+  opacity: 0.16;
+}
+
+.energy-flow__route.is-active .energy-flow__rail {
+  opacity: 0.2;
+}
+
+.energy-flow__route.is-active .energy-flow__stream {
   opacity: 0.96;
-  stroke-dasharray: 12 12;
-  animation: energy-flow-pulse 1.25s linear infinite;
+  stroke-dasharray: 2 11;
+  animation: energy-flow-stream 1.7s linear infinite;
+  filter: url(#flow-soft-glow);
 }
 
-.energy-flow__path--solar,
-.energy-flow__marker--solar { --flow-color: var(--accent-amber); fill: var(--accent-amber); }
-.energy-flow__path--battery,
-.energy-flow__marker--battery { --flow-color: var(--accent-green); fill: var(--accent-green); }
-.energy-flow__path--import,
-.energy-flow__marker--import { --flow-color: var(--accent-red); fill: var(--accent-red); }
-.energy-flow__path--export,
-.energy-flow__marker--export { --flow-color: var(--accent-cyan); fill: var(--accent-cyan); }
+.energy-flow__marker {
+  fill: var(--flow-color);
+  opacity: 0.94;
+}
 
-@keyframes energy-flow-pulse {
-  to { stroke-dashoffset: -24; }
+.energy-flow__pulse {
+  fill: var(--flow-gradient);
+  opacity: 0.92;
+  filter: url(#flow-soft-glow);
+}
+
+@keyframes energy-flow-stream {
+  to { stroke-dashoffset: -26; }
 }
 
 .energy-flow__nodes {
   position: relative;
   z-index: 1;
-  min-height: 262px;
+  min-height: 276px;
 }
 
 .energy-flow-node {
@@ -2638,8 +2707,12 @@ body[data-theme="light"] .modern-topbar {
   padding: 11px 13px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.5);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--node-color) 12%, transparent), transparent 55%),
+    rgba(15, 23, 42, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 28px rgba(2, 6, 23, 0.14);
 }
 
 .energy-flow-node__icon {
@@ -2671,13 +2744,18 @@ body[data-theme="light"] .modern-topbar {
   --node-color: var(--accent-cyan);
   left: 50%;
   top: 50%;
-  min-width: 112px;
-  min-height: 82px;
+  min-width: 104px;
+  min-height: 104px;
   text-align: center;
   justify-items: center;
   grid-template-columns: 1fr;
+  align-content: center;
   transform: translate(-50%, -50%);
   border-color: color-mix(in srgb, var(--accent-cyan) 46%, var(--border));
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(34, 211, 238, 0.2), transparent 62%),
+    rgba(8, 21, 37, 0.78);
 }
 .energy-flow-node--home .energy-flow-node__icon { grid-row: auto; }
 .energy-flow-node--import { --node-color: var(--accent-red); right: 0; top: 22px; }
@@ -2903,7 +2981,7 @@ select:focus-visible {
 
 @media (max-width: 1500px) {
   .modern-kpi-grid {
-    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, minmax(128px, 1fr));
   }
 }
 
@@ -2976,7 +3054,20 @@ select:focus-visible {
     display: inline;
   }
 
+  .modern-app-shell.is-sidebar-compact .modern-sidebar__brand strong,
+  .modern-app-shell.is-sidebar-compact .modern-nav-item span:last-child {
+    display: inline;
+  }
+
+  .modern-app-shell.is-sidebar-compact .modern-sidebar__footer {
+    display: grid;
+  }
+
   .modern-nav-item {
+    justify-content: flex-start;
+  }
+
+  .modern-app-shell.is-sidebar-compact .modern-nav-item {
     justify-content: flex-start;
   }
 
@@ -3033,12 +3124,12 @@ select:focus-visible {
   }
 
   .modern-kpi {
-    min-height: 118px;
-    padding: 14px;
+    min-height: 86px;
+    padding: 10px;
   }
 
   .modern-kpi__value {
-    font-size: 1.45rem;
+    font-size: 1.14rem;
   }
 
   .status-strip {
@@ -3089,6 +3180,7 @@ select:focus-visible {
 
   .energy-flow-node--home {
     min-width: 96px;
+    min-height: 96px;
   }
 
   .modern-solar__grid {
@@ -3155,12 +3247,12 @@ select:focus-visible {
   }
 
   .modern-kpi {
-    min-height: 124px;
-    padding: 13px 12px;
+    min-height: 90px;
+    padding: 10px;
   }
 
   .modern-kpi__value {
-    font-size: 1.32rem;
+    font-size: 1.08rem;
   }
 
   .energy-flow {
@@ -3193,6 +3285,10 @@ select:focus-visible {
   .energy-flow-node--import { top: 12px; }
   .energy-flow-node--battery { bottom: 12px; }
   .energy-flow-node--export { bottom: 12px; }
+  .energy-flow-node--home {
+    min-width: 92px;
+    min-height: 92px;
+  }
 
   .modern-detail-grid,
   .modern-detail-grid--battery {
@@ -3201,8 +3297,12 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .energy-flow__path.is-active {
+  .energy-flow__route.is-active .energy-flow__stream {
     animation: none;
     stroke-dasharray: none;
+  }
+
+  .energy-flow__pulse {
+    display: none;
   }
 }

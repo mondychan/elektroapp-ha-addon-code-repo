@@ -44,7 +44,9 @@ const normalizeTime = (value: unknown) => {
 const ModernOverviewPage = (props: any) => {
   const {
     today,
+    tomorrow,
     todayData,
+    tomorrowData,
     config,
     pinnedSlot,
     setPinnedSlot,
@@ -168,6 +170,26 @@ const ModernOverviewPage = (props: any) => {
             height={330}
           />
         </SectionCard>
+
+        {tomorrowData?.length > 0 && (
+          <SectionCard
+            title="Cena elektřiny zítra"
+            eyebrow={`Kč/kWh · ${formatDate(tomorrow)}`}
+            className="modern-section-card--full"
+          >
+            <PriceChartCard
+              chartData={tomorrowData}
+              fallbackMessage="Data pro zítřek zatím nejsou k dispozici."
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={-1}
+              pinnedSlot={null}
+              onPinSlot={() => {}}
+              thresholds={alerts}
+              className="modern-price-chart"
+              height={300}
+            />
+          </SectionCard>
+        )}
       </div>
 
       <div className="modern-dashboard-grid modern-dashboard-grid--middle">

@@ -17,6 +17,30 @@ type FlowInput = {
   gridExport?: number | null;
 };
 
+const flowMeta: Record<FlowTone, { label: string; gradient: string; path: string; reversePath?: string }> = {
+  solar: {
+    label: "Soláry do domu",
+    gradient: "flow-gradient-solar",
+    path: "M 178 90 C 252 90 288 137 344 152",
+  },
+  battery: {
+    label: "Baterie do domu",
+    gradient: "flow-gradient-battery",
+    path: "M 178 240 C 252 240 288 190 344 176",
+    reversePath: "M 344 192 C 288 222 252 252 178 252",
+  },
+  import: {
+    label: "Import ze sítě",
+    gradient: "flow-gradient-import",
+    path: "M 582 90 C 508 90 472 137 416 152",
+  },
+  export: {
+    label: "Export do sítě",
+    gradient: "flow-gradient-export",
+    path: "M 416 190 C 472 212 508 240 582 240",
+  },
+};
+
 const toNumberOrNull = (value: unknown) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
@@ -55,24 +79,14 @@ const formatSignedPower = (value?: number | null) => {
   return `${sign}${formatPower(Math.abs(numeric))}`;
 };
 
-const flowPathById: Record<FlowTone, { path: string; reversePath?: string }> = {
-  solar: { path: "M 175 82 C 250 82 258 138 340 138" },
-  battery: {
-    path: "M 175 226 C 250 226 258 172 340 172",
-    reversePath: "M 340 184 C 258 184 250 238 175 238",
-  },
-  import: { path: "M 585 82 C 510 82 502 138 420 138" },
-  export: { path: "M 420 184 C 502 184 510 226 585 226" },
-};
-
 const getFlowPath = (flow: EnergyFlow) =>
   flow.id === "battery" && flow.direction === "home-to-battery"
-    ? flowPathById.battery.reversePath || flowPathById.battery.path
-    : flowPathById[flow.id].path;
+    ? flowMeta.battery.reversePath || flowMeta.battery.path
+    : flowMeta[flow.id].path;
 
 const flowWidth = (watts: number | null) => {
-  if (watts == null) return 2.25;
-  return Math.max(2.25, Math.min(6.5, Math.abs(watts) / 950));
+  if (watts == null) return 2.5;
+  return Math.max(2.5, Math.min(6.2, Math.sqrt(Math.abs(watts)) / 16));
 };
 
 const FlowNode = ({
@@ -96,6 +110,80 @@ const FlowNode = ({
   </div>
 );
 
+const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
+  <svg className="energy-flow__svg" viewBox="0 0 760 330" role="img" aria-hidden="true">
+    <defs>
+      <linearGradient id="flow-gradient-solar" x1="0%" x2="100%" y1="0%" y2="0%">
+        <stop offset="0%" stopColor="var(--accent-amber)" stopOpacity="0.95" />
+        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.9" />
+      </linearGradient>
+      <linearGradient id="flow-gradient-battery" x1="0%" x2="100%" y1="0%" y2="0%">
+        <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.95" />
+        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.85" />
+      </linearGradient>
+      <linearGradient id="flow-gradient-import" x1="100%" x2="0%" y1="0%" y2="0%">
+        <stop offset="0%" stopColor="var(--accent-red)" stopOpacity="0.95" />
+        <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity="0.78" />
+      </linearGradient>
+      <linearGradient id="flow-gradient-export" x1="0%" x2="100%" y1="0%" y2="0%">
+        <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.92" />
+        <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.9" />
+      </linearGradient>
+      <filter id="flow-soft-glow" x="-25%" y="-60%" width="150%" height="220%">
+        <feGaussianBlur stdDeviation="3.2" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+      {Object.keys(flowMeta).map((tone) => (
+        <marker
+          key={tone}
+          id={`flow-arrow-${tone}`}
+          markerWidth="12"
+          markerHeight="12"
+          refX="10"
+          refY="6"
+          orient="auto"
+          markerUnits="userSpaceOnUse"
+        >
+          <path className={`energy-flow__marker energy-flow__marker--${tone}`} d="M 1 1 L 11 6 L 1 11 z" />
+        </marker>
+      ))}
+    </defs>
+
+    {flows.map((flow) => {
+      const meta = flowMeta[flow.id];
+      const path = getFlowPath(flow);
+      const width = flowWidth(flow.watts);
+      return (
+        <g key={flow.id} className={`energy-flow__route energy-flow__route--${flow.id} ${flow.active ? "is-active" : "is-idle"}`.trim()}>
+          <path className="energy-flow__rail" d={path} />
+          <path
+            className="energy-flow__stream"
+            d={path}
+            markerEnd={flow.active ? `url(#flow-arrow-${flow.id})` : undefined}
+            style={{ "--flow-width": width, "--flow-gradient": `url(#${meta.gradient})` } as React.CSSProperties}
+          />
+          {flow.active
+            ? [0, 1].map((index) => (
+                <circle
+                  key={`${flow.id}-pulse-${index}`}
+                  className="energy-flow__pulse"
+                  r={width + 1.3}
+                  style={{ "--pulse-delay": `${index * 0.82}s`, "--flow-gradient": `url(#${meta.gradient})` } as React.CSSProperties}
+                >
+                  <animateMotion dur="2.25s" begin={`${index * 0.82}s`} repeatCount="indefinite" path={path} rotate="auto" />
+                </circle>
+              ))
+            : null}
+          <title>{meta.label}: {flow.watts == null ? "-" : formatPower(flow.watts)}</title>
+        </g>
+      );
+    })}
+  </svg>
+);
+
 const EnergyFlowCard = ({ batteryData, solarForecast }: { batteryData: any; solarForecast: any }) => {
   const currentEnergy = batteryData?.current_energy || {};
   const batteryStatus = batteryData?.status || {};
@@ -112,33 +200,7 @@ const EnergyFlowCard = ({ batteryData, solarForecast }: { batteryData: any; sola
 
   return (
     <div className="energy-flow" aria-label="Aktuální energetické toky">
-      <svg className="energy-flow__svg" viewBox="0 0 760 310" role="img" aria-hidden="true">
-        <defs>
-          {["solar", "battery", "import", "export"].map((tone) => (
-            <marker
-              key={tone}
-              id={`flow-arrow-${tone}`}
-              markerWidth="10"
-              markerHeight="10"
-              refX="8"
-              refY="5"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <path className={`energy-flow__marker energy-flow__marker--${tone}`} d="M 0 0 L 10 5 L 0 10 z" />
-            </marker>
-          ))}
-        </defs>
-        {flows.map((flow) => (
-          <path
-            key={flow.id}
-            className={`energy-flow__path energy-flow__path--${flow.id} ${flow.active ? "is-active" : "is-idle"}`.trim()}
-            d={getFlowPath(flow)}
-            markerEnd={`url(#flow-arrow-${flow.id})`}
-            style={{ "--flow-width": flowWidth(flow.watts) } as React.CSSProperties}
-          />
-        ))}
-      </svg>
+      <FlowSvg flows={flows} />
 
       <div className="energy-flow__nodes">
         <FlowNode id="solar" label="Soláry" value={formatPower(pvPower)} icon={<IconSun size={31} />} />

@@ -107,14 +107,23 @@ const AppShell: React.FC<AppShellProps> = ({
   children,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCompact, setSidebarCompact] = useState(false);
 
   const handleNav = (mode: PageMode) => {
     setPageMode(mode);
     setSidebarOpen(false);
   };
 
+  const handleMenuToggle = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches) {
+      setSidebarOpen(true);
+      return;
+    }
+    setSidebarCompact((value) => !value);
+  };
+
   return (
-    <div className="modern-app-shell">
+    <div className={`modern-app-shell ${sidebarCompact ? "is-sidebar-compact" : ""}`.trim()}>
       <aside className={`modern-sidebar ${sidebarOpen ? "is-open" : ""}`.trim()} aria-label="Hlavní navigace">
         <div className="modern-sidebar__brand">
           <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>
@@ -142,7 +151,14 @@ const AppShell: React.FC<AppShellProps> = ({
       <div className="modern-workspace">
         <header className="modern-topbar">
           <div className="modern-topbar__title">
-            <button type="button" className="modern-icon-button modern-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Otevřít navigaci">
+            <button
+              type="button"
+              className="modern-icon-button modern-menu-button"
+              onClick={handleMenuToggle}
+              aria-label={sidebarCompact ? "Rozbalit navigaci" : "Zúžit navigaci"}
+              aria-expanded={!sidebarCompact}
+              title={sidebarCompact ? "Rozbalit navigaci" : "Zúžit navigaci"}
+            >
               <IconMenu size={20} />
             </button>
             <span className="modern-brand-mark" aria-hidden="true"><IconBolt size={20} /></span>

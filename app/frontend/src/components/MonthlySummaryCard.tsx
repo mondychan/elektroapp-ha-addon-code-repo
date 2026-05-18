@@ -153,7 +153,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         </button>
       </div>
 
-      <div className="table-responsive sticky-container monthly-summary-table-container" style={{ maxHeight: "450px" }}>
+      <div className="table-responsive monthly-summary-table-container">
         <table className="data-table table-spaced monthly-summary-table">
           <thead className="sticky-header">
             <tr>
