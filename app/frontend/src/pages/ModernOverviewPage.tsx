@@ -9,7 +9,7 @@ import DailySummaryCard from "../components/modern/DailySummaryCard";
 import SectionCard from "../components/modern/SectionCard";
 import ModernSolarForecastCard from "../components/modern/ModernSolarForecastCard";
 import ModernBatteryProjectionCard from "../components/modern/ModernBatteryProjectionCard";
-import { PageMode } from "../components/layout/AppHeader";
+import { PageMode } from "../components/modern/AppShell";
 import { formatCurrency, formatDate, formatSlotRange } from "../utils/formatters";
 import {
   getMaxEnergyBalanceAnchor,

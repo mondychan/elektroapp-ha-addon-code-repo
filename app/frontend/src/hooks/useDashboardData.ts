@@ -1,7 +1,7 @@
 import { useInsightsData } from "./useInsightsData";
 import { usePlannerData } from "./usePlannerData";
 import { usePrimaryDashboardData } from "./usePrimaryDashboardData";
-import { PageMode } from "../components/layout/AppHeader";
+import { PageMode } from "../components/modern/AppShell";
 
 export {
   getMaxEnergyBalanceAnchor,

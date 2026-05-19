@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { normalizeEnergyBalanceAnchor } from "./dashboardUtils";
 
-import { PageMode } from "../components/layout/AppHeader";
+import { PageMode } from "../components/modern/AppShell";
 
 interface UseInsightsDataProps {
   selectedMonth: string;

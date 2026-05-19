@@ -41,6 +41,31 @@ export const IconMenu = (props: IconProps) => (
   </IconBase>
 );
 
+export const IconX = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </IconBase>
+);
+
+export const IconPin = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M12 17v5" />
+    <path d="m5 17 14 0" />
+    <path d="M8 3h8l-1 7 3 4H6l3-4-1-7Z" />
+  </IconBase>
+);
+
+export const IconPinOff = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="m3 3 18 18" />
+    <path d="M12 17v5" />
+    <path d="m5 17 10 0" />
+    <path d="M8 3h8l-.55 3.85" />
+    <path d="m14 10 4 4H8" />
+  </IconBase>
+);
+
 export const IconRefresh = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M20 12a8 8 0 1 1-2.34-5.66" />

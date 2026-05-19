@@ -1,27 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence } from "framer-motion";
-import AppHeader, { PageMode } from "./components/layout/AppHeader";
-import BottomNav from "./components/layout/BottomNav";
-import KPIScreen from "./components/layout/KPIScreen";
-import OverviewPage from "./pages/OverviewPage";
-import DetailPage from "./pages/DetailPage";
-import RecommendationsPage from "./pages/RecommendationsPage";
-import PndPage from "./pages/PndPage";
-import HpPage from "./pages/HpPage";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import ModernOverviewPage from "./pages/ModernOverviewPage";
-import AppShell from "./components/modern/AppShell";
+import AppShell, { PageMode } from "./components/modern/AppShell";
 import SectionCard from "./components/modern/SectionCard";
-import DataCard from "./components/common/DataCard";
-import SolarForecastCard from "./components/SolarForecastCard";
 import MonthlySummaryCard from "./components/MonthlySummaryCard";
-import BillingCard from "./components/BillingCard";
-import BatteryProjectionCard from "./components/BatteryProjectionCard";
 import EnergyBalanceCard from "./components/EnergyBalanceCard";
-import ComparisonCard from "./components/ComparisonCard";
-import ConfigCard from "./components/ConfigCard";
 import PriceChartCard from "./components/PriceChartCard";
 
-import { formatSlotToTime, formatSlotRange, formatCurrency, formatBytes } from "./utils/formatters";
+import { formatSlotToTime, formatBytes } from "./utils/formatters";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { usePageVisibility } from "./hooks/usePageVisibility";
 import { useCurrentSlot } from "./hooks/useCurrentSlot";
@@ -41,21 +26,22 @@ import {
   getMaxEnergyBalanceAnchor,
 } from "./hooks/useDashboardData";
 
-const formatEtaTime = (iso: string | null) => {
-  if (!iso) return null;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
-};
+const DetailPage = lazy(() => import("./pages/DetailPage"));
+const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage"));
+const PndPage = lazy(() => import("./pages/PndPage"));
+const HpPage = lazy(() => import("./pages/HpPage"));
+const DataCard = lazy(() => import("./components/common/DataCard"));
+const SolarForecastCard = lazy(() => import("./components/SolarForecastCard"));
+const BillingCard = lazy(() => import("./components/BillingCard"));
+const BatteryProjectionCard = lazy(() => import("./components/BatteryProjectionCard"));
+const ComparisonCard = lazy(() => import("./components/ComparisonCard"));
+const ConfigCard = lazy(() => import("./components/ConfigCard"));
 
-const formatEtaDuration = (minutes: number | null) => {
-  if (minutes == null || !Number.isFinite(minutes)) return null;
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (!m) return `${h} h`;
-  return `${h} h ${m} min`;
-};
+const LazyPageFallback = () => (
+  <div className="modern-lazy-fallback" role="status" aria-live="polite">
+    Načítám sekci...
+  </div>
+);
 
 const shiftDateValue = (value: string, dayDelta: number) => {
   const dt = new Date(`${value}T00:00:00`);
@@ -73,19 +59,13 @@ const App: React.FC = () => {
   const currentMonthStr = getCurrentMonthStr();
   const currentYearStr = getCurrentYearStr();
   const [pageMode, setPageMode] = useState<PageMode>("overview");
-  const [showConfig, setShowConfig] = useState(false);
-  const [showMonthlySummary, setShowMonthlySummary] = useState(false);
-  const [showBilling, setShowBilling] = useState(false);
   const [showFeesHistory, setShowFeesHistory] = useState(false);
-  const [showBatteryPanel, setShowBatteryPanel] = useState(false);
 
   const [theme, setTheme] = useLocalStorageState<"light" | "dark" | "system">("theme", "dark");
-  const [uiLayout, setUiLayout] = useLocalStorageState<"modern" | "legacy">("uiLayout", "modern");
   const [plannerDuration, setPlannerDuration] = useLocalStorageState("plannerDuration", "120");
 
   const [plannerValidationError, setPlannerValidationError] = useState<string | null>(null);
   const [pinnedSlot, setPinnedSlot] = useState<number | null>(null);
-  const [hpKpiItems, setHpKpiItems] = useState<any[]>([]);
 
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -140,15 +120,15 @@ const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    document.body.dataset.uiLayout = uiLayout || "modern";
-  }, [uiLayout]);
+    document.body.dataset.uiLayout = "modern";
+  }, []);
 
   const dashboard = useDashboardData({
     selectedDate,
     selectedMonth,
-    showConfig: showConfig || (uiLayout === "modern" && pageMode === "settings"),
-    showFeesHistory: showFeesHistory || (uiLayout === "modern" && pageMode === "settings"),
-    showBilling: showBilling || (uiLayout === "modern" && pageMode === "monthly"),
+    showConfig: pageMode === "settings",
+    showFeesHistory: showFeesHistory || pageMode === "settings",
+    showBilling: pageMode === "monthly",
     billingMode,
     billingMonth,
     billingYear,
@@ -204,48 +184,6 @@ const App: React.FC = () => {
   const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapPrices]);
   const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapPrices]);
   const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
-
-  const kpiItems = useMemo(() => {
-    const currentSlotIndex = Number.isInteger(currentSlot) ? Number(currentSlot) : null;
-    const currentPriceItem = currentSlotIndex != null && currentSlotIndex >= 0 && currentSlotIndex < todayData.length
-      ? todayData[currentSlotIndex]
-      : null;
-    const finals = todayData.map((item: PriceItem) => item.final);
-    const minFinal = finals.length ? Math.min(...finals) : null;
-    const maxFinal = finals.length ? Math.max(...finals) : null;
-    const minPriceItem = minFinal != null ? todayData.find((item: PriceItem) => item.final === minFinal) : null;
-    const maxPriceItem = maxFinal != null ? todayData.find((item: PriceItem) => item.final === maxFinal) : null;
-    const netTotal = dashboard.todayCostsKpi?.cost_total != null || dashboard.todayExportKpi?.sell_total != null
-      ? (dashboard.todayCostsKpi?.cost_total || 0) - (dashboard.todayExportKpi?.sell_total || 0)
-      : null;
-
-    const batterySoc = batteryData?.status?.soc_percent;
-    const batteryPower = batteryData?.status?.battery_power_w;
-    const batteryProjection = batteryData?.projection;
-
-    let batteryEtaDetail = null;
-    if (batteryData?.is_today) {
-      if (batteryProjection?.state === "charging" && batteryProjection?.eta_to_full_at) {
-        batteryEtaDetail = `plna v ${formatEtaTime(batteryProjection.eta_to_full_at)} (${formatEtaDuration(batteryProjection.eta_to_full_minutes ?? null)})`;
-      } else if (batteryProjection?.state === "charging" && batteryProjection?.peak_soc_at && batteryProjection?.peak_soc_percent != null) {
-        batteryEtaDetail = `max ${batteryProjection.peak_soc_percent.toFixed(0)} % v ${formatEtaTime(batteryProjection.peak_soc_at)}`;
-      } else if (batteryProjection?.state === "discharging" && batteryProjection?.eta_to_reserve_at) {
-        batteryEtaDetail = `do rezervy v ${formatEtaTime(batteryProjection.eta_to_reserve_at)} (${formatEtaDuration(batteryProjection.eta_to_reserve_minutes ?? null)})`;
-      }
-    }
-
-    return [
-      { key: "price-now", label: "Cena ted", value: currentPriceItem ? formatCurrency(currentPriceItem.final) : "-", detail: currentPriceItem?.time, tone: "price" as const },
-      { key: "price-min", label: "Dnes min", value: minFinal != null ? formatCurrency(minFinal) : "-", detail: minPriceItem ? formatSlotRange(minPriceItem.slot) : null, tone: "neutral" as const },
-      { key: "price-max", label: "Dnes max", value: maxFinal != null ? formatCurrency(maxFinal) : "-", detail: maxPriceItem ? formatSlotRange(maxPriceItem.slot) : null, tone: "neutral" as const },
-      { key: "cost-today", label: "Naklad dnes", value: formatCurrency(dashboard.todayCostsKpi?.cost_total), detail: dashboard.todayCostsKpi?.kwh_total ? `${dashboard.todayCostsKpi.kwh_total.toFixed(2)} kWh` : null, tone: "buy" as const },
-      { key: "export-today", label: "Export dnes", value: formatCurrency(dashboard.todayExportKpi?.sell_total), detail: dashboard.todayExportKpi?.export_kwh_total ? `${dashboard.todayExportKpi.export_kwh_total.toFixed(2)} kWh` : null, tone: "sell" as const },
-      { key: "net-today", label: "Netto dnes", value: formatCurrency(netTotal), tone: (netTotal != null && netTotal <= 0 ? "sell" : "buy") as "sell" | "buy" },
-      { key: "battery", label: "Baterie", value: batterySoc != null ? `${batterySoc.toFixed(0)} %` : "-", detail: [batteryPower != null ? `${batteryPower >= 0 ? "+" : ""}${Math.round(batteryPower)} W` : null, batteryEtaDetail].filter(Boolean).join(" | "), tone: "battery" as const },
-    ];
-  }, [todayData, currentSlot, dashboard.todayCostsKpi, dashboard.todayExportKpi, batteryData]);
-
-  const screenKpiItems = pageMode === "hp" ? hpKpiItems : kpiItems;
 
   const configRows = useMemo(() => {
     if (!config) return [];
@@ -348,260 +286,6 @@ const App: React.FC = () => {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-
-  if (uiLayout === "legacy") {
-    return (
-    <div className={`app ${pageMode !== "overview" ? "app--detail" : ""}`.trim()} {...(pullHandlers as any)}>
-      <div className={`pull-indicator ${pullArmed ? "is-armed" : ""} ${pullRefreshing ? "is-refreshing" : ""}`} style={{ height: pullRefreshing ? 42 : Math.min(42, pullDistance) }}>
-        <span>{pullRefreshing ? "Obnovuji ceny..." : pullArmed ? "Uvolni pro obnoveni" : "Stahni pro obnoveni"}</span>
-      </div>
-
-      <AppHeader pageMode={pageMode} setPageMode={setPageMode} theme={theme!} setTheme={setTheme} />
-      <div className="legacy-layout-switch">
-        <button type="button" onClick={() => setUiLayout("modern")}>Přepnout na moderní vzhled</button>
-      </div>
-      <KPIScreen items={screenKpiItems as any} layout={pageMode === "hp" ? "compact" : "default"} />
-
-      <main className="app-main">
-        <AnimatePresence mode="wait">
-          {pageMode === "overview" && (
-            <OverviewPage
-              key="overview"
-              {...dashboard} {...{
-                today,
-                tomorrow,
-                todayData,
-                tomorrowData,
-                pinnedSlot: pinnedSlot as any,
-                setPinnedSlot,
-                effectiveHighlightSlot: effectiveHighlightSlot as any,
-                dateSwipeHandlers,
-                selectedDate,
-                setSelectedDate,
-                maxDate: todayDateStr,
-                showMonthlySummary,
-                setShowMonthlySummary,
-                selectedMonth,
-                setSelectedMonth,
-                maxMonth: currentMonthStr,
-                showBilling,
-                setShowBilling,
-                billingMode,
-                setBillingMode,
-                billingMonth,
-                setBillingMonth,
-                billingYear,
-                setBillingYear,
-                maxBillingMonth: currentMonthStr,
-                maxBillingYear: currentYearStr,
-                showBatteryPanel,
-                setShowBatteryPanel,
-                refreshPrices,
-                refreshBattery: dashboard.refreshBattery,
-                showConfig,
-                setShowConfig,
-                configRows,
-                cacheRows,
-                consumptionCacheRows,
-                exportCacheRows,
-                priceProviderLabel,
-                priceProviderUrl,
-                feesHistory: (dashboard as any).feesHistory,
-                feesHistoryLoading: (dashboard as any).feesHistoryLoading,
-                feesHistoryError: (dashboard as any).feesHistoryError,
-                saveFeesHistory: (dashboard as any).saveFeesHistory,
-                showFeesHistory,
-                setShowFeesHistory,
-                energyBalancePeriod,
-                energyBalanceAnchor,
-                setEnergyBalanceAnchor,
-                setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p),
-                defaultFeesValues,
-                thresholds: (dashboard as any).alerts?.thresholds || [],
-              }}
-            />
-          )}
-          {pageMode === "costs" && (
-            <DetailPage
-              key="costs"
-              {...dashboard} {...{
-                selectedDate,
-                setSelectedDate,
-                selectedDateObj: new Date(`${selectedDate}T00:00:00`),
-                selectedDatePriceData,
-                selectedDatePricesLoading: dashboard.selectedDatePricesLoading,
-                selectedDatePricesError: dashboard.selectedDatePricesError,
-                maxDate: tomorrowDateStr,
-                maxMonth: currentMonthStr,
-                effectiveHighlightSlot: effectiveHighlightSlot as any,
-                pinnedSlot: pinnedSlot as any,
-                setPinnedSlot,
-                dateSwipeHandlers,
-                showDetailAnnotations: true,
-                energyBalancePeriod,
-                energyBalanceAnchor,
-                setEnergyBalanceAnchor,
-                setEnergyBalancePeriod,
-                refreshBattery: dashboard.refreshBattery,
-                heatmapMonth,
-                setHeatmapMonth,
-                heatmapMetric,
-                setHeatmapMetric,
-                thresholds: dashboard.alerts?.thresholds || [],
-              }}
-            />
-          )}
-          {pageMode === "recommendations" && (
-            <RecommendationsPage
-              key="recommendations"
-              recommendations={(dashboard as any).recommendations}
-              plannerDuration={plannerDuration}
-              setPlannerDuration={(d: string) => setPlannerDuration(d)}
-              handleLoadPlanner={handleLoadPlanner}
-              finalPlannerError={(plannerValidationError || (dashboard as any).plannerError) as any}
-              plannerLoading={(dashboard as any).plannerLoading}
-              plannerNote={(dashboard as any).plannerNote}
-              plannerResults={(dashboard as any).plannerResults || []}
-            />
-          )}
-          {pageMode === "battery" && (
-            <div key="battery" className="page-battery">
-              <OverviewPage
-                {...dashboard} {...{
-                  today,
-                  tomorrow,
-                  todayData,
-                  tomorrowData,
-                  pinnedSlot: pinnedSlot as any,
-                  setPinnedSlot,
-                  effectiveHighlightSlot: effectiveHighlightSlot as any,
-                  dateSwipeHandlers,
-                  selectedDate,
-                  setSelectedDate,
-                  maxDate: todayDateStr,
-                  showMonthlySummary: false,
-                  setShowMonthlySummary: () => {},
-                  selectedMonth,
-                  setSelectedMonth,
-                  maxMonth: currentMonthStr,
-                  showBilling: false,
-                  setShowBilling: () => {},
-                  billingMode,
-                  setBillingMode,
-                  billingMonth,
-                  setBillingMonth,
-                  billingYear,
-                  setBillingYear,
-                  maxBillingMonth: currentMonthStr,
-                  maxBillingYear: currentYearStr,
-                  showBatteryPanel: true,
-                  setShowBatteryPanel: () => {},
-                  refreshPrices,
-                  refreshBattery: dashboard.refreshBattery,
-                  showConfig: false,
-                  setShowConfig: () => {},
-                  configRows: [],
-                  cacheRows: [],
-                  consumptionCacheRows: [],
-                  exportCacheRows: [],
-                  priceProviderLabel,
-                  priceProviderUrl,
-                  feesHistory: null,
-                  feesHistoryLoading: false,
-                  feesHistoryError: null,
-                  saveFeesHistory: async () => {},
-                  showFeesHistory: false,
-                  setShowFeesHistory: () => {},
-                  energyBalancePeriod,
-                  energyBalanceAnchor,
-                  setEnergyBalanceAnchor,
-                  setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p),
-                  defaultFeesValues: null,
-                  thresholds: [],
-                }}
-              />
-            </div>
-          )}
-          {pageMode === "settings" && (
-            <div key="settings" className="page-settings p-4">
-              <OverviewPage
-                {...dashboard} {...{
-                  today,
-                  tomorrow,
-                  todayData,
-                  tomorrowData,
-                  pinnedSlot: pinnedSlot as any,
-                  setPinnedSlot,
-                  effectiveHighlightSlot: effectiveHighlightSlot as any,
-                  dateSwipeHandlers,
-                  selectedDate,
-                  setSelectedDate,
-                  maxDate: todayDateStr,
-                  showMonthlySummary: false,
-                  setShowMonthlySummary: () => {},
-                  selectedMonth,
-                  setSelectedMonth,
-                  maxMonth: currentMonthStr,
-                  showBilling: false,
-                  setShowBilling: () => {},
-                  billingMode,
-                  setBillingMode,
-                  billingMonth,
-                  setBillingMonth,
-                  billingYear,
-                  setBillingYear,
-                  maxBillingMonth: currentMonthStr,
-                  maxBillingYear: currentYearStr,
-                  showBatteryPanel,
-                  setShowBatteryPanel,
-                  refreshPrices,
-                  refreshBattery: dashboard.refreshBattery,
-                  showConfig: true,
-                  setShowConfig: () => {},
-                  configRows,
-                  cacheRows,
-                  consumptionCacheRows,
-                  exportCacheRows,
-                  priceProviderLabel,
-                  priceProviderUrl,
-                  feesHistory: (dashboard as any).feesHistory,
-                  feesHistoryLoading: (dashboard as any).feesHistoryLoading,
-                  feesHistoryError: (dashboard as any).feesHistoryError,
-                  saveFeesHistory: (dashboard as any).saveFeesHistory as any,
-                  showFeesHistory: true,
-                  setShowFeesHistory,
-                  energyBalancePeriod,
-                  energyBalanceAnchor,
-                  setEnergyBalanceAnchor,
-                  setEnergyBalancePeriod: (p: any) => setEnergyBalancePeriod(p),
-                  defaultFeesValues,
-                  thresholds: [],
-                }}
-              />
-            </div>
-          )}
-          {pageMode === "pnd" && (
-            <div key="pnd" className="page-pnd">
-              <PndPage config={config} refreshConfig={refreshConfig} />
-            </div>
-          )}
-          {pageMode === "hp" && (
-            <div key="hp" className="page-hp">
-              <HpPage config={config} refreshConfig={refreshConfig} onKpisChange={setHpKpiItems} maxDate={todayDateStr} />
-            </div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      <footer className="footer">
-        <div>(c) {new Date().getFullYear()} mondychan <a href="https://github.com/mondychan" target="_blank" rel="noopener noreferrer">github</a></div>
-        <div className="version-tag">Verze doplnku: {dashboard.version || "-"}</div>
-      </footer>
-
-      <BottomNav pageMode={pageMode} setPageMode={setPageMode} />
-    </div>
-  );
-  }
 
   const currentEnergyBalanceAnchor = normalizeEnergyBalanceAnchor(energyBalancePeriod, energyBalanceAnchor);
   const maxEnergyBalanceAnchor = getMaxEnergyBalanceAnchor(energyBalancePeriod);
@@ -775,7 +459,7 @@ const App: React.FC = () => {
     }
 
     if (pageMode === "hp") {
-      return <HpPage config={config} refreshConfig={refreshConfig} onKpisChange={setHpKpiItems} maxDate={todayDateStr} />;
+      return <HpPage config={config} refreshConfig={refreshConfig} onKpisChange={() => {}} maxDate={todayDateStr} />;
     }
 
     return (
@@ -817,8 +501,6 @@ const App: React.FC = () => {
         setPageMode={setPageMode}
         theme={theme!}
         setTheme={setTheme}
-        uiLayout={uiLayout!}
-        setUiLayout={setUiLayout}
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
         lastUpdatedAt={(dashboard as any).lastUpdatedAt}
@@ -826,7 +508,9 @@ const App: React.FC = () => {
         onRefresh={refreshPrices}
         version={dashboard.version}
       >
-        {renderModernContent()}
+        <Suspense fallback={<LazyPageFallback />}>
+          {renderModernContent()}
+        </Suspense>
       </AppShell>
     </div>
   );

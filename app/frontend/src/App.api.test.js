@@ -159,6 +159,7 @@ describe("App API states", () => {
   test("recommendations page shows planner directly and preset button loads matching duration", async () => {
     render(<App />);
 
+    await userEvent.click(screen.getByRole("button", { name: "Otevřít menu" }));
     await userEvent.click(screen.getByRole("tab", { name: "Doporučení" }));
 
     await waitFor(() => {
@@ -183,6 +184,7 @@ describe("App API states", () => {
   test("renders PND page and loads its status", async () => {
     render(<App />);
 
+    await userEvent.click(screen.getByRole("button", { name: "Otevřít menu" }));
     await userEvent.click(screen.getByRole("tab", { name: "PND" }));
 
     await waitFor(() => {
@@ -196,6 +198,7 @@ describe("App API states", () => {
   test("renders HP page and loads its data", async () => {
     render(<App />);
 
+    await userEvent.click(screen.getByRole("button", { name: "Otevřít menu" }));
     await userEvent.click(screen.getByRole("tab", { name: "HP" }));
 
     await waitFor(() => {
