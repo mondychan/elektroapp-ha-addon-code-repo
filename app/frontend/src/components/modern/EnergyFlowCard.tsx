@@ -33,6 +33,11 @@ const flowMeta: Record<FlowTone, { label: string }> = {
   },
 };
 
+type AnimatedValueSnapshot = {
+  value: string;
+  detail?: string | null;
+};
+
 type Point = { x: number; y: number };
 type MeasuredBox = Point & { width: number; height: number };
 
@@ -141,16 +146,67 @@ const FlowNode = ({
   detail?: string | null;
   icon: React.ReactNode;
   nodeRef?: (element: HTMLDivElement | null) => void;
-}) => (
-  <div ref={nodeRef} className={`energy-flow-node energy-flow-node--${id}`}>
-    <span className="energy-flow-node__icon" aria-hidden="true">
-      {icon}
-    </span>
-    <span className="energy-flow-node__label">{label}</span>
-    <strong>{value}</strong>
-    {detail ? <small>{detail}</small> : null}
-  </div>
-);
+}) => {
+  const [current, setCurrent] = useState<AnimatedValueSnapshot>({ value, detail });
+  const [previous, setPrevious] = useState<AnimatedValueSnapshot | null>(null);
+  const [revision, setRevision] = useState(0);
+  const currentRef = useRef<AnimatedValueSnapshot>({ value, detail });
+  const cleanupTimerRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const next = { value, detail };
+    const prev = currentRef.current;
+    if (prev.value === next.value && prev.detail === next.detail) return;
+
+    currentRef.current = next;
+    setPrevious(prev);
+    setCurrent(next);
+    setRevision((counter) => counter + 1);
+
+    if (cleanupTimerRef.current != null) {
+      window.clearTimeout(cleanupTimerRef.current);
+    }
+    cleanupTimerRef.current = window.setTimeout(() => {
+      setPrevious(null);
+      cleanupTimerRef.current = null;
+    }, 260);
+  }, [value, detail]);
+
+  useLayoutEffect(
+    () => () => {
+      if (cleanupTimerRef.current != null) {
+        window.clearTimeout(cleanupTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const renderSnapshot = (snapshot: AnimatedValueSnapshot) => (
+    <>
+      <span className="energy-flow-node__value-text">{snapshot.value}</span>
+      {snapshot.detail ? <span className="energy-flow-node__detail">{snapshot.detail}</span> : null}
+    </>
+  );
+
+  return (
+    <div ref={nodeRef} className={`energy-flow-node energy-flow-node--${id}`}>
+      <span className="energy-flow-node__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="energy-flow-node__label">{label}</span>
+      <strong className="energy-flow-node__value energy-flow-node__value-frame" aria-live="polite" aria-atomic="true">
+        {previous ? (
+          <span key={`prev-${revision}`} className="energy-flow-node__value-layer energy-flow-node__value-layer--previous" aria-hidden="true">
+            {renderSnapshot(previous)}
+          </span>
+        ) : null}
+        <span key={`cur-${revision}`} className="energy-flow-node__value-layer energy-flow-node__value-layer--current">
+          {renderSnapshot(current)}
+        </span>
+      </strong>
+    </div>
+  );
+};
 
 const FlowSvg = ({ flows, layout }: { flows: EnergyFlow[]; layout: FlowLayout | null }) => (
   <svg
@@ -168,20 +224,6 @@ const FlowSvg = ({ flows, layout }: { flows: EnergyFlow[]; layout: FlowLayout | 
           <feMergeNode in="SourceGraphic" />
         </feMerge>
       </filter>
-      {Object.keys(flowMeta).map((tone) => (
-        <marker
-          key={tone}
-          id={`flow-arrow-${tone}`}
-          markerWidth="4"
-          markerHeight="4"
-          refX="3.6"
-          refY="2"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <path className={`energy-flow__marker energy-flow__marker--${tone}`} d="M 0.3 0.3 L 3.8 2 L 0.3 3.7 z" />
-        </marker>
-      ))}
     </defs>
 
     {flows.map((flow) => {
@@ -196,7 +238,6 @@ const FlowSvg = ({ flows, layout }: { flows: EnergyFlow[]; layout: FlowLayout | 
           <path
             className="energy-flow__stream"
             d={path}
-            markerEnd={flow.active ? `url(#flow-arrow-${flow.id})` : undefined}
             style={{ "--flow-width": width } as React.CSSProperties}
           />
           {flow.active

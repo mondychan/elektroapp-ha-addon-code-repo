@@ -181,7 +181,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     if (!autoRefreshEnabled || !isPageVisible) return;
     const intervalId = setInterval(() => {
       fetchDashboardSnapshot(selectedDate, { silent: true });
-    }, 600000); // 10 minutes
+    }, 60000); // 1 minute
     return () => clearInterval(intervalId);
   }, [autoRefreshEnabled, isPageVisible, selectedDate, fetchDashboardSnapshot]);
 

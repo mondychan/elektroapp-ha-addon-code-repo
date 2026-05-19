@@ -2469,6 +2469,36 @@ body[data-theme="light"] .modern-topbar {
   overflow-wrap: anywhere;
 }
 
+.modern-kpi__value-frame {
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  overflow: hidden;
+}
+
+.modern-kpi__value-layer {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+  will-change: transform, opacity, filter;
+}
+
+.modern-kpi__value-layer--current {
+  animation: modern-kpi-value-in 220ms cubic-bezier(0.2, 0, 0.2, 1) both;
+}
+
+.modern-kpi__value-layer--previous {
+  position: relative;
+  animation: modern-kpi-value-out 220ms cubic-bezier(0.2, 0, 0.2, 1) forwards;
+  opacity: 0.55;
+}
+
+.modern-kpi__value-text {
+  display: inline-block;
+}
+
 .modern-kpi__unit {
   white-space: nowrap;
   font-weight: 650;
@@ -2655,6 +2685,32 @@ body[data-theme="light"] .modern-topbar {
   isolation: isolate;
 }
 
+@keyframes modern-kpi-value-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.28em);
+    filter: blur(0.25px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes modern-kpi-value-out {
+  from {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-0.28em);
+  }
+}
+
 .energy-flow__svg {
   position: absolute;
   inset: 0;
@@ -2724,6 +2780,32 @@ body[data-theme="light"] .modern-topbar {
   to { stroke-dashoffset: -26; }
 }
 
+@keyframes energy-flow-value-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.22em);
+    filter: blur(0.2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes energy-flow-value-out {
+  from {
+    opacity: 0.65;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-0.22em);
+  }
+}
+
 .energy-flow__nodes {
   position: relative;
   z-index: 1;
@@ -2771,6 +2853,46 @@ body[data-theme="light"] .modern-topbar {
   color: var(--node-color);
   font-size: 0.98rem;
   line-height: 1.12;
+}
+
+.energy-flow-node__value {
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  min-height: 1.2em;
+  overflow: hidden;
+}
+
+.energy-flow-node__value-layer {
+  grid-area: 1 / 1;
+  display: inline-grid;
+  justify-items: start;
+  row-gap: 1px;
+  will-change: transform, opacity, filter;
+}
+
+.energy-flow-node__value-layer--current {
+  animation: energy-flow-value-in 180ms cubic-bezier(0.2, 0, 0.2, 1) both;
+  z-index: 1;
+}
+
+.energy-flow-node__value-layer--previous {
+  animation: energy-flow-value-out 180ms cubic-bezier(0.2, 0, 0.2, 1) forwards;
+  opacity: 0.5;
+  z-index: 0;
+}
+
+.energy-flow-node__value-text {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.energy-flow-node__detail {
+  display: block;
+  font-size: 0.62rem;
+  line-height: 1.1;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .energy-flow-node--solar { --node-color: var(--accent-amber); left: 0; top: 22px; }
