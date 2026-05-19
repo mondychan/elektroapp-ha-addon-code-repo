@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.35
+- Moderni KPI karty maji plynuly prechod hodnot misto skoku.
+- Energy flow karta ma stejnou dynamiku i pro detailni texty pod hodnotami.
+- Obnovovani dat pro viditelny dashboard je sjednocene na 1 minutu.
+
 ## 0.3.34
 - Opraven diagram energetickych toku v modernim prehledu: spojnice se pocitaji podle skutecnych pozic karet a drzi na desktopu, mobilu i pri zoomu.
 - Linky, sipky a animovane pulzy maji sjednocene barvy podle typu toku: FV zluta, baterie zelena, import cerveny a export modry.
