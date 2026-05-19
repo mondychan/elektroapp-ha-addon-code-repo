@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { IconBattery, IconExport, IconGridTower, IconHome, IconSun } from "./icons";
 
 type FlowTone = "solar" | "battery" | "import" | "export";
+type FlowNodeId = FlowTone | "home";
 
 export type EnergyFlow = {
   id: FlowTone;
@@ -17,28 +18,28 @@ type FlowInput = {
   gridExport?: number | null;
 };
 
-const flowMeta: Record<FlowTone, { label: string; gradient: string; path: string; reversePath?: string }> = {
+const flowMeta: Record<FlowTone, { label: string }> = {
   solar: {
     label: "Soláry do domu",
-    gradient: "flow-gradient-solar",
-    path: "M 0 25 C 18 25 32 42 47 45",
   },
   battery: {
     label: "Baterie do domu",
-    gradient: "flow-gradient-battery",
-    path: "M 0 75 C 18 75 32 58 47 55",
-    reversePath: "M 47 60 C 32 78 18 84 0 82",
   },
   import: {
     label: "Import ze sítě",
-    gradient: "flow-gradient-import",
-    path: "M 100 25 C 82 25 68 42 53 45",
   },
   export: {
     label: "Export do sítě",
-    gradient: "flow-gradient-export",
-    path: "M 53 58 C 68 67 82 75 100 75",
   },
+};
+
+type Point = { x: number; y: number };
+type MeasuredBox = Point & { width: number; height: number };
+
+type FlowLayout = {
+  width: number;
+  height: number;
+  paths: Partial<Record<FlowTone, string>>;
 };
 
 const toNumberOrNull = (value: unknown) => {
@@ -79,14 +80,51 @@ const formatSignedPower = (value?: number | null) => {
   return `${sign}${formatPower(Math.abs(numeric))}`;
 };
 
-const getFlowPath = (flow: EnergyFlow) =>
-  flow.id === "battery" && flow.direction === "home-to-battery"
-    ? flowMeta.battery.reversePath || flowMeta.battery.path
-    : flowMeta[flow.id].path;
-
 const flowWidth = (watts: number | null) => {
   if (watts == null) return 2.5;
   return Math.max(2.5, Math.min(6.2, Math.sqrt(Math.abs(watts)) / 16));
+};
+
+const centerOf = (box: MeasuredBox): Point => ({
+  x: box.x + box.width / 2,
+  y: box.y + box.height / 2,
+});
+
+const edgePointToward = (box: MeasuredBox, target: Point): Point => {
+  const center = centerOf(box);
+  const halfWidth = box.width / 2;
+  const halfHeight = box.height / 2;
+  const dx = target.x - center.x;
+  const dy = target.y - center.y;
+
+  if (dx === 0 && dy === 0) return center;
+
+  const xScale = dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
+  const yScale = dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
+  const scale = Math.min(xScale, yScale);
+
+  return {
+    x: center.x + dx * scale,
+    y: center.y + dy * scale,
+  };
+};
+
+const buildFlowPath = (startBox: MeasuredBox, endBox: MeasuredBox) => {
+  const start = edgePointToward(startBox, centerOf(endBox));
+  const end = edgePointToward(endBox, centerOf(startBox));
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+
+  if (horizontal) {
+    const direction = dx >= 0 ? 1 : -1;
+    const tension = Math.max(34, Math.min(150, Math.abs(dx) * 0.48));
+    return `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} C ${(start.x + tension * direction).toFixed(1)} ${start.y.toFixed(1)} ${(end.x - tension * direction).toFixed(1)} ${end.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+  }
+
+  const direction = dy >= 0 ? 1 : -1;
+  const tension = Math.max(30, Math.min(110, Math.abs(dy) * 0.5));
+  return `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} C ${start.x.toFixed(1)} ${(start.y + tension * direction).toFixed(1)} ${end.x.toFixed(1)} ${(end.y - tension * direction).toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
 };
 
 const FlowNode = ({
@@ -95,40 +133,34 @@ const FlowNode = ({
   value,
   detail,
   icon,
+  nodeRef,
 }: {
-  id: "solar" | "battery" | "home" | "import" | "export";
+  id: FlowNodeId;
   label: string;
   value: string;
   detail?: string | null;
   icon: React.ReactNode;
+  nodeRef?: (element: HTMLDivElement | null) => void;
 }) => (
-  <div className={`energy-flow-node energy-flow-node--${id}`}>
-    <span className="energy-flow-node__icon" aria-hidden="true">{icon}</span>
+  <div ref={nodeRef} className={`energy-flow-node energy-flow-node--${id}`}>
+    <span className="energy-flow-node__icon" aria-hidden="true">
+      {icon}
+    </span>
     <span className="energy-flow-node__label">{label}</span>
     <strong>{value}</strong>
     {detail ? <small>{detail}</small> : null}
   </div>
 );
 
-const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
-  <svg className="energy-flow__svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-hidden="true">
+const FlowSvg = ({ flows, layout }: { flows: EnergyFlow[]; layout: FlowLayout | null }) => (
+  <svg
+    className="energy-flow__svg"
+    viewBox={layout ? `0 0 ${layout.width} ${layout.height}` : "0 0 1 1"}
+    preserveAspectRatio="none"
+    role="img"
+    aria-hidden="true"
+  >
     <defs>
-      <linearGradient id="flow-gradient-solar" x1="0%" x2="100%" y1="0%" y2="0%">
-        <stop offset="0%" stopColor="var(--accent-amber)" stopOpacity="0.95" />
-        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.9" />
-      </linearGradient>
-      <linearGradient id="flow-gradient-battery" x1="0%" x2="100%" y1="0%" y2="0%">
-        <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.95" />
-        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.85" />
-      </linearGradient>
-      <linearGradient id="flow-gradient-import" x1="100%" x2="0%" y1="0%" y2="0%">
-        <stop offset="0%" stopColor="var(--accent-red)" stopOpacity="0.95" />
-        <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity="0.78" />
-      </linearGradient>
-      <linearGradient id="flow-gradient-export" x1="0%" x2="100%" y1="0%" y2="0%">
-        <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.92" />
-        <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0.9" />
-      </linearGradient>
       <filter id="flow-soft-glow" x="-25%" y="-60%" width="150%" height="220%">
         <feGaussianBlur stdDeviation="3.2" result="blur" />
         <feMerge>
@@ -154,8 +186,10 @@ const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
 
     {flows.map((flow) => {
       const meta = flowMeta[flow.id];
-      const path = getFlowPath(flow);
+      const path = layout?.paths[flow.id];
       const width = flowWidth(flow.watts);
+      if (!path) return null;
+
       return (
         <g key={flow.id} className={`energy-flow__route energy-flow__route--${flow.id} ${flow.active ? "is-active" : "is-idle"}`.trim()}>
           <path className="energy-flow__rail" d={path} />
@@ -163,7 +197,7 @@ const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
             className="energy-flow__stream"
             d={path}
             markerEnd={flow.active ? `url(#flow-arrow-${flow.id})` : undefined}
-            style={{ "--flow-width": width, "--flow-gradient": `url(#${meta.gradient})` } as React.CSSProperties}
+            style={{ "--flow-width": width } as React.CSSProperties}
           />
           {flow.active
             ? [0, 1].map((index) => (
@@ -171,13 +205,15 @@ const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
                   key={`${flow.id}-pulse-${index}`}
                   className="energy-flow__pulse"
                   r={width + 1.3}
-                  style={{ "--pulse-delay": `${index * 0.82}s`, "--flow-gradient": `url(#${meta.gradient})` } as React.CSSProperties}
+                  style={{ "--pulse-delay": `${index * 0.82}s` } as React.CSSProperties}
                 >
                   <animateMotion dur="2.25s" begin={`${index * 0.82}s`} repeatCount="indefinite" path={path} rotate="auto" />
                 </circle>
               ))
             : null}
-          <title>{meta.label}: {flow.watts == null ? "-" : formatPower(flow.watts)}</title>
+          <title>
+            {meta.label}: {flow.watts == null ? "-" : formatPower(flow.watts)}
+          </title>
         </g>
       );
     })}
@@ -185,6 +221,16 @@ const FlowSvg = ({ flows }: { flows: EnergyFlow[] }) => (
 );
 
 const EnergyFlowCard = ({ batteryData, solarForecast }: { batteryData: any; solarForecast: any }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef<Record<FlowNodeId, HTMLDivElement | null>>({
+    solar: null,
+    battery: null,
+    home: null,
+    import: null,
+    export: null,
+  });
+  const [layout, setLayout] = useState<FlowLayout | null>(null);
+
   const currentEnergy = batteryData?.current_energy || {};
   const batteryStatus = batteryData?.status || {};
   const actualSolar = solarForecast?.actual || {};
@@ -196,20 +242,128 @@ const EnergyFlowCard = ({ batteryData, solarForecast }: { batteryData: any; sola
   const gridExport = currentEnergy.grid_export_w;
   const batteryPower = batteryStatus.battery_power_w;
   const batterySoc = batteryStatus.soc_percent;
-  const flows = deriveEnergyFlows({ pvPower, batteryPower, gridImport, gridExport });
+  const flows = useMemo(
+    () => deriveEnergyFlows({ pvPower, batteryPower, gridImport, gridExport }),
+    [pvPower, batteryPower, gridImport, gridExport]
+  );
+
+  const nodeRefCallbacks = useMemo(
+    () =>
+      ({
+        solar: (element: HTMLDivElement | null) => {
+          nodeRefs.current.solar = element;
+        },
+        battery: (element: HTMLDivElement | null) => {
+          nodeRefs.current.battery = element;
+        },
+        home: (element: HTMLDivElement | null) => {
+          nodeRefs.current.home = element;
+        },
+        import: (element: HTMLDivElement | null) => {
+          nodeRefs.current.import = element;
+        },
+        export: (element: HTMLDivElement | null) => {
+          nodeRefs.current.export = element;
+        },
+      }) satisfies Record<FlowNodeId, (element: HTMLDivElement | null) => void>,
+    []
+  );
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    let frameId = 0;
+
+    const measure = () => {
+      const containerRect = container.getBoundingClientRect();
+      const nodes = nodeRefs.current;
+      if (containerRect.width <= 0 || containerRect.height <= 0 || Object.values(nodes).some((node) => !node)) {
+        return;
+      }
+
+      const boxes = Object.fromEntries(
+        Object.entries(nodes).map(([id, node]) => {
+          const rect = node!.getBoundingClientRect();
+          return [
+            id,
+            {
+              x: rect.left - containerRect.left,
+              y: rect.top - containerRect.top,
+              width: rect.width,
+              height: rect.height,
+            },
+          ];
+        })
+      ) as Record<FlowNodeId, MeasuredBox>;
+
+      const batteryFlow = flows.find((flow) => flow.id === "battery");
+      const paths: Partial<Record<FlowTone, string>> = {
+        solar: buildFlowPath(boxes.solar, boxes.home),
+        battery:
+          batteryFlow?.direction === "home-to-battery"
+            ? buildFlowPath(boxes.home, boxes.battery)
+            : buildFlowPath(boxes.battery, boxes.home),
+        import: buildFlowPath(boxes.import, boxes.home),
+        export: buildFlowPath(boxes.home, boxes.export),
+      };
+
+      setLayout((previous) => {
+        const next = {
+          width: Number(containerRect.width.toFixed(1)),
+          height: Number(containerRect.height.toFixed(1)),
+          paths,
+        };
+        if (
+          previous &&
+          previous.width === next.width &&
+          previous.height === next.height &&
+          (Object.keys(paths) as FlowTone[]).every((key) => previous.paths[key] === next.paths[key])
+        ) {
+          return previous;
+        }
+        return next;
+      });
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measure);
+    };
+
+    scheduleMeasure();
+
+    const observedElements = [container, ...Object.values(nodeRefs.current).filter(Boolean)] as Element[];
+    let resizeObserver: ResizeObserver | null = null;
+    if ("ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(scheduleMeasure);
+      observedElements.forEach((element) => resizeObserver?.observe(element));
+    }
+
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("orientationchange", scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("orientationchange", scheduleMeasure);
+    };
+  }, [flows]);
 
   return (
-    <div className="energy-flow" aria-label="Aktuální energetické toky">
-      <FlowSvg flows={flows} />
+    <div ref={containerRef} className="energy-flow" aria-label="Aktuální energetické toky">
+      <FlowSvg flows={flows} layout={layout} />
 
       <div className="energy-flow__nodes">
-        <FlowNode id="solar" label="Soláry" value={formatPower(pvPower)} icon={<IconSun size={31} />} />
+        <FlowNode id="solar" label="Soláry" value={formatPower(pvPower)} icon={<IconSun size={31} />} nodeRef={nodeRefCallbacks.solar} />
         <FlowNode
           id="battery"
           label="Baterie"
           value={formatSignedPower(batteryPower)}
           detail={batterySoc != null ? `${Number(batterySoc).toFixed(0)} %` : null}
           icon={<IconBattery size={29} />}
+          nodeRef={nodeRefCallbacks.battery}
         />
         <FlowNode
           id="home"
@@ -217,9 +371,22 @@ const EnergyFlowCard = ({ batteryData, solarForecast }: { batteryData: any; sola
           value={formatPower(houseLoad)}
           detail="aktuální zátěž"
           icon={<IconHome size={34} />}
+          nodeRef={nodeRefCallbacks.home}
         />
-        <FlowNode id="import" label="Síť import" value={formatPower(gridImport)} icon={<IconGridTower size={32} />} />
-        <FlowNode id="export" label="Export" value={formatPower(gridExport)} icon={<IconExport size={34} />} />
+        <FlowNode
+          id="import"
+          label="Síť import"
+          value={formatPower(gridImport)}
+          icon={<IconGridTower size={32} />}
+          nodeRef={nodeRefCallbacks.import}
+        />
+        <FlowNode
+          id="export"
+          label="Export"
+          value={formatPower(gridExport)}
+          icon={<IconExport size={34} />}
+          nodeRef={nodeRefCallbacks.export}
+        />
       </div>
     </div>
   );

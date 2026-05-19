@@ -2652,20 +2652,17 @@ body[data-theme="light"] .modern-topbar {
 .energy-flow {
   position: relative;
   min-height: 276px;
-  --flow-side-inset: 150px;
   isolation: isolate;
 }
 
 .energy-flow__svg {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--flow-side-inset);
-  right: var(--flow-side-inset);
-  width: auto;
+  inset: 0;
+  width: 100%;
   height: 100%;
   z-index: 0;
   overflow: visible;
+  pointer-events: none;
 }
 
 .energy-flow__route {
@@ -2675,7 +2672,7 @@ body[data-theme="light"] .modern-topbar {
 .energy-flow__route--solar { --flow-color: var(--accent-amber); }
 .energy-flow__route--battery { --flow-color: var(--accent-green); }
 .energy-flow__route--import { --flow-color: var(--accent-red); }
-.energy-flow__route--export { --flow-color: var(--accent-cyan); }
+.energy-flow__route--export { --flow-color: var(--accent-blue); }
 
 .energy-flow__rail,
 .energy-flow__stream {
@@ -2687,17 +2684,17 @@ body[data-theme="light"] .modern-topbar {
 .energy-flow__rail {
   stroke: color-mix(in srgb, var(--flow-color) 34%, rgba(148, 163, 184, 0.34));
   stroke-width: 11;
-  opacity: 0.1;
+  opacity: 0.14;
 }
 
 .energy-flow__stream {
-  stroke: var(--flow-gradient);
+  stroke: var(--flow-color);
   stroke-width: var(--flow-width, 3);
-  opacity: 0.16;
+  opacity: 0.26;
 }
 
 .energy-flow__route.is-active .energy-flow__rail {
-  opacity: 0.2;
+  opacity: 0.28;
 }
 
 .energy-flow__route.is-active .energy-flow__stream {
@@ -2708,12 +2705,17 @@ body[data-theme="light"] .modern-topbar {
 }
 
 .energy-flow__marker {
-  fill: var(--flow-color);
+  fill: var(--flow-color, var(--accent-cyan));
   opacity: 0.94;
 }
 
+.energy-flow__marker--solar { fill: var(--accent-amber); }
+.energy-flow__marker--battery { fill: var(--accent-green); }
+.energy-flow__marker--import { fill: var(--accent-red); }
+.energy-flow__marker--export { fill: var(--accent-blue); }
+
 .energy-flow__pulse {
-  fill: var(--flow-gradient);
+  fill: var(--flow-color);
   opacity: 0.92;
   filter: url(#flow-soft-glow);
 }
@@ -2793,12 +2795,11 @@ body[data-theme="light"] .modern-topbar {
 }
 .energy-flow-node--home .energy-flow-node__icon { grid-row: auto; }
 .energy-flow-node--import { --node-color: var(--accent-red); right: 0; top: 22px; }
-.energy-flow-node--export { --node-color: var(--accent-cyan); right: 0; bottom: 20px; }
+.energy-flow-node--export { --node-color: var(--accent-blue); right: 0; bottom: 20px; }
 
 @container (max-width: 380px) {
   .energy-flow {
     min-height: 380px;
-    --flow-side-inset: 116px;
   }
 
   .energy-flow__nodes {
@@ -3232,7 +3233,6 @@ select:focus-visible {
 
   .energy-flow {
     min-height: 290px;
-    --flow-side-inset: 128px;
   }
 
   .energy-flow__svg {
@@ -3341,7 +3341,6 @@ select:focus-visible {
 
   .energy-flow {
     min-height: 380px;
-    --flow-side-inset: 116px;
   }
 
   .energy-flow__svg {
