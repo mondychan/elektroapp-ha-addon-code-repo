@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.36
+- Modern UI now uses a hamburger drawer with overlay and docked navigation instead of a permanent internal sidebar.
+- Removed the legacy UI path and obsolete legacy navigation components.
+- Added lazy loading and vendor chunk splitting for rarely used pages and heavy frontend libraries.
+- Switched Vite config to ESM to remove the deprecated CJS Node API warning.
+- Added regression coverage for drawer open, close, dock, undock, persistence, and narrow viewport behavior.
+
 ## 0.3.35
 - Moderni KPI karty maji plynuly prechod hodnot misto skoku.
 - Energy flow karta ma stejnou dynamiku i pro detailni texty pod hodnotami.
