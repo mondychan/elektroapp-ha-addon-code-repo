@@ -165,8 +165,8 @@ if (Test-Path $frontendDir) {
 }
 
 $configRaw = [System.IO.File]::ReadAllText($addonConfigPath)
-$versionRegex = [regex]::new('(?m)^version:\s*".*"$')
-$addonVersionRegex = [regex]::new('(?m)^\s*ADDON_VERSION:\s*".*"$')
+$versionRegex = [regex]::new('(?m)^version:\s*".*"\r?$')
+$addonVersionRegex = [regex]::new('(?m)^\s*ADDON_VERSION:\s*".*"\r?$')
 
 if (-not $versionRegex.IsMatch($configRaw)) {
     throw "Cannot find 'version' field in $addonConfigRel"
