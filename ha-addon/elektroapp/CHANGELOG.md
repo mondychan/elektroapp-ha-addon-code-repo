@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.34
+- Opraven diagram energetickych toku v modernim prehledu: spojnice se pocitaji podle skutecnych pozic karet a drzi na desktopu, mobilu i pri zoomu.
+- Linky, sipky a animovane pulzy maji sjednocene barvy podle typu toku: FV zluta, baterie zelena, import cerveny a export modry.
+- Animace toku pouziva stejnou SVG drahu jako vykreslena linka a smer baterie se prepina podle nabijeni nebo vybijeni.
+
 ## 0.3.33
 - Release 0.3.33 more polish
 
