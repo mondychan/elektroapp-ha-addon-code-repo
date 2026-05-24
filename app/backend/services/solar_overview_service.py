@@ -243,15 +243,23 @@ class SolarOverviewService:
         if not isinstance(response, dict):
             return None
 
-        inner = response.get("response", response)
+        inner = response.get("service_response") or response.get("response") or response
 
         forecast_list = None
-        for key, val in inner.items():
+        for key, val in (inner if isinstance(inner, dict) else {}).items():
             self.log.info("SolarOverview weather key=%s type=%s", key, type(val).__name__)
-            if isinstance(val, dict) and "forecast" in val:
-                forecast_list = val["forecast"]
-                self.log.info("SolarOverview weather found forecast list in key=%s", key)
-                break
+            if isinstance(val, dict):
+                if "forecast" in val:
+                    forecast_list = val["forecast"]
+                    self.log.info("SolarOverview weather found forecast list in key=%s", key)
+                    break
+                for sub_key, sub_val in val.items():
+                    if isinstance(sub_val, dict) and "forecast" in sub_val:
+                        forecast_list = sub_val["forecast"]
+                        self.log.info("SolarOverview weather found forecast list in key=%s.%s", key, sub_key)
+                        break
+                if forecast_list:
+                    break
 
         if not isinstance(forecast_list, list) or not forecast_list:
             self.log.warning("SolarOverview weather no forecast found in response")
