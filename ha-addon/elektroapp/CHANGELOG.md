@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.40
+- Graf ceny dnes i zítra zvětšen na výšku 420px
+- Energetický tok zúžen na 25 % šířky, graf ceny rozšířen na 75 %
+- Zítřejší graf ceny je plnošířkový a výraznější
+
 ## 0.3.39
 - Opraven kontrast barev buy/sell textu v dark i light tématu (WCAG AA)
 - Přidán skip-to-content link pro klávesnicové uživatele
