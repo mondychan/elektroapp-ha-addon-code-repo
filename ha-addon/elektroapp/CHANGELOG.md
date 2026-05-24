@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.47
+- Fix: chybějící SolarOverviewConfig v config_models.py — GET /api/config vracel 422
+- Fix: weather service_response strukturní logging pro diagnostiku
+- Fix: weather hledání forecastu v service_response i vnořených entity klíčích
+
 ## 0.3.46
 - Debug: detailní logování struktury weather service_response pro diagnostiku
 - Oprava: weather response hledání forecastu v service_response i vnořených entity klíčích
