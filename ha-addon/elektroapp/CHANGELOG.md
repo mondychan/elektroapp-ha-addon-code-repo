@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.42
+- Fix: solar_overview schema odsazení — hp.overrides se nechtěně parsovalo jako součást solar_overview
+- Odstraněna hardcoded weather entita z kódu, výchozí hodnota je prázdná
+
 ## 0.3.41
 - Nová karta Solární přehled (Solar Assistant-style) na hlavním dashboardu pod cenovými grafy
 - Horní graf "PV Today" kombinuje skutečnou výrobu, solární predikci a hodinovou předpověď počasí
