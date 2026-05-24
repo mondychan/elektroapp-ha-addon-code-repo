@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.43
+- Fix: počasí se nenačítalo — HA service call zkouší target formát při selhání direct entity_id
+- Fix: data discrepancy — karta teď ukazuje raw forecast, systémový odhad i forecast na zítřek
+- Fix: tooltipy v grafech solárního přehledu přepnuty na externalTooltipPlugin
+- Fix: import/export sloupce se už vzájemně neroztahují (oddělené stacky)
+- Generované kWh se bere z forecast actual místo sumování 15min intervalů z InfluxDB
+
 ## 0.3.42
 - Fix: solar_overview schema odsazení — hp.overrides se nechtěně parsovalo jako součást solar_overview
 - Odstraněna hardcoded weather entita z kódu, výchozí hodnota je prázdná
