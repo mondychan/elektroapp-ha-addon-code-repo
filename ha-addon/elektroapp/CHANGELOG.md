@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.38
+- Fix: negative variable price component now shows in green
+
 ## 0.3.37
 - release notes not provided
 
