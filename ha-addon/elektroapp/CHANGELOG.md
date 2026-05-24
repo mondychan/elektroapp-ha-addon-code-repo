@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.41
+- Nová karta Solární přehled (Solar Assistant-style) na hlavním dashboardu pod cenovými grafy
+- Horní graf "PV Today" kombinuje skutečnou výrobu, solární predikci a hodinovou předpověď počasí
+- Spodní graf "Overview" zobrazuje energetické toky (soláry, dům, import, export)
+- Předpověď počasí čtena z HA entity přes weather.get_forecasts s hourly daty
+- Weather entita konfigurovatelná přes HA UI (solar_overview.weather_entity_id)
+- Nový endpoint GET /api/solar-overview, data součástí dashboard-snapshot
+- Rozšířeno HomeAssistantService o call_service() s podporou return_response
+
 ## 0.3.40
 - Graf ceny dnes i zítra zvětšen na výšku 420px
 - Energetický tok zúžen na 25 % šířky, graf ceny rozšířen na 75 %
