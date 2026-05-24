@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Body, Depends, Query, Response
+import logging
 
 import app_service as svc
 from api_models import (
@@ -20,7 +21,14 @@ router = APIRouter(prefix="/api")
 
 @router.get("/config", response_model=AppConfigModel)
 def get_config():
-    return AppConfigModel.model_validate(svc.get_config())
+    try:
+        return AppConfigModel.model_validate(svc.get_config())
+    except Exception as e:
+        logger = logging.getLogger("uvicorn.error")
+        raw = svc.get_config()
+        solar_raw = raw.get("solar_overview") if isinstance(raw, dict) else None
+        logger.warning("Config validation failed: %s. solar_overview keys: %s", e, list(solar_raw.keys()) if isinstance(solar_raw, dict) else solar_raw)
+        raise
 
 
 @router.post("/config", dependencies=[Depends(require_mutation_access)])

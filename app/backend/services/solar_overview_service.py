@@ -238,40 +238,6 @@ class SolarOverviewService:
                 self.log.warning("SolarOverview weather call failed: %s", exc2)
                 return None
 
-        self.log.info("SolarOverview weather raw response keys: %s", list(response.keys()) if isinstance(response, dict) else type(response))
-
-        if not isinstance(response, dict):
-            return None
-
-        inner = response.get("service_response") or response.get("response") or response
-        self.log.info("SolarOverview weather inner keys: %s", list(inner.keys()) if isinstance(inner, dict) else type(inner))
-
-        if isinstance(inner, dict):
-            for k, v in inner.items():
-                if isinstance(v, dict):
-                    self.log.info("SolarOverview weather inner[%s] keys: %s", k, list(v.keys()))
-                elif isinstance(v, list):
-                    self.log.info("SolarOverview weather inner[%s] list len=%d first_item_keys=%s", k, len(v), list(v[0].keys()) if v and isinstance(v[0], dict) else "not-dict")
-
-        forecast_list = None
-        for key, val in (inner if isinstance(inner, dict) else {}).items():
-            if isinstance(val, dict):
-                if "forecast" in val:
-                    forecast_list = val["forecast"]
-                    self.log.info("SolarOverview weather found forecast list in key=%s", key)
-                    break
-                for sub_key, sub_val in val.items():
-                    if isinstance(sub_val, dict) and "forecast" in sub_val:
-                        forecast_list = sub_val["forecast"]
-                        self.log.info("SolarOverview weather found forecast list in key=%s.%s", key, sub_key)
-                        break
-                if forecast_list:
-                    break
-
-        if not isinstance(forecast_list, list) or not forecast_list:
-            self.log.warning("SolarOverview weather no forecast found in response")
-            return None
-
         self.log.info("SolarOverview weather forecast entries: %d", len(forecast_list))
 
         parsed = []
@@ -477,8 +443,12 @@ class SolarOverviewService:
                 forecast_adj_tomorrow = _safe_float(comparison.get("adjusted_projection_tomorrow_kwh"))
             status = forecast.get("status")
             if isinstance(status, dict):
-                forecast_raw_today = _safe_float(status.get("energy_production_today_kwh"))
-                forecast_raw_tomorrow = _safe_float(status.get("energy_production_tomorrow_kwh"))
+                forecast_raw_today = _safe_float(
+                    status.get("production_today") or status.get("energy_production_today_kwh")
+                )
+                forecast_raw_tomorrow = _safe_float(
+                    status.get("production_tomorrow") or status.get("energy_production_tomorrow_kwh")
+                )
 
         remaining_raw = None
         remaining_adj = None

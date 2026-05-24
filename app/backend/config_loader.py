@@ -565,11 +565,13 @@ def has_battery_required_cfg(battery_cfg):
 
 
 def get_solar_overview_cfg(cfg):
-    so = cfg.get("solar_overview", {}) if isinstance(cfg.get("solar_overview"), dict) else {}
-    weather_id = str(so.get("weather_entity_id", "")).strip()
-    title = str(so.get("title", "")).strip()
+    so = cfg.get("solar_overview") if isinstance(cfg.get("solar_overview"), dict) else None
+    if so is None:
+        so = {}
+    weather_id = str(so.get("weather_entity_id") or "").strip()
+    title = str(so.get("title") or "").strip()
     return {
-        "enabled": bool(so.get("enabled", True)),
+        "enabled": True if so.get("enabled") is None else bool(so.get("enabled")),
         "weather_entity_id": weather_id or None,
         "title": title or None,
     }
