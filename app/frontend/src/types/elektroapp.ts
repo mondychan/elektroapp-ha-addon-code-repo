@@ -307,6 +307,48 @@ export interface SolarForecast {
   };
 }
 
+export interface SolarOverviewPoint {
+  time: string;
+  generated_w: number | null;
+  predicted_w: number | null;
+  cloud_cover_percent: number | null;
+  condition: string | null;
+  temperature_c: number | null;
+}
+
+export interface SolarOverviewEnergyPoint {
+  time: string;
+  solar_pv_w: number | null;
+  load_w: number | null;
+  grid_import_w: number | null;
+  grid_export_w: number | null;
+}
+
+export interface SolarOverview {
+  enabled: boolean;
+  date?: string;
+  title?: string;
+  timezone?: string;
+  error?: string;
+  totals?: {
+    generated_kwh: number | null;
+    forecast_total_kwh: number | null;
+    remaining_kwh: number | null;
+  };
+  forecast_chart?: {
+    points: SolarOverviewPoint[];
+    now: string;
+  };
+  overview_chart?: {
+    points: SolarOverviewEnergyPoint[];
+  };
+  sources?: {
+    weather: { entity_id: string | null; available: boolean };
+    energy: { available: boolean };
+    forecast: { available: boolean };
+  };
+}
+
 export interface RecommendationMetric {
   key: string;
   label: string;
@@ -390,6 +432,7 @@ export interface DashboardSnapshotResponse {
   alerts?: any;
   comparison?: any;
   solar?: SolarForecast;
+  solar_overview?: SolarOverview;
   recommendations?: RecommendationsResponse;
   diagnostics_summary?: DiagnosticsSummary;
   date?: string;

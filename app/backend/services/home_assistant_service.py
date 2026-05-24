@@ -126,3 +126,31 @@ class HomeAssistantService:
         except HTTPException as exc:
             self.logger.warning("Home Assistant metadata resolve failed for %s: %s", entity_id, exc.detail)
             return None
+
+    def call_service(
+        self,
+        domain: str,
+        service: str,
+        payload: dict[str, Any] | None = None,
+        return_response: bool = False,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        if not domain or not service:
+            raise HTTPException(status_code=400, detail="domain a service jsou povinne.")
+        url = f"{self.base_url}/services/{domain}/{service}"
+        if return_response:
+            url += "?return_response"
+        try:
+            response = self.session.post(
+                url,
+                headers=self._build_headers(),
+                json=payload or {},
+                timeout=15,
+            )
+            response.raise_for_status()
+            return response.json()
+        except HTTPException:
+            raise
+        except requests.RequestException as exc:
+            raise HTTPException(status_code=502, detail=f"HA service call selhal: {exc}") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="HA service vratil neplatny JSON.") from exc

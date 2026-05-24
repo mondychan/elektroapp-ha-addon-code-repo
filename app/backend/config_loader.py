@@ -562,3 +562,14 @@ def has_battery_required_cfg(battery_cfg):
         and battery_cfg.get("power_entity_id")
         and battery_cfg.get("usable_capacity_kwh", 0) > 0
     )
+
+
+def get_solar_overview_cfg(cfg):
+    so = cfg.get("solar_overview", {}) if isinstance(cfg.get("solar_overview"), dict) else {}
+    weather_id = str(so.get("weather_entity_id", "")).strip()
+    title = str(so.get("title", "")).strip()
+    return {
+        "enabled": bool(so.get("enabled", True)),
+        "weather_entity_id": weather_id or None,
+        "title": title or None,
+    }

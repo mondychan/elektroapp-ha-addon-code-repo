@@ -9,6 +9,7 @@ import DailySummaryCard from "../components/modern/DailySummaryCard";
 import SectionCard from "../components/modern/SectionCard";
 import ModernSolarForecastCard from "../components/modern/ModernSolarForecastCard";
 import ModernBatteryProjectionCard from "../components/modern/ModernBatteryProjectionCard";
+import SolarAssistantOverviewCard from "../components/modern/SolarAssistantOverviewCard";
 import { PageMode } from "../components/modern/AppShell";
 import { formatCurrency, formatDate, formatSlotRange } from "../utils/formatters";
 import {
@@ -75,6 +76,8 @@ const ModernOverviewPage = (props: any) => {
     energyBalanceError,
     alerts,
     recommendations,
+    solarOverview,
+    solarOverviewLoading,
     setPageMode,
   } = props;
 
@@ -182,6 +185,18 @@ const ModernOverviewPage = (props: any) => {
               thresholds={alerts}
               className="modern-price-chart"
               height={420}
+            />
+          </SectionCard>
+        )}
+
+        {solarOverview?.enabled !== false && (
+          <SectionCard
+            title={solarOverview?.title || "Solární přehled"}
+            className="modern-section-card--full"
+          >
+            <SolarAssistantOverviewCard
+              solarOverview={solarOverview}
+              loading={solarOverviewLoading}
             />
           </SectionCard>
         )}

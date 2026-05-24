@@ -3395,3 +3395,92 @@ select:focus-visible {
     display: none;
   }
 }
+
+/* Solar Overview Card */
+.solar-overview-card {
+  display: grid;
+  gap: 16px;
+}
+
+.solar-overview-progress__bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  overflow: hidden;
+}
+
+.solar-overview-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-amber);
+  transition: width 0.4s ease;
+}
+
+.solar-overview-progress__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.solar-overview-progress__stats strong {
+  color: var(--text);
+}
+
+.solar-overview-section {
+  display: grid;
+  gap: 8px;
+}
+
+.solar-overview-section__title {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.solar-overview-chart {
+  min-height: 260px;
+}
+
+.solar-overview-weather-strip {
+  display: flex;
+  justify-content: space-around;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.solar-overview-weather-strip__item {
+  flex: 0 0 auto;
+  min-width: 22px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.solar-overview-weather-strip__icon {
+  display: inline-block;
+  line-height: 1;
+}
+
+.solar-overview-footer {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.solar-overview-source--ok {
+  color: var(--accent-green);
+}
+
+.solar-overview-source--missing {
+  color: var(--error);
+}

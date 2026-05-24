@@ -121,6 +121,10 @@ options:
       kpi_mode_state: "last"
     entities: []
     overrides: []
+  solar_overview:
+    enabled: true
+    weather_entity_id: "weather.forecast_drinov67"
+    title: ""
 schema:
   dph: float
   price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
@@ -235,6 +239,10 @@ schema:
         value_format: list(default|duration_seconds|duration_minutes|duration_hours|auto_unit)?
         duration_style: list(short|long)?
         duration_max_parts: int?
+  solar_overview:
+    enabled: bool?
+    weather_entity_id: str?
+    title: str?
     overrides:
       - entity_id: str
         enabled: bool?

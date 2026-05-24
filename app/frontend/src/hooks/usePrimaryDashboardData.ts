@@ -7,6 +7,7 @@ import {
   CostsKpi,
   ExportKpi,
   SolarForecast,
+  SolarOverview,
   RecommendationsResponse,
   DiagnosticsSummary,
   RawPriceEntry,
@@ -57,6 +58,8 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [solarForecast, setSolarForecast] = useState<SolarForecast | null>(null);
   const [solarForecastLoading, setSolarForecastLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
+  const [solarOverview, setSolarOverview] = useState<SolarOverview | null>(null);
+  const [solarOverviewLoading, setSolarOverviewLoading] = useState(false);
   const [diagnosticsSummary, setDiagnosticsSummary] = useState<DiagnosticsSummary | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
@@ -78,6 +81,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setSelectedDatePricesLoading(true);
       setComparisonLoading(true);
       setSolarForecastLoading(true);
+      setSolarOverviewLoading(true);
     }
     
     try {
@@ -100,6 +104,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setAlerts(data.alerts);
       setComparison(data.comparison);
       setSolarForecast(data.solar || null);
+      setSolarOverview(data.solar_overview || null);
       setRecommendations(data.recommendations || null);
       setDiagnosticsSummary(data.diagnostics_summary || null);
       setLastUpdatedAt(new Date().toISOString());
@@ -122,6 +127,7 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setSelectedDatePricesLoading(false);
       setComparisonLoading(false);
       setSolarForecastLoading(false);
+      setSolarOverviewLoading(false);
       setBatteryLoading(false);
     }
   }, [todayDate]);
@@ -227,6 +233,8 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     comparisonLoading,
     solarForecast,
     solarForecastLoading,
+    solarOverview,
+    solarOverviewLoading,
     recommendations,
     diagnosticsSummary,
     lastUpdatedAt,

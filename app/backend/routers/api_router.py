@@ -237,6 +237,11 @@ def get_solar_forecast(ctx: RequestContext = Depends(get_request_context)):
     return svc.get_solar_forecast(cfg=ctx.config)
 
 
+@router.get("/solar-overview")
+def get_solar_overview(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_solar_overview(date=params.date, cfg=ctx.config)
+
+
 @router.get("/recommendations")
 def get_recommendations(params: RecommendationQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
     return svc.get_recommendations(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)

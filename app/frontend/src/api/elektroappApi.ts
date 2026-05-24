@@ -28,6 +28,7 @@ export const elektroappApi = {
   getAlerts: () => get("/alerts"),
   getComparison: (date?: string) => get("/comparison", date ? { date } : undefined),
   getSolarForecast: () => get("/solar-forecast"),
+  getSolarOverview: (date?: string) => get("/solar-overview", date ? { date } : undefined),
   getDashboardSnapshot: (date?: string): Promise<DashboardSnapshotResponse> => get("/dashboard-snapshot", date ? { date } : undefined),
   getRecommendations: (date?: string): Promise<RecommendationsResponse> => get("/recommendations", date ? { date } : undefined),
   getDiagnostics: () => get("/diagnostics"),

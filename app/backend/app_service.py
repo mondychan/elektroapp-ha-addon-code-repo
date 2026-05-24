@@ -40,6 +40,7 @@ from config_loader import (
     get_forecast_solar_cfg,
     get_pnd_cfg,
     get_hp_cfg,
+    get_solar_overview_cfg,
     has_battery_required_cfg,
     has_pnd_required_cfg,
 )
@@ -106,6 +107,7 @@ from services.comparison_service import ComparisonService
 from services.solar_service import SolarService
 from services.data_export_service import DataExportService
 from services.recommendation_service import RecommendationService
+from services.solar_overview_service import SolarOverviewService
 
 logger = logging.getLogger("uvicorn.error")
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -644,6 +646,23 @@ def get_solar_forecast(cfg=None):
     cfg = cfg if isinstance(cfg, dict) else load_config()
     return SOLAR_SERVICE.get_solar_forecast(cfg)
 
+def get_solar_overview(date=None, cfg=None):
+    cfg = cfg if isinstance(cfg, dict) else load_config()
+    return SOLAR_OVERVIEW_SERVICE.get_solar_overview(cfg, date)
+
+SOLAR_OVERVIEW_SERVICE = SolarOverviewService(
+    get_influx_cfg_fn=get_influx_cfg,
+    get_energy_entities_cfg_fn=get_energy_entities_cfg,
+    get_forecast_solar_cfg_fn=get_forecast_solar_cfg,
+    get_solar_overview_cfg_fn=get_solar_overview_cfg,
+    get_solar_forecast_fn=get_solar_forecast,
+    query_entity_series_fn=INFLUX_SERVICE.query_entity_series,
+    call_ha_service_fn=HOME_ASSISTANT_SERVICE.call_service,
+    parse_influx_interval_to_minutes_fn=parse_influx_interval_to_minutes,
+    get_local_tz_fn=get_local_tz,
+    logger_instance=logger,
+)
+
 def get_recommendations(date=None, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     if not date:
@@ -788,6 +807,7 @@ async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
         asyncio.to_thread(get_solar_forecast, cfg),
         asyncio.to_thread(get_recommendations, date, cfg, tzinfo),
         asyncio.to_thread(get_diagnostics, cfg),
+        asyncio.to_thread(get_solar_overview, date, cfg),
     ]
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -814,6 +834,7 @@ async def get_dashboard_snapshot(date=None, cfg=None, tzinfo=None):
         "solar": safe_res(9, {}),
         "recommendations": safe_res(10, {}),
         "diagnostics_summary": safe_res(11, {}),
+        "solar_overview": safe_res(12, {"enabled": False}),
         "date": date,
         "version": APP_VERSION
     }
