@@ -1,51 +1,56 @@
 <!-- AUTO-SYNCED FROM mondychan/elektroapp-ha-addon-code-repo:ha-addon/elektroapp/README.md -->
 # Elektroapp Home Assistant Add-on
 
-Elektroapp je pokročilý Home Assistant add-on pro sledování spotových cen elektřiny, automatizovaný import dat z distribuce (PND) a komplexní energetický management.
+Elektroapp je panel pro domaci energetiku v Home Assistantu. Bere spotove ceny elektriny, prepocita je podle vlastniho tarifu a spoji je s realnymi daty ze senzoru, InfluxDB, baterie, fotovoltaiky a Portalu namerenych dat CEZ Distribuce.
 
-## Hlavní funkce
+Vysledkem je jedno misto, kde je videt cena, spotreba, vyroba, export, baterie, odhad vyuctovani a rozdil mezi lokalnim merenim a oficialnim elektromerem.
 
-- **Spotové ceny (OTE / spotovaelektrina.cz)**: Přepočet na finální cenu včetně všech poplatků, DPH a distribučních složek (VT/NT).
-- **Integrace PND (ČEZ Distribuce)**: Automatický import oficiálních dat z elektroměru. Už žádné ruční opisování.
-- **Srovnání dat**: Porovnání dat z PND s lokálními senzory střídače. Zjistěte, jak přesně vaše senzory měří ve srovnání s fakturačním měřidlem.
-- **Hybridní Solární Předpověď**: Kombinuje Forecast.Solar s reálnou historickou křivkou vašeho systému pro nejpřesnější odhad výroby.
-- **Energetická Bilance**: Přehledné grafy a tabulky nákupu, prodeje a vlastní spotřeby (týden/měsíc/rok).
-- **Bateriace**: Pokročilý monitoring SoC, predikce času nabití/vybití a slotový profil.
-- **Doporučení**: Read-only karta s akčními doporučeními pro spotřebu, baterii, FV výrobu a export.
-- **Billing**: Odhad aktuálního měsíčního a ročního vyúčtování včetně fixních poplatků.
+## K cemu slouzi
+
+- Ukazuje spotove ceny dnes a zitra jako konecnou cenu v Kc/kWh vcetne DPH, distribuce, OZE, dane a vlastnich stalych plateb.
+- Pocita naklady na spotrebu a vynos z exportu podle 15minutovych slotu a dat ulozenych v InfluxDB.
+- Zobrazuje prehled domu: spotreba, vyroba FV, import ze site, export do site a stav baterie.
+- Odhaduje mesicni a rocni vyuctovani podle skutecne spotreby, exportu, tarifu a fixnich plateb.
+- Porovnava lokalni mereni ze stridace s oficialnimi daty z PND, pokud je PND zapnute.
+- Pripravuje doporuceni pro spotrebu, baterii a export. Doporuceni jsou informacni, doplnek sam neridi Home Assistant automatizace.
+- Umi zobrazit vlastni Home Assistant entity v samostatne sekci HP, pokud je zapnes v konfiguraci.
+
+## Hlavni sekce v UI
+
+- **Prehled**: rychly stav cen, toku energie, baterie, FV predpovedi, denni bilance a mesicniho souhrnu.
+- **Detail**: graf ceny, nakladu, exportu, heatmapa historie a prace s konkretnim dnem.
+- **Doporuceni**: akcni radky typu spustit spotrebic, setrit baterii, nabit baterii, exportovat nebo bez akce.
+- **Baterie**: SoC, vykon, denni nabijeni/vybijeni a odhad casu do nabiti nebo vybiti.
+- **Solary / FV**: forecast vyroby a navazujici cenovy kontext.
+- **Sit / PND**: import dat z Portalu namerenych dat CEZ Distribuce a srovnani s lokalnimi senzory.
+- **Mesicni prehled**: souhrny spotreby, exportu, nakladu a odhad vyuctovani.
+- **Statistiky**: srovnani vykonu a energeticka bilance za tyden, mesic nebo rok.
+- **Nastaveni**: kontrola konfigurace, cache, diagnostika a historie poplatku.
+
+## Co je potreba nakonfigurovat
+
+Zakladni nastaveni se vyplnuje v konfiguraci add-onu v Home Assistantu.
+
+- `price_provider`: zdroj spotovych cen, bud `spotovaelektrina.cz`, nebo `ote-cr.cz`.
+- `poplatky`, `fixni`, `tarif`: slozky ceny, VT/NT intervaly a stale platby.
+- `influxdb`: pripojeni k InfluxDB a entity pro import/export energie.
+- `battery`: entity baterie, kapacita, rezerva, ucinnost a limity pro odhad nabijeni/vybijeni.
+- `energy`: entity pro spotrebu domu, import/export ze site a FV vykon.
+- `forecast_solar`: volitelne Forecast.Solar entity pro predpoved FV vyroby.
+- `pnd`: volitelne prihlaseni do Portalu namerenych dat CEZ Distribuce.
+- `hp`: volitelna sekce HP pro sledovani vybranych Home Assistant entit.
 
 ## Instalace
 
-1. V Home Assistant: `Settings > Add-ons > Add-on Store > ... > Repositories`.
-2. Přidej URL: `https://github.com/mondychan/elektroapp-ha-addon`
-3. V seznamu vyber `Elektroapp` a klikni `Install`.
-4. Vyplň konfiguraci a spusť add-on.
+1. V Home Assistantu otevri `Settings > Add-ons > Add-on Store`.
+2. V menu repozitaru pridej URL `https://github.com/mondychan/elektroapp-ha-addon`.
+3. Vyber add-on `Elektroapp` a nainstaluj ho.
+4. Vypln konfiguraci podle svych senzoru, tarifu a zdroju dat.
+5. Spust add-on a otevri ho z postranniho panelu Home Assistantu.
 
-## Konfigurace
+## Data a cache
 
-Nastavení se provádí přímo v panelu "Configuration" doplňku v HA.
-
-### PND (Portál naměřených dat)
-Aktivujte import dat z distribuce:
-- `pnd.enabled`: Zapnout integraci
-- `pnd.username` / `pnd.password`: Vaše přihlašovací údaje do portálu PND
-- `pnd.meter_id`: Číslo elektroměru (EAN bez prefixu nebo Meter ID)
-
-### Ostatní sekce
-- `poplatky`: Nastavení distribučních cen, daní a OZE.
-- `influxdb`: Připojení k databázi s lokálními daty (Solax, Victron apod.).
-- `battery` / `energy`: Mapování HA entit pro bilanci a dashboard.
-
-## Použití
-
-- Dashboard je dostupný v postranním panelu HA přes **Ingress**.
-- Vychozi dashboard pouziva moderni layout. Puvodni legacy vzhled zustava dostupny pres prepinac `Moderni / Legacy` v hornim panelu.
-- **Přehled**: Rychlý pohled na ceny, bilanci a stav baterie.
-- **Doporučení**: Akční řádky jako `Spustit spotřebič`, `Šetřit baterii`, `Nabít baterii`, `Exportovat` nebo `Bez akce`.
-- **Statistiky**: Modulární sekce pro podrobné srovnání výkonu.
-- **PND Portál**: Správa importovaných dat a srovnání s lokálními senzory.
-
-## Poznámky
-
-- Historie cen a PND dat je ukládána lokálně pro maximální stabilitu i při výpadku internetu.
-- Prodejní cena (export) podporuje koeficienty snížení ceny denního trhu.
+- Historie cen a PND dat se uklada lokalne, aby prehled fungoval i pri docasnem vypadku externich sluzeb.
+- Spotove ceny se nacitaji ze zvoleneho zdroje a pri vypoctech se kombinuji s nastavenymi poplatky.
+- PND import je volitelny. Bez nej funguje cenovy prehled, InfluxDB vypocty, baterie, FV i doporuceni podle dostupnych lokalnich dat.
+- InfluxDB je potreba pro historicke vypocty spotreby, exportu, bilance a vyuctovani.

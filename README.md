@@ -9,7 +9,7 @@ Elektroapp je pokročilý Home Assistant add-on pro komplexní sledování energ
 - **Srovnání dat**: Unikátní možnost porovnání "oficiálních" dat z elektroměru (PND) s lokálními senzory střídače pro odhalení nepřesností.
 - **Solární předpověď**: Hybridní odhad výroby (Forecast.Solar) kalibrovaný podle reálného chování vašeho systému, včetně historického backfillu z InfluxDB, hodinového biasu a systémově upraveného odhadu zítřka.
 - **Baterie**: Detailní monitoring SoC, výkonu a inteligentní projekce času nabití/vybití.
-- **Doporučení**: Nová read-only karta kombinuje ceny, baterii, solární forecast, bilanci a plánovač do akčních doporučení typu spustit spotřebič, šetřit baterii nebo odložit spotřebu.
+- **Doporučení**: Read-only karta kombinuje ceny, baterii, solární forecast, bilanci a plánovač do akčních doporučení typu spustit spotřebič, šetřit baterii nebo odložit spotřebu.
 - **Interaktivní Dashboard**: Moderní, modulární UI s toggle-sekcemi (Statistiky, Detailní grafy) a responsivní heatmapou cen.
 
 ## Struktura projektu
@@ -48,6 +48,7 @@ Backend poskytuje bohaté rozhraní:
 - `GET /api/daily-summary?month=YYYY-MM` - Měsíční billing souhrn
 ## UI layouty
 
-- Vychozi rozhrani je moderni dashboard se sidebar navigaci na desktopu a spodnim menu na mobilu.
-- Moderni layout zachovava stejne API, Home Assistant entity a vypocty jako puvodni UI; meni pouze rozvrzeni, karty, graficke tokeny a vizualni hierarchii.
-- Puvodni vzhled zustava dostupny pres prepinac `Moderni / Legacy` v hornim panelu a ulozi se do `localStorage` pod klicem `uiLayout`.
+- Rozhraní tvoří React dashboard s horním panelem, navigačním drawerem, kartami a responzivním rozvržením pro Home Assistant Ingress.
+- Navigace obsahuje sekce Přehled, Detail, Doporučení, Baterie, Soláry / FV, Síť / PND, Měsíční přehled, Statistiky, Nastavení a HP.
+- Na desktopu lze menu připnout jako postranní navigaci; stav připnutí se ukládá do `localStorage` pod klíčem `elektroapp.nav.docked`.
+- Na menších displejích se navigace otevírá jako vysouvací menu s překryvem a zavírá se po výběru sekce.
