@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.49
+- Hotfix: obnovení parsování forecast_list (omylem smazáno v 0.3.48)
+
 ## 0.3.48
 - Fix: forecast raw klíč — používá production_today z SolarService status
 - Fix: config 422 debug logging pro identifikaci extra polí v solar_overview
