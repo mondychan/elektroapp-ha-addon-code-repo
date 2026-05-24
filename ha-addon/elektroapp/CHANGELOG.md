@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.45
+- Fix: počasí — HA vrací service_response (ne response), přidáno rekurzivní procházení entity klíčů
+
 ## 0.3.44
 - Fix: počasí — HA weather.get_forecasts response obalená pod response klíčem, přidáno detailní logování
 - Fix: data — generated_kwh se bere z forecast.actual misto sumovani 15min intervalu
