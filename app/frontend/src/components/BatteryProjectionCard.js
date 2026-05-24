@@ -189,8 +189,8 @@ const BatteryProjectionCard = ({ batteryData, batteryLoading, batteryError, onRe
         <div className="muted-note">Historie baterie neni k dispozici.</div>
       ) : (
         <div className="cost-stack">
-          <ForecastLineChart height={240} animationProfile="progressive" {...socChartConfig} />
-          <BarTimeChart height={180} animationProfile="soft" {...powerChartConfig} />
+          <ForecastLineChart height={240} animationProfile="progressive" ariaLabel="Graf SoC baterie" {...socChartConfig} />
+          <BarTimeChart height={180} animationProfile="soft" ariaLabel="Graf toku výkonu baterie" {...powerChartConfig} />
         </div>
       )}
 

@@ -72,9 +72,9 @@ const EnergyBalanceCard = ({
             ))}
           </div>
           {chartType === "line" ? (
-            <LineTimeChart height={320} animationProfile="soft" {...lineConfig} />
+            <LineTimeChart height={320} animationProfile="soft" ariaLabel="Graf energetické bilance" {...lineConfig} />
           ) : (
-            <BarTimeChart height={320} animationProfile="soft" {...barConfig} />
+            <BarTimeChart height={320} animationProfile="soft" ariaLabel="Graf energetické bilance" {...barConfig} />
           )}
         </>
       )}

@@ -79,8 +79,7 @@ const ModernSolarForecastCard = ({ solarForecast, loading }: { solarForecast: an
         </button>
       </div>
 
-      {showDetail ? (
-        <div className="modern-detail-grid">
+      <div className={`modern-detail-grid modern-solar__details ${showDetail ? "is-open" : ""}`.trim()}>
           <div>
             <span>Forecast dnes</span>
             <strong>{formatKwh(forecastToday)}</strong>
@@ -97,8 +96,7 @@ const ModernSolarForecastCard = ({ solarForecast, loading }: { solarForecast: an
             <span>Dnešní pace ratio</span>
             <strong>{formatRatio(comparison.live_ratio)}</strong>
           </div>
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 };

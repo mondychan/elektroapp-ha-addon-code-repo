@@ -35,7 +35,7 @@ const ExportChartCard = ({
               Celkem: {exportSummary.export_kwh_total?.toFixed(2)} kWh / {exportSummary.sell_total?.toFixed(2)},-Kc
             </div>
           )}
-          <ComboTimeChart height={340} animationProfile="realtime" {...chartConfig} />
+          <ComboTimeChart height={340} animationProfile="realtime" ariaLabel="Graf prodeje a exportu" {...chartConfig} />
         </>
       )}
     </div>

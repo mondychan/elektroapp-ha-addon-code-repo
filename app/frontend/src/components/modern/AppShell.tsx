@@ -205,6 +205,9 @@ const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div className={rootClassName}>
+      <a href="#modern-main-content" className="skip-link">
+        Přeskočit na obsah
+      </a>
       <aside
         id="modern-navigation-drawer"
         ref={drawerRef}
@@ -295,7 +298,7 @@ const AppShell: React.FC<AppShellProps> = ({
           </div>
         </header>
 
-        <main className="modern-content">{children}</main>
+        <main id="modern-main-content" className="modern-content">{children}</main>
       </div>
     </div>
   );

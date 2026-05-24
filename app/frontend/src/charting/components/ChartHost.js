@@ -38,6 +38,7 @@ const ChartHost = ({
   pointPayloads,
   onLongPressPoint,
   onPointClick,
+  ariaLabel,
 }) => {
   ensureChartJsRegistered();
 
@@ -120,7 +121,13 @@ const ChartHost = ({
   };
 
   return (
-    <div className={`chart-host ${className || ""}`.trim()} style={{ height }} data-testid={testId}>
+    <div
+      className={`chart-host ${className || ""}`.trim()}
+      style={{ height }}
+      data-testid={testId}
+      role="img"
+      aria-label={ariaLabel}
+    >
       <Chart
         key={`${type}-${themeSignature}`}
         ref={chartRef}

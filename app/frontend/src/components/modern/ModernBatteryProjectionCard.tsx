@@ -121,8 +121,8 @@ const ModernBatteryProjectionCard = ({
           <div className="modern-empty">Historie baterie není k dispozici.</div>
         ) : (
           <div className="modern-battery__chart-stack">
-            <ForecastLineChart height={180} animationProfile="progressive" {...socChartConfig} />
-            <BarTimeChart height={92} animationProfile="soft" {...powerChartConfig} />
+            <ForecastLineChart height={180} animationProfile="progressive" ariaLabel="Projekce SoC baterie" {...socChartConfig} />
+            <BarTimeChart height={92} animationProfile="soft" ariaLabel="Tok výkonu baterie" {...powerChartConfig} />
           </div>
         )}
       </div>

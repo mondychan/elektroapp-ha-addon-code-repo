@@ -35,7 +35,7 @@ const CostChartCard = ({
               Celkem: {costsSummary.kwh_total?.toFixed(2)} kWh / {costsSummary.cost_total?.toFixed(2)},-Kc
             </div>
           )}
-          <ComboTimeChart height={340} animationProfile="realtime" {...chartConfig} />
+          <ComboTimeChart height={340} animationProfile="realtime" ariaLabel="Graf nákladů a spotřeby" {...chartConfig} />
         </>
       )}
     </div>

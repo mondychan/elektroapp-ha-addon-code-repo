@@ -41,6 +41,7 @@ const PriceChartCard = ({
         <BarTimeChart
           height={height}
           animationProfile="progressive"
+          ariaLabel="Graf ceny elektřiny"
           {...chartConfig}
           onLongPressPoint={(payload) => {
             if (typeof onPinSlot === "function" && Number.isInteger(payload?.slot)) {
