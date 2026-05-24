@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.46
+- Debug: detailní logování struktury weather service_response pro diagnostiku
+- Oprava: weather response hledání forecastu v service_response i vnořených entity klíčích
+
 ## 0.3.45
 - Fix: počasí — HA vrací service_response (ne response), přidáno rekurzivní procházení entity klíčů
 
