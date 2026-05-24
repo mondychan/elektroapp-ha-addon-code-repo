@@ -251,7 +251,14 @@ class AppConfigModel(StrictModel):
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     pnd: PNDConfig = Field(default_factory=PNDConfig)
     hp: HPConfig = Field(default_factory=HPConfig)
-    solar_overview: SolarOverviewConfig = Field(default_factory=SolarOverviewConfig)
+    solar_overview: SolarOverviewConfig = Field(default_factory=SolarOverviewConfig, validation_alias="solar_overview")
+
+    @field_validator("solar_overview", mode="before")
+    @classmethod
+    def clean_solar_overview(cls, value):
+        if not isinstance(value, dict):
+            return {}
+        return {k: v for k, v in value.items() if k in ("enabled", "weather_entity_id", "title")}
 
     @field_validator("dph", mode="before")
     @classmethod
