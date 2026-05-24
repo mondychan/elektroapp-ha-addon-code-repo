@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.44
+- Fix: počasí — HA weather.get_forecasts response obalená pod response klíčem, přidáno detailní logování
+- Fix: data — generated_kwh se bere z forecast.actual misto sumovani 15min intervalu
+- Nový graf "PV Zítra" — hodinova predikce FV vyroby na zitrek s oblačnosti a weather stripem
+
 ## 0.3.43
 - Fix: počasí se nenačítalo — HA service call zkouší target formát při selhání direct entity_id
 - Fix: data discrepancy — karta teď ukazuje raw forecast, systémový odhad i forecast na zítřek
