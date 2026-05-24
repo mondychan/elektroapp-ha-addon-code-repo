@@ -6,8 +6,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger("uvicorn.error")
 
-DEFAULT_WEATHER_ENTITY = "weather.forecast_drinov67"
-
 
 def _default_get_local_tz(tz_name=None):
     try:

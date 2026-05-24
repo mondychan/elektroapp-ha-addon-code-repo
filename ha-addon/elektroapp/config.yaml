@@ -123,7 +123,7 @@ options:
     overrides: []
   solar_overview:
     enabled: true
-    weather_entity_id: "weather.forecast_drinov67"
+    weather_entity_id: ""
     title: ""
 schema:
   dph: float
@@ -239,10 +239,6 @@ schema:
         value_format: list(default|duration_seconds|duration_minutes|duration_hours|auto_unit)?
         duration_style: list(short|long)?
         duration_max_parts: int?
-  solar_overview:
-    enabled: bool?
-    weather_entity_id: str?
-    title: str?
     overrides:
       - entity_id: str
         enabled: bool?
@@ -258,3 +254,7 @@ schema:
         value_format: list(default|duration_seconds|duration_minutes|duration_hours|auto_unit)?
         duration_style: list(short|long)?
         duration_max_parts: int?
+  solar_overview:
+    enabled: bool?
+    weather_entity_id: str?
+    title: str?
