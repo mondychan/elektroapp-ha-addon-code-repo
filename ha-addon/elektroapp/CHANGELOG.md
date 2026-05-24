@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.50
+- Fix: config validation — čistí stale overrides z solar_overview před Pydantic validací
+
 ## 0.3.49
 - Hotfix: obnovení parsování forecast_list (omylem smazáno v 0.3.48)
 
