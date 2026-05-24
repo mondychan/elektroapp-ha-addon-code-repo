@@ -244,10 +244,17 @@ class SolarOverviewService:
             return None
 
         inner = response.get("service_response") or response.get("response") or response
+        self.log.info("SolarOverview weather inner keys: %s", list(inner.keys()) if isinstance(inner, dict) else type(inner))
+
+        if isinstance(inner, dict):
+            for k, v in inner.items():
+                if isinstance(v, dict):
+                    self.log.info("SolarOverview weather inner[%s] keys: %s", k, list(v.keys()))
+                elif isinstance(v, list):
+                    self.log.info("SolarOverview weather inner[%s] list len=%d first_item_keys=%s", k, len(v), list(v[0].keys()) if v and isinstance(v[0], dict) else "not-dict")
 
         forecast_list = None
         for key, val in (inner if isinstance(inner, dict) else {}).items():
-            self.log.info("SolarOverview weather key=%s type=%s", key, type(val).__name__)
             if isinstance(val, dict):
                 if "forecast" in val:
                     forecast_list = val["forecast"]
