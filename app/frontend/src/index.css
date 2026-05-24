@@ -2336,7 +2336,7 @@ body[data-theme="light"] .modern-topbar {
   gap: 3px;
   padding: 8px 9px 7px;
   border: 1px solid var(--border-subtle, var(--border));
-  border-left-width: 2px;
+  border-top-width: 3px;
   border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
@@ -2345,13 +2345,13 @@ body[data-theme="light"] .modern-topbar {
   overflow: hidden;
 }
 
-.modern-kpi--price { border-left-color: var(--accent-blue); }
-.modern-kpi--green { border-left-color: var(--accent-green); }
-.modern-kpi--amber { border-left-color: var(--accent-amber); }
-.modern-kpi--red { border-left-color: var(--accent-red); }
-.modern-kpi--purple { border-left-color: var(--accent-purple); }
-.modern-kpi--cyan { border-left-color: var(--accent-cyan); }
-.modern-kpi--neutral { border-left-color: var(--border-subtle, var(--border)); }
+.modern-kpi--price { border-top-color: var(--accent-blue); }
+.modern-kpi--green { border-top-color: var(--accent-green); }
+.modern-kpi--amber { border-top-color: var(--accent-amber); }
+.modern-kpi--red { border-top-color: var(--accent-red); }
+.modern-kpi--purple { border-top-color: var(--accent-purple); }
+.modern-kpi--cyan { border-top-color: var(--accent-cyan); }
+.modern-kpi--neutral { border-top-color: var(--border-subtle, var(--border)); }
 
 .modern-kpi__top,
 .modern-kpi__value-row {
@@ -3460,6 +3460,13 @@ select:focus-visible {
   text-align: center;
   font-size: 0.9rem;
   color: var(--text-muted);
+  cursor: default;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.solar-overview-weather-strip__item:hover {
+  color: var(--text);
+  transform: scale(1.25);
 }
 
 .solar-overview-weather-strip__icon {

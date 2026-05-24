@@ -222,26 +222,28 @@ class SolarOverviewService:
                 return_response=True,
             )
         except Exception as exc:
-            self.log.warning("SolarOverview weather call failed: %s", exc)
-            return None
+            self.log.warning("SolarOverview weather call failed with direct entity_id, retrying as target: %s", exc)
+            try:
+                response = self.call_ha_service(
+                    "weather",
+                    "get_forecasts",
+                    {"target": {"entity_id": weather_entity}, "type": "hourly"},
+                    return_response=True,
+                )
+            except Exception as exc2:
+                self.log.warning("SolarOverview weather call failed: %s", exc2)
+                return None
 
         if not isinstance(response, dict):
             return None
 
-        key = weather_entity if weather_entity in response else "weather.forecast_drinov67"
-        forecast_data = response.get(key, {})
-        if isinstance(forecast_data, dict):
-            forecast_list = forecast_data.get("forecast")
-        else:
-            forecast_list = None
+        forecast_list = None
+        for key, val in response.items():
+            if isinstance(val, dict) and "forecast" in val:
+                forecast_list = val["forecast"]
+                break
 
-        if not isinstance(forecast_list, list):
-            for val in (response.get(k, {}).get("forecast") for k in response if isinstance(response.get(k), dict)):
-                if isinstance(val, list) and val:
-                    forecast_list = val
-                    break
-
-        if not forecast_list:
+        if not isinstance(forecast_list, list) or not forecast_list:
             return None
 
         parsed = []
@@ -377,39 +379,53 @@ class SolarOverviewService:
         return result
 
     def _build_totals(self, energy_data, forecast):
-        def _sum_series(series, key, interval_minutes=15):
-            total = 0.0
-            for p in series:
-                val = _safe_float(p.get("value"))
-                if val is None:
-                    continue
-                unit = (p.get("unit") or "").lower()
-                if unit == "kw":
-                    val *= 1000.0
-                total += val * (interval_minutes / 60.0) / 1000.0
-            return round(total, 3) if total > 0 else None
-
         generated_kwh = None
-        if energy_data:
+        if forecast:
+            actual = forecast.get("actual")
+            if isinstance(actual, dict):
+                generated_kwh = _safe_float(actual.get("production_today_kwh"))
+        if generated_kwh is None and energy_data:
             pv = energy_data.get("solar") or []
-            generated_kwh = _sum_series(pv, "value")
+            generated_kwh = self._sum_series(pv)
 
-        forecast_total = None
+        forecast_raw_today = None
+        forecast_adj_today = None
+        forecast_raw_tomorrow = None
+        forecast_adj_tomorrow = None
+
         if forecast:
             comparison = forecast.get("comparison")
             if isinstance(comparison, dict):
-                forecast_total = _safe_float(comparison.get("adjusted_projection_today_kwh"))
-            if forecast_total is None:
-                status = forecast.get("status")
-                if isinstance(status, dict):
-                    forecast_total = _safe_float(status.get("energy_production_today_kwh"))
+                forecast_adj_today = _safe_float(comparison.get("adjusted_projection_today_kwh"))
+                forecast_adj_tomorrow = _safe_float(comparison.get("adjusted_projection_tomorrow_kwh"))
+            status = forecast.get("status")
+            if isinstance(status, dict):
+                forecast_raw_today = _safe_float(status.get("energy_production_today_kwh"))
+                forecast_raw_tomorrow = _safe_float(status.get("energy_production_tomorrow_kwh"))
 
-        remaining_kwh = None
-        if forecast_total is not None and generated_kwh is not None:
-            remaining_kwh = round(forecast_total - generated_kwh, 3)
+        remaining_raw = None
+        remaining_adj = None
+        if generated_kwh is not None:
+            if forecast_raw_today is not None:
+                remaining_raw = round(forecast_raw_today - generated_kwh, 3)
+            if forecast_adj_today is not None:
+                remaining_adj = round(forecast_adj_today - generated_kwh, 3)
 
         return {
             "generated_kwh": generated_kwh,
-            "forecast_total_kwh": forecast_total,
-            "remaining_kwh": remaining_kwh,
+            "forecast_raw_today_kwh": forecast_raw_today,
+            "forecast_adjusted_today_kwh": forecast_adj_today,
+            "forecast_adjusted_tomorrow_kwh": forecast_adj_tomorrow,
         }
+
+    def _sum_series(self, series, interval_minutes=15):
+        total = 0.0
+        for p in series:
+            val = _safe_float(p.get("value"))
+            if val is None:
+                continue
+            unit = (p.get("unit") or "").lower()
+            if unit == "kw":
+                val *= 1000.0
+            total += val * (interval_minutes / 60.0) / 1000.0
+        return round(total, 3) if total > 0 else None

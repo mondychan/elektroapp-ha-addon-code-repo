@@ -332,8 +332,9 @@ export interface SolarOverview {
   error?: string;
   totals?: {
     generated_kwh: number | null;
-    forecast_total_kwh: number | null;
-    remaining_kwh: number | null;
+    forecast_raw_today_kwh: number | null;
+    forecast_adjusted_today_kwh: number | null;
+    forecast_adjusted_tomorrow_kwh: number | null;
   };
   forecast_chart?: {
     points: SolarOverviewPoint[];

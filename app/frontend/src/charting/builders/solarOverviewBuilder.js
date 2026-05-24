@@ -1,5 +1,5 @@
 import { getChartTheme } from "../chartTheme";
-import { buildLinearAxis, getResponsiveTickStep } from "./common";
+import { buildLinearAxis, buildTooltip, getResponsiveTickStep } from "./common";
 
 const formatHourLabel = (value) => {
   if (!Number.isFinite(value)) return "";
@@ -104,29 +104,32 @@ export const buildSolarOverviewForecastConfig = ({ points, now, theme }) => {
           position: "bottom",
           labels: { color: chartTheme.textMuted, usePointStyle: true, boxWidth: 12 },
         },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const idx = items[0]?.dataIndex;
-              return points[idx]?.time?.slice(11, 16) || formatHourLabel(idx);
-            },
-            label(ctx) {
-              const point = points[ctx.dataIndex];
-              if (!point) return "";
-              switch (ctx.dataset.label) {
-                case "Vyrobeno": return `Vyrobeno: ${point.generated_w != null ? `${point.generated_w} W` : "-"}`;
-                case "Predikce": return `Predikce: ${point.predicted_w != null ? `${point.predicted_w} W` : "-"}`;
-                case "Oblačnost":
-                  return [
-                    `Oblačnost: ${point.cloud_cover_percent != null ? `${point.cloud_cover_percent} %` : "-"}`,
-                    point.temperature_c != null ? `Teplota: ${point.temperature_c} °C` : null,
-                    point.condition ? `Počasí: ${point.condition}` : null,
-                  ].filter(Boolean);
-                default: return "";
-              }
-            },
-          },
-        },
+        tooltip: buildTooltip(({ points: tipPoints }) => {
+          if (!tipPoints?.length) return null;
+          const idx = tipPoints[0]?.dataIndex;
+          const point = points[idx];
+          if (!point) return null;
+          const sections = [];
+          for (const tp of tipPoints) {
+            switch (tp.dataset.label) {
+              case "Vyrobeno":
+                sections.push({ label: "Vyrobeno", value: tp.raw != null ? `${tp.raw} W` : "-", color: THEME_COLORS.solar.border });
+                break;
+              case "Predikce":
+                sections.push({ label: "Predikce", value: tp.raw != null ? `${tp.raw} W` : "-", color: THEME_COLORS.predicted.border });
+                break;
+              case "Oblačnost":
+                if (point.cloud_cover_percent != null)
+                  sections.push({ label: "Oblačnost", value: `${point.cloud_cover_percent} %`, color: THEME_COLORS.cloudCover.border });
+                if (point.temperature_c != null)
+                  sections.push({ label: "Teplota", value: `${point.temperature_c} °C`, color: "#94a3b8" });
+                if (point.condition)
+                  sections.push({ label: "Počasí", value: point.condition, color: "#94a3b8" });
+                break;
+            }
+          }
+          return { title: point.time?.slice(11, 16) || formatHourLabel(idx), sections };
+        }),
       },
     },
   };
@@ -150,6 +153,7 @@ export const buildSolarOverviewEnergyConfig = ({ points, theme }) => {
           pointRadius: 0,
           tension: 0.3,
           spanGaps: false,
+          yAxisID: "y",
         },
         {
           type: "line",
@@ -161,6 +165,7 @@ export const buildSolarOverviewEnergyConfig = ({ points, theme }) => {
           pointRadius: 0,
           tension: 0.3,
           spanGaps: false,
+          yAxisID: "y",
         },
         {
           type: "bar",
@@ -169,6 +174,8 @@ export const buildSolarOverviewEnergyConfig = ({ points, theme }) => {
           backgroundColor: THEME_COLORS.import.bg,
           borderColor: THEME_COLORS.import.border,
           borderWidth: 1,
+          yAxisID: "y",
+          stack: "import-bar",
         },
         {
           type: "bar",
@@ -177,6 +184,8 @@ export const buildSolarOverviewEnergyConfig = ({ points, theme }) => {
           backgroundColor: THEME_COLORS.export.bg,
           borderColor: THEME_COLORS.export.border,
           borderWidth: 1,
+          yAxisID: "y",
+          stack: "export-bar",
         },
       ],
     },
@@ -211,20 +220,18 @@ export const buildSolarOverviewEnergyConfig = ({ points, theme }) => {
           position: "bottom",
           labels: { color: chartTheme.textMuted, usePointStyle: true, boxWidth: 12 },
         },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              return items[0]?.label || "";
-            },
-            label(ctx) {
-              const point = points[ctx.dataIndex];
-              if (!point) return "";
-              const val = ctx.raw;
-              const formatted = val != null ? `${val} W` : "-";
-              return `${ctx.dataset.label}: ${formatted}`;
-            },
-          },
-        },
+        tooltip: buildTooltip(({ points: tipPoints }) => {
+          if (!tipPoints?.length) return null;
+          const title = tipPoints[0]?.label || "";
+          return {
+            title,
+            sections: tipPoints.map((tp) => ({
+              label: tp.dataset.label,
+              value: tp.raw != null ? `${tp.raw} W` : "-",
+              color: tp.dataset.borderColor || tp.dataset.backgroundColor,
+            })),
+          };
+        }),
       },
     },
   };
@@ -245,5 +252,5 @@ export const weatherConditionIcon = (condition) => {
     pouring: "\uD83C\uDF27\uFE0F",
     hail: "\uD83C\uDF28\uFE0F",
   };
-  return map[condition] || map.unknown || "\u2753";
+  return map[condition] || "\u2753";
 };

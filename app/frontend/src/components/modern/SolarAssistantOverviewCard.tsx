@@ -7,13 +7,6 @@ import {
 } from "../../charting/builders/solarOverviewBuilder";
 import { SolarOverview } from "../../types/elektroapp";
 
-const formatW = (value?: number | null) => {
-  if (value == null || Number.isNaN(Number(value))) return "-";
-  const numeric = Number(value);
-  if (Math.abs(numeric) >= 1000) return `${(numeric / 1000).toFixed(2)} kW`;
-  return `${Math.round(numeric)} W`;
-};
-
 const formatKwh = (value?: number | null, digits = 2) => {
   if (value == null || Number.isNaN(Number(value))) return "-";
   return `${Number(value).toFixed(digits)} kWh`;
@@ -58,24 +51,35 @@ const SolarAssistantOverviewCard: React.FC<Props> = ({ solarOverview, loading })
   const forecastPoints = solarOverview.forecast_chart?.points || [];
   const sources = solarOverview.sources;
 
-  const pctComplete = totals && totals.forecast_total_kwh && totals.generated_kwh != null
-    ? Math.min(100, Math.max(0, (totals.generated_kwh / totals.forecast_total_kwh) * 100))
+  const pctComplete = totals && totals.forecast_raw_today_kwh && totals.generated_kwh != null
+    ? Math.min(100, Math.max(0, (totals.generated_kwh / totals.forecast_raw_today_kwh) * 100))
     : null;
+
+  const forecastLabel = totals?.forecast_adjusted_today_kwh != null
+    ? `${formatKwh(totals.forecast_adjusted_today_kwh)} (systémový)`
+    : "";
+  const rawLabel = totals?.forecast_raw_today_kwh != null
+    ? `${formatKwh(totals.forecast_raw_today_kwh)} (forecast)`
+    : "";
 
   return (
     <div className="solar-overview-card">
       {totals && (
         <div className="solar-overview-progress">
-          <div className="solar-overview-progress__bar" role="progressbar" aria-valuenow={pctComplete ?? 0} aria-valuemin={0} aria-valuemax={100}>
+          <div className="solar-overview-progress__bar" role="progressbar" aria-valuenow={pctComplete ?? 0} aria-valuemin={0} aria-valuemax={100} aria-valuetext={totals.generated_kwh != null && totals.forecast_raw_today_kwh != null ? `${totals.generated_kwh.toFixed(2)} z ${totals.forecast_raw_today_kwh.toFixed(2)} kWh` : undefined}>
             <div
               className="solar-overview-progress__fill"
               style={{ width: `${pctComplete ?? 0}%` }}
             />
           </div>
           <div className="solar-overview-progress__stats">
-            <span>Vyrobeno: <strong>{formatKwh(totals.generated_kwh)}</strong> {totals.forecast_total_kwh != null ? `z ${formatKwh(totals.forecast_total_kwh)}` : ""}</span>
-            {totals.remaining_kwh != null && (
-              <span>Zbývá: <strong>{formatKwh(totals.remaining_kwh)}</strong></span>
+            <span>Vyrobeno: <strong>{formatKwh(totals.generated_kwh)}</strong></span>
+            <span>Forecast: <strong>{rawLabel || "-"}</strong></span>
+            {totals.forecast_adjusted_today_kwh != null && (
+              <span>Systémový odhad: <strong>{formatKwh(totals.forecast_adjusted_today_kwh)}</strong></span>
+            )}
+            {totals.forecast_adjusted_tomorrow_kwh != null && (
+              <span>Zítra: <strong>{formatKwh(totals.forecast_adjusted_tomorrow_kwh)}</strong></span>
             )}
           </div>
         </div>
