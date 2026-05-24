@@ -35,8 +35,8 @@ export const buildPriceChartConfig = ({
   const maxFinal = Math.max(...chartData.map((item) => item.final));
   const activeSlot = Number.isInteger(pinnedSlot) ? pinnedSlot : highlightSlot;
   const theme = getChartTheme();
-  const fixedColor = theme.accentBlue || "rgba(56, 189, 248, 0.9)";
-  const coveredNegativeColor = theme.accentCyan || "rgba(34, 211, 238, 0.9)";
+  const fixedColor = theme.accent2 || "rgba(45, 127, 249, 0.9)";
+  const coveredNegativeColor = theme.accentAmber || "rgba(245, 158, 11, 0.9)";
   const variableColor = theme.accentRed || "rgba(239, 68, 68, 0.88)";
   const negativeColor = theme.accentGreen || "rgba(34, 197, 94, 0.88)";
 

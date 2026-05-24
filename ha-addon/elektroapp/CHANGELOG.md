@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.37
+- release notes not provided
+
 ## 0.3.36
 - Modern UI now uses a hamburger drawer with overlay and docked navigation instead of a permanent internal sidebar.
 - Removed the legacy UI path and obsolete legacy navigation components.
