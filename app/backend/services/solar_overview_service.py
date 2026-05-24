@@ -238,6 +238,27 @@ class SolarOverviewService:
                 self.log.warning("SolarOverview weather call failed: %s", exc2)
                 return None
 
+        if not isinstance(response, dict):
+            return None
+
+        inner = response.get("service_response") or response.get("response") or response
+        forecast_list = None
+        for key, val in (inner if isinstance(inner, dict) else {}).items():
+            if isinstance(val, dict):
+                if "forecast" in val:
+                    forecast_list = val["forecast"]
+                    break
+                for sub_key, sub_val in val.items():
+                    if isinstance(sub_val, dict) and "forecast" in sub_val:
+                        forecast_list = sub_val["forecast"]
+                        break
+                if forecast_list:
+                    break
+
+        if not isinstance(forecast_list, list) or not forecast_list:
+            self.log.warning("SolarOverview weather no forecast found in response")
+            return None
+
         self.log.info("SolarOverview weather forecast entries: %d", len(forecast_list))
 
         parsed = []
