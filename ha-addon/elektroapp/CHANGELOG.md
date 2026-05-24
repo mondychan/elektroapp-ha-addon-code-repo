@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.48
+- Fix: forecast raw klíč — používá production_today z SolarService status
+- Fix: config 422 debug logging pro identifikaci extra polí v solar_overview
+- Reduced weather log verbosity na jeden řádek
+
 ## 0.3.47
 - Fix: chybějící SolarOverviewConfig v config_models.py — GET /api/config vracel 422
 - Fix: weather service_response strukturní logging pro diagnostiku
