@@ -148,6 +148,7 @@ class SolarOverviewService:
             }
 
         forecast_points = self._build_forecast_points(energy_data, forecast, weather, tzinfo, now)
+        tomorrow_points = self._build_tomorrow_forecast_points(forecast, weather, tzinfo)
         overview_points = self._build_overview_points(energy_data)
         totals = self._build_totals(energy_data, forecast)
 
@@ -160,6 +161,9 @@ class SolarOverviewService:
             "forecast_chart": {
                 "points": forecast_points,
                 "now": now.isoformat(),
+            },
+            "tomorrow_chart": {
+                "points": tomorrow_points,
             },
             "overview_chart": {
                 "points": overview_points,
@@ -234,17 +238,26 @@ class SolarOverviewService:
                 self.log.warning("SolarOverview weather call failed: %s", exc2)
                 return None
 
+        self.log.info("SolarOverview weather raw response keys: %s", list(response.keys()) if isinstance(response, dict) else type(response))
+
         if not isinstance(response, dict):
             return None
 
+        inner = response.get("response", response)
+
         forecast_list = None
-        for key, val in response.items():
+        for key, val in inner.items():
+            self.log.info("SolarOverview weather key=%s type=%s", key, type(val).__name__)
             if isinstance(val, dict) and "forecast" in val:
                 forecast_list = val["forecast"]
+                self.log.info("SolarOverview weather found forecast list in key=%s", key)
                 break
 
         if not isinstance(forecast_list, list) or not forecast_list:
+            self.log.warning("SolarOverview weather no forecast found in response")
             return None
+
+        self.log.info("SolarOverview weather forecast entries: %d", len(forecast_list))
 
         parsed = []
         for entry in forecast_list:
@@ -337,6 +350,18 @@ class SolarOverviewService:
 
         return [round(_safe_float(v) * 1000.0) if _safe_float(v) is not None else None for v in hourly_kwh]
 
+    def _extract_tomorrow_forecast_w(self, forecast):
+        if not forecast:
+            return [None] * 24
+
+        comparison = forecast.get("comparison")
+        if isinstance(comparison, dict):
+            hourly_kwh = comparison.get("adjusted_tomorrow_hourly_profile_kwh_by_hour")
+            if isinstance(hourly_kwh, list) and len(hourly_kwh) == 24:
+                return [round(_safe_float(v) * 1000.0) if _safe_float(v) is not None else None for v in hourly_kwh]
+
+        return [None] * 24
+
     def _build_overview_points(self, energy_data):
         if not energy_data:
             return []
@@ -377,6 +402,43 @@ class SolarOverviewService:
             })
 
         return result
+
+    def _build_tomorrow_forecast_points(self, forecast, weather, tzinfo):
+        hourly_forecast_w = self._extract_tomorrow_forecast_w(forecast)
+        hour_count = len(hourly_forecast_w) if hourly_forecast_w else 24
+
+        tomorrow_date = (datetime.now(tzinfo) + timedelta(days=1)).date()
+
+        weather_by_hour = {}
+        if weather:
+            for w in weather:
+                wt = w["time"].astimezone(tzinfo)
+                if wt.date() == tomorrow_date:
+                    weather_by_hour[wt.hour] = w
+
+        points = []
+        for hour_idx in range(hour_count):
+            hour_slot = datetime.fromtimestamp(0, tzinfo).replace(hour=hour_idx)
+            time_iso = hour_slot.isoformat()
+
+            predicted_w = hourly_forecast_w[hour_idx] if hour_idx < len(hourly_forecast_w) else None
+            if predicted_w is not None:
+                predicted_w = round(predicted_w)
+
+            w_info = weather_by_hour.get(hour_idx, {})
+            cloud_pct = w_info.get("cloud_coverage") if w_info else None
+            condition = w_info.get("condition") if w_info else None
+            temp = w_info.get("temperature") if w_info else None
+
+            points.append({
+                "time": time_iso,
+                "predicted_w": predicted_w,
+                "cloud_cover_percent": cloud_pct,
+                "condition": condition,
+                "temperature_c": round(temp, 1) if temp is not None else None,
+            })
+
+        return points
 
     def _build_totals(self, energy_data, forecast):
         generated_kwh = None

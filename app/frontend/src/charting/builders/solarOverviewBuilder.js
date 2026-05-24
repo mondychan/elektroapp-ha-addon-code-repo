@@ -254,3 +254,106 @@ export const weatherConditionIcon = (condition) => {
   };
   return map[condition] || "\u2753";
 };
+
+export const buildSolarOverviewTomorrowConfig = ({ points, theme }) => {
+  const chartTheme = theme || getChartTheme();
+  const hourCount = points.length || 24;
+
+  const predictedData = points.map((p) => p.predicted_w);
+  const cloudData = points.map((p) => p.cloud_cover_percent);
+
+  return {
+    pointPayloads: points,
+    data: {
+      labels: points.map((_, i) => i),
+      datasets: [
+        {
+          type: "bar",
+          label: "Předpověď",
+          yAxisID: "yPower",
+          data: predictedData,
+          backgroundColor: THEME_COLORS.predicted.bg,
+          borderColor: THEME_COLORS.predicted.border,
+          borderWidth: 1,
+          borderDash: THEME_COLORS.predicted.dash,
+          order: 2,
+        },
+        {
+          type: "line",
+          label: "Oblačnost",
+          yAxisID: "yCloud",
+          data: cloudData,
+          borderColor: THEME_COLORS.cloudCover.border,
+          backgroundColor: THEME_COLORS.cloudCover.bg,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+          order: 0,
+          spanGaps: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          type: "linear",
+          min: -0.5,
+          max: hourCount - 0.5,
+          offset: false,
+          grid: { display: false },
+          ticks: {
+            stepSize: 1,
+            callback(value) {
+              const step = getResponsiveTickStep({
+                chart: this.chart,
+                labelCount: hourCount,
+                baseStep: 1,
+                minLabelWidth: 38,
+              });
+              if (!Number.isFinite(value) || value % step !== 0) return "";
+              return formatHourLabel(value);
+            },
+            maxRotation: 0,
+            minRotation: 0,
+            color: chartTheme.textMuted,
+          },
+        },
+        yPower: buildLinearAxis({ title: "W", position: "left", color: chartTheme.textMuted }),
+        yCloud: buildLinearAxis({ title: "%", position: "right", color: chartTheme.textMuted, suggestedMax: 100 }),
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: chartTheme.textMuted, usePointStyle: true, boxWidth: 12 },
+        },
+        tooltip: buildTooltip(({ points: tipPoints }) => {
+          if (!tipPoints?.length) return null;
+          const idx = tipPoints[0]?.dataIndex;
+          const point = points[idx];
+          if (!point) return null;
+          const sections = [];
+          for (const tp of tipPoints) {
+            switch (tp.dataset.label) {
+              case "Předpověď":
+                sections.push({ label: "Předpověď", value: tp.raw != null ? `${tp.raw} W` : "-", color: THEME_COLORS.predicted.border });
+                break;
+              case "Oblačnost":
+                if (point.cloud_cover_percent != null)
+                  sections.push({ label: "Oblačnost", value: `${point.cloud_cover_percent} %`, color: THEME_COLORS.cloudCover.border });
+                if (point.temperature_c != null)
+                  sections.push({ label: "Teplota", value: `${point.temperature_c} °C`, color: "#94a3b8" });
+                if (point.condition)
+                  sections.push({ label: "Počasí", value: point.condition, color: "#94a3b8" });
+                break;
+            }
+          }
+          return { title: point.time?.slice(11, 16) || formatHourLabel(idx), sections };
+        }),
+      },
+    },
+  };
+};

@@ -340,6 +340,9 @@ export interface SolarOverview {
     points: SolarOverviewPoint[];
     now: string;
   };
+  tomorrow_chart?: {
+    points: SolarOverviewPoint[];
+  };
   overview_chart?: {
     points: SolarOverviewEnergyPoint[];
   };

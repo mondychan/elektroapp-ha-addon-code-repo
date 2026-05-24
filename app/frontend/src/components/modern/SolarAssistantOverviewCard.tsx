@@ -3,6 +3,7 @@ import ComboTimeChart from "../../charting/components/ComboTimeChart";
 import {
   buildSolarOverviewForecastConfig,
   buildSolarOverviewEnergyConfig,
+  buildSolarOverviewTomorrowConfig,
   weatherConditionIcon,
 } from "../../charting/builders/solarOverviewBuilder";
 import { SolarOverview } from "../../types/elektroapp";
@@ -31,6 +32,12 @@ const SolarAssistantOverviewCard: React.FC<Props> = ({ solarOverview, loading })
     return buildSolarOverviewEnergyConfig({ points, theme: null });
   }, [solarOverview?.overview_chart]);
 
+  const tomorrowConfig = useMemo(() => {
+    const points = solarOverview?.tomorrow_chart?.points;
+    if (!points?.length) return null;
+    return buildSolarOverviewTomorrowConfig({ points, theme: null });
+  }, [solarOverview?.tomorrow_chart]);
+
   if (loading) {
     return <div className="modern-empty">Načítám solární přehled...</div>;
   }
@@ -48,7 +55,7 @@ const SolarAssistantOverviewCard: React.FC<Props> = ({ solarOverview, loading })
   }
 
   const totals = solarOverview.totals;
-  const forecastPoints = solarOverview.forecast_chart?.points || [];
+  const todayPoints = solarOverview.forecast_chart?.points || [];
   const sources = solarOverview.sources;
 
   const pctComplete = totals && totals.forecast_raw_today_kwh && totals.generated_kwh != null
@@ -91,9 +98,9 @@ const SolarAssistantOverviewCard: React.FC<Props> = ({ solarOverview, loading })
           <div className="solar-overview-chart">
             <ComboTimeChart height={340} animationProfile="soft" ariaLabel="Graf solární predikce a výroby" {...forecastConfig} />
           </div>
-          {forecastPoints.length > 0 && (
+          {todayPoints.length > 0 && (
             <div className="solar-overview-weather-strip" aria-label="Předpověď počasí">
-              {forecastPoints.map((point, idx) => (
+              {todayPoints.map((point, idx) => (
                 <div key={idx} className="solar-overview-weather-strip__item" title={point.condition || "–"}>
                   <span className="solar-overview-weather-strip__icon">
                     {point.condition ? weatherConditionIcon(point.condition) : "·"}
@@ -106,6 +113,24 @@ const SolarAssistantOverviewCard: React.FC<Props> = ({ solarOverview, loading })
       ) : (
         <div className="modern-empty">Data solární predikce nejsou k dispozici.</div>
       )}
+
+      {tomorrowConfig && solarOverview.tomorrow_chart?.points?.length ? (
+        <div className="solar-overview-section">
+          <h3 className="solar-overview-section__title">PV Zítra</h3>
+          <div className="solar-overview-chart">
+            <ComboTimeChart height={300} animationProfile="soft" ariaLabel="Graf solární predikce na zítra" {...tomorrowConfig} />
+          </div>
+          <div className="solar-overview-weather-strip" aria-label="Předpověď počasí na zítra">
+            {solarOverview.tomorrow_chart.points.map((point, idx) => (
+              <div key={idx} className="solar-overview-weather-strip__item" title={point.condition || "–"}>
+                <span className="solar-overview-weather-strip__icon">
+                  {point.condition ? weatherConditionIcon(point.condition) : "·"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {energyConfig ? (
         <div className="solar-overview-section">
