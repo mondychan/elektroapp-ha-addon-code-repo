@@ -103,7 +103,7 @@ export const buildPriceChartConfig = ({
       type: "bar",
       label: "Variabilní složka",
       data: dataVariable,
-      backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? variableColor : color)),
+      backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
       borderRadius: 5,
       borderSkipped: false,
       stack: "price",
