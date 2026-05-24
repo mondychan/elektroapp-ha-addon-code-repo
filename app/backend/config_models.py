@@ -230,6 +230,13 @@ class HPConfig(StrictModel):
     overrides: list[HPOverrideConfig] = Field(default_factory=list)
 
 
+class SolarOverviewConfig(StrictModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: bool = True
+    weather_entity_id: str | None = None
+    title: str | None = None
+
+
 class AppConfigModel(StrictModel):
     dph: float = Field(default=0.0, ge=0.0, le=100.0)
     price_provider: Literal["spotovaelektrina", "ote"] = Field(default=DEFAULT_PRICE_PROVIDER)
@@ -244,6 +251,7 @@ class AppConfigModel(StrictModel):
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     pnd: PNDConfig = Field(default_factory=PNDConfig)
     hp: HPConfig = Field(default_factory=HPConfig)
+    solar_overview: SolarOverviewConfig = Field(default_factory=SolarOverviewConfig)
 
     @field_validator("dph", mode="before")
     @classmethod
