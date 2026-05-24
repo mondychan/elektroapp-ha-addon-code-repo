@@ -162,7 +162,7 @@ const ModernOverviewPage = (props: any) => {
             onPinSlot={setPinnedSlot}
             thresholds={alerts}
             className="modern-price-chart"
-            height={330}
+            height={420}
           />
         </SectionCard>
 
@@ -181,7 +181,7 @@ const ModernOverviewPage = (props: any) => {
               onPinSlot={() => {}}
               thresholds={alerts}
               className="modern-price-chart"
-              height={300}
+              height={420}
             />
           </SectionCard>
         )}

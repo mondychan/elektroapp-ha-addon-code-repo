@@ -2501,11 +2501,11 @@ body[data-theme="light"] .modern-topbar {
 }
 
 .modern-dashboard-grid--top > .modern-section-card:first-child {
-  grid-column: span 5;
+  grid-column: span 3;
 }
 
 .modern-dashboard-grid--top > .modern-section-card--wide {
-  grid-column: span 7;
+  grid-column: span 9;
 }
 
 .modern-dashboard-grid--middle > .modern-section-card {
@@ -3073,9 +3073,12 @@ body[data-theme="light"] .modern-topbar {
     gap: 18px;
   }
 
-  .modern-dashboard-grid--top > .modern-section-card:first-child,
+  .modern-dashboard-grid--top > .modern-section-card:first-child {
+    grid-column: span 3;
+  }
+
   .modern-dashboard-grid--top > .modern-section-card--wide {
-    grid-column: span 6;
+    grid-column: span 9;
   }
 
   .modern-dashboard-grid--middle > .modern-section-card {
