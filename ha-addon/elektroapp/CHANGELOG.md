@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.39
+- Opraven kontrast barev buy/sell textu v dark i light tématu (WCAG AA)
+- Přidán skip-to-content link pro klávesnicové uživatele
+- Chart grafy nově mají aria-label pro screen readery
+- Heatmapa dostala skrytou textovou tabulku s daty pro asistivní technologie
+- KPI animace se vypínají při prefers-reduced-motion
+- Odstraněny nedefinované CSS proměnné (panel-soft, muted, shadow-sm)
+- Vyčištěn mrtvý CRA CSS v App.css
+
 ## 0.3.38
 - Fix: negative variable price component now shows in green
 
