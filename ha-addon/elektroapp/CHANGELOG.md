@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.53
+- Monthly overview table: přidán sloupec "Fixní (Kč)" s denním podílem fixních poplatků (jistič, stálý plat, provoz)
+- Sloupec "Náklady (Kč)" nyní zobrazuje celkové (variabilní + fixní) — měsíční součet sedí s fakturou
+- Backend: `total_cost` a `fixed_cost_total` vráceny v `daily_summary` API pro frontend i CSV
+
 ## 0.3.52
 - CSV export: "Naklady (Kč)" nyní zahrnuje fixní poplatky (jistič, stálý plat, provoz infrastruktury) rozpočtené na den — měsíční součet sedí s fakturou 1:1
 - Přidán součtový řádek "CELKEM" na konec CSV exportu
