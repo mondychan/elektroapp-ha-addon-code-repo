@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.56
+- Přidána ověřená integrace Distribučního portálu ČEZ přes CAS/OIDC a strukturované DIP API.
+- Nová samostatná stránka Distribuční portál zobrazuje spotřební i výrobní EAN, kontakty, technické údaje, smlouvy, odečty, HDO a odstávky.
+- DIP podporuje test při startu, periodickou synchronizaci a ruční konfiguraci s prioritou před synchronizovanými údaji.
+- Přidána samostatná stránka Vyúčtování s virtuální fakturou, archivem PDF/XLSX a tříúrovňovým auditem skutečných dokumentů.
+- Přidány dodavatelské 15minutové CSV exporty pro odběr a výkup a opraveny výpočty měsíčních variabilních nákladů.
+- Hesla PND a DIP se již nevracejí přes konfigurační API; upload dokumentů ověřuje podpisy a bezpečnostní limity.
+
 ## 0.3.55
 - Opraven měsíční přehled: denní sloupec Náklady nyní konzistentně zobrazuje celkové náklady včetně fixních poplatků
 - Řazení sloupce Náklady používá celkové náklady stejně jako výpočet Netto Kč a souhrnný řádek
