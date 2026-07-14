@@ -287,7 +287,90 @@ get_prefetch_lock_path = get_prefetch_lock_path_legacy
 acquire_prefetch_process_lock = acquire_prefetch_process_lock_legacy
 release_prefetch_process_lock = release_prefetch_process_lock_legacy
 
+def _pnd_to_points(day_payload: dict, tzinfo, *, kind: str) -> dict:
+    """Convert one PND-normalized day (15-min intervals from the distributor's
+    meter) into the same point shape returned by consumption/export services.
+
+    kind == "consumption" -> use consumption_kwh (grid import / +A)
+    kind == "export"       -> use production_kwh (grid export  / -A)
+    """
+    if kind == "export":
+        pnd_key = "production_kwh"
+        default_source = "pnd-export"
+    elif kind == "consumption":
+        pnd_key = "consumption_kwh"
+        default_source = "pnd-consumption"
+    else:
+        raise ValueError(f"Unknown PND kind: {kind}")
+
+    interval_minutes = int(day_payload.get("interval_minutes") or 15)
+    points = []
+    for iv in day_payload.get("intervals", []):
+        val = iv.get(pnd_key)
+        if val is None:
+            continue
+        ts_local = datetime.fromisoformat(iv["start"]).astimezone(tzinfo)
+        ts_utc = ts_local.astimezone(timezone.utc)
+        points.append(
+            {
+                "time": ts_local.isoformat(),
+                "time_utc": to_rfc3339(ts_utc),
+                "kwh_total": None,
+                "kwh": val,
+            }
+        )
+
+    date_str = day_payload.get("date")
+    if date_str:
+        start_local = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tzinfo)
+        end_local = (start_local + timedelta(days=1)).replace(microsecond=0)
+    else:
+        start_local = points[0]["time"] if points else None
+        end_local = None
+
+    return {
+        "range": {
+            "start": to_rfc3339(start_local) if start_local else None,
+            "end": to_rfc3339(end_local) if end_local else None,
+        },
+        "interval": f"{interval_minutes}m",
+        "entity_id": day_payload.get("source") or default_source,
+        "points": points,
+        "tzinfo": tzinfo,
+        "has_series": bool(points),
+        "from_cache": False,
+        "cache_fallback": False,
+        "source": "pnd",
+    }
+
+
+def _pnd_day_points(cfg, date: str, *, kind: str) -> dict | None:
+    """Return PND-backed points for a finalized day, or None if PND has no data."""
+    if PND_SERVICE is None or not PND_SERVICE.has_day(date):
+        return None
+    try:
+        result = PND_SERVICE.get_data(date, date)
+    except Exception as exc:  # noqa: BLE001 - PND is best-effort; fall back to Influx
+        logger.warning("PND data lookup failed for %s (%s): %s", date, kind, exc)
+        return None
+    days = result.get("days") or []
+    if not days:
+        return None
+    day = days[0]
+    intervals = day.get("intervals")
+    if not intervals:
+        return None
+    tzinfo = get_local_tz(get_influx_cfg(cfg).get("timezone"))
+    return _pnd_to_points(day, tzinfo, kind=kind)
+
+
 def get_consumption_points(cfg, date=None, start=None, end=None, cache_ttl=600):
+    # PND override: once the distributor's finalized meter reading is synced
+    # (nightly), use it instead of the live Influx sensor for that past day.
+    if date and not start and not end:
+        pnd_points = _pnd_day_points(cfg, date, kind="consumption")
+        if pnd_points is not None:
+            return pnd_points
     from services.consumption_service import get_consumption_points as gcp
     import sys
     class LegacyConsumptionCacheProxy:
@@ -296,6 +379,11 @@ def get_consumption_points(cfg, date=None, start=None, end=None, cache_ttl=600):
     return gcp(cfg, sys.modules[__name__], LegacyConsumptionCacheProxy(), get_influx_cfg, get_local_tz, date, start, end, cache_ttl)
 
 def get_export_points(cfg, date=None, start=None, end=None, cache_ttl=600):
+    # PND override: finalized grid-export readings replace live Influx for past days.
+    if date and not start and not end:
+        pnd_points = _pnd_day_points(cfg, date, kind="export")
+        if pnd_points is not None:
+            return pnd_points
     from services.consumption_service import get_export_points as gep
     import sys
     class LegacyExportCacheProxy:
@@ -709,7 +797,13 @@ def export_monthly_csv(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return EXPORT_DATA_SERVICE.generate_monthly_csv(cfg, month, tzinfo)
 
-def _require_pnd_service() -> PNDService:
+def _invalidate_series_cache_for_day(date_str: str) -> None:
+    """Drop stale Influx series-cache files for a day after its PND
+    meter reading is synced (so billing/CSV reads PND, not Influx)."""
+    if CONSUMPTION_CACHE:
+        CONSUMPTION_CACHE.invalidate(date_str)
+    if EXPORT_CACHE:
+        EXPORT_CACHE.invalidate(date_str)
     if not PND_SERVICE:
         raise HTTPException(status_code=503, detail="PND service neni inicializovana.")
     return PND_SERVICE
@@ -861,6 +955,7 @@ def start_pnd_scheduler():
             get_pnd_cfg_fn=get_pnd_cfg,
             has_pnd_required_cfg_fn=has_pnd_required_cfg,
             pnd_service=_require_pnd_service(),
+            invalidate_series_cache_fn=_invalidate_series_cache_for_day,
         ),
     )
 

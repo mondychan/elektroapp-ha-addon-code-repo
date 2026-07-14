@@ -156,6 +156,7 @@ def schedule_pnd_loop(
     get_pnd_cfg_fn,
     has_pnd_required_cfg_fn,
     pnd_service,
+    invalidate_series_cache_fn=None,
 ):
     initial_run = True
     while True:
@@ -189,10 +190,25 @@ def schedule_pnd_loop(
                 should_sync = pnd_cfg.get("nightly_sync_enabled", True) and has_gaps and (in_window or initial_run)
                 
                 if should_sync:
+                    synced_range = None
                     try:
-                        pnd_service.run_nightly_sync(pnd_cfg, tzinfo=tzinfo)
+                        sync_result = pnd_service.run_nightly_sync(pnd_cfg, tzinfo=tzinfo)
+                        synced_range = sync_result.get("range") if isinstance(sync_result, dict) else None
                     except PNDServiceError as exc:
                         logger.warning("PND sync failed: %s", exc.message)
+                    else:
+                        # Drop stale Influx series caches for the synced days so the
+                        # next billing/CSV query reads the finalized PND meter data.
+                        if callable(invalidate_series_cache_fn) and synced_range:
+                            from datetime import date as _date
+                            try:
+                                cur = _date.fromisoformat(synced_range["from"])
+                                end = _date.fromisoformat(synced_range["to"])
+                                while cur <= end:
+                                    invalidate_series_cache_fn(cur.isoformat())
+                                    cur += timedelta(days=1)
+                            except (ValueError, TypeError, KeyError) as exc:
+                                logger.warning("PND cache invalidation skipped (bad range): %s", exc)
                     
                     # After sync attempt, we wait at least an hour if we are in window,
                     # or just move to regular window schedule if we were doing catch-up.

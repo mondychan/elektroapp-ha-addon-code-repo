@@ -61,6 +61,20 @@ class SeriesCache:
         tmp_path.replace(path)
         logger.info("Saved %s cache for %s to %s", self.prefix, date_str, path)
 
+    def invalidate(self, date_str: str) -> bool:
+        """Remove the cached series file for a single day (e.g. after a PND
+        nightly sync replaces Influx data with finalized meter readings)."""
+        path = self.build_path(date_str)
+        if path.exists():
+            try:
+                path.unlink(missing_ok=True)
+                logger.info("Invalidated %s cache for %s", self.prefix, date_str)
+                return True
+            except OSError as exc:
+                logger.warning("Failed to invalidate %s cache for %s: %s", self.prefix, date_str, exc)
+                return False
+        return False
+
     def get_status(self) -> dict:
         if not self.cache_dir.exists():
             return {"dir": str(self.cache_dir), "count": 0, "latest": None, "size_bytes": 0}
