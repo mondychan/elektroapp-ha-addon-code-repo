@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.51
+- Wire PND (distributor meter) data into billing/cost pipeline: finalized 15-min meter readings now override Influx for past days, so monthly CSV and dashboard match the actual invoice
+- Fix: _pnd_day_points no longer requires full InfluxDB config (reads timezone directly from cfg)
+- Add SeriesCache.invalidate(date_str) for cache hygiene after PND sync
+- Add unit tests for PND override path in billing pipeline
+
 ## 0.3.50
 - Fix: config validation — čistí stale overrides z solar_overview před Pydantic validací
 
