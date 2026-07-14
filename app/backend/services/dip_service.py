@@ -239,9 +239,21 @@ class DIPService:
             except (OSError, json.JSONDecodeError):
                 pass
         dip_cfg = cfg.get("dip", {}) if isinstance(cfg.get("dip"), dict) else {}
+        enabled = bool(dip_cfg.get("enabled"))
+        configured = bool(dip_cfg.get("username") and dip_cfg.get("password"))
+        if not enabled:
+            status = {"healthy": False, "last_error": None, "state": "disabled"}
+        elif not configured:
+            status = {"healthy": False, "last_error": None, "state": "not_configured"}
+        elif status.get("healthy"):
+            status["state"] = "connected"
+        elif status.get("last_error"):
+            status["state"] = "error"
+        else:
+            status["state"] = "configured"
         return {
-            "enabled": bool(dip_cfg.get("enabled")),
-            "configured": bool(dip_cfg.get("username") and dip_cfg.get("password")),
+            "enabled": enabled,
+            "configured": configured,
             "profile_available": bool(self.get_profile()),
             **status,
         }
@@ -262,6 +274,7 @@ class DIPService:
             normalized = {**profile, "fetched_at": fetched_at, "source": "dip"}
             self._write_json(self.profile_path, normalized)
             self._write_json(self.status_path, {"healthy": True, "last_sync_at": fetched_at, "last_error": None})
+            self.logger.info("DIP connection successful: synchronized %s supply points.", len(normalized.get("supply_points", [])))
             return {"ok": True, "profile": normalized}
         except DIPServiceError as exc:
             self._write_json(self.status_path, {"healthy": False, "last_sync_at": fetched_at, "last_error": {"code": exc.code, "message": exc.message}})

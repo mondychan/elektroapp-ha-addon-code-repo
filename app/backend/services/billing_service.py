@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import math
 from datetime import datetime, timedelta, timezone
 import re
 from typing import Any, Callable
@@ -335,9 +336,33 @@ class BillingService:
 
         dph_percent = float(cfg.get("dph") or 0.0)
         projection_factor = (days_in_month / days_with_data) if days_with_data else 0.0
+        first_day_after_month = start_date + timedelta(days=days_in_month)
+        use_billed_quantity_floor = first_day_after_month <= today and days_with_data == days_in_month
+
+        def apply_billed_quantity_floor(variable: dict[str, float]) -> dict[str, float]:
+            if not use_billed_quantity_floor:
+                return variable
+            exact_nt = variable["nt_kwh"]
+            exact_vt = variable["vt_kwh"]
+            billed_nt = float(math.floor(exact_nt))
+            billed_vt = float(math.floor(exact_vt))
+            exact_total = exact_nt + exact_vt
+            billed_total = billed_nt + billed_vt
+            total_ratio = billed_total / exact_total if exact_total > 0 else 0.0
+            nt_ratio = billed_nt / exact_nt if exact_nt > 0 else 0.0
+            vt_ratio = billed_vt / exact_vt if exact_vt > 0 else 0.0
+            adjusted = dict(variable)
+            for key in ("spot", "supplier_service", "oze", "electricity_tax", "system_services"):
+                adjusted[key] *= total_ratio
+            adjusted["distribution_nt"] *= nt_ratio
+            adjusted["distribution_vt"] *= vt_ratio
+            adjusted["nt_kwh"] = billed_nt
+            adjusted["vt_kwh"] = billed_vt
+            return adjusted
 
         def build_invoice(variable_factor: float) -> dict[str, Any]:
             variable = {key: value * variable_factor for key, value in invoice_variable.items()}
+            variable = apply_billed_quantity_floor(variable)
             commercial = variable["spot"] + variable["supplier_service"] + invoice_fixed["standing_charge"]
             regulated = (
                 variable["distribution_nt"]
@@ -389,6 +414,7 @@ class BillingService:
                 "projected": build_invoice(projection_factor),
                 "dph_percent": dph_percent,
                 "price_provider": cfg.get("price_provider"),
+                "billed_quantity_rounding": "floor_tariff_kwh" if use_billed_quantity_floor else "exact_interval_kwh",
             },
         }
         monthly_advance = max(float(cfg.get("mesicni_zaloha") or 0.0), 0.0)

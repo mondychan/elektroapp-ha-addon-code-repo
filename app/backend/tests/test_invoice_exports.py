@@ -46,14 +46,14 @@ def test_invoice_breakdown_reconciles_supplier_invoice_totals():
     tzinfo = ZoneInfo("Europe/Prague")
 
     def consumption(cfg, date=None, start=None, end=None):
-        has_data = date == "2026-06-01"
+        has_data = bool(date and date.startswith("2026-06-"))
         return {
             "tzinfo": tzinfo,
             "has_series": has_data,
             "points": ([
-                {"time": "2026-06-01T00:00:00+02:00", "time_utc": "2026-05-31T22:00:00Z", "kwh": 160.0},
-                {"time": "2026-06-01T06:00:00+02:00", "time_utc": "2026-06-01T04:00:00Z", "kwh": 24.0},
-            ] if has_data else []),
+                {"time": "2026-06-01T00:00:00+02:00", "time_utc": "2026-05-31T22:00:00Z", "kwh": 160.69},
+                {"time": "2026-06-01T06:00:00+02:00", "time_utc": "2026-06-01T04:00:00Z", "kwh": 24.53},
+            ] if date == "2026-06-01" else []),
         }
 
     fee_snapshot = {
@@ -97,3 +97,7 @@ def test_invoice_breakdown_reconciles_supplier_invoice_totals():
     assert invoice["regulated"]["total"] == 795.05
     assert invoice["supply_without_vat"] == 1323.86
     assert invoice["supply_with_vat"] == 1601.87
+    assert invoice["regulated"]["distribution_nt_kwh"] == 160.0
+    assert invoice["regulated"]["distribution_vt_kwh"] == 24.0
+    assert result["actual"]["kwh_total"] == 185.22
+    assert result["invoice"]["billed_quantity_rounding"] == "floor_tariff_kwh"

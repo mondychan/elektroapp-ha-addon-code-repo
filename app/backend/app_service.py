@@ -1081,8 +1081,16 @@ def start_pnd_scheduler():
 
 
 def start_dip_scheduler():
-    if not _can_start_dip_scheduler() or not DIP_SERVICE:
-        logger.info("DIP scheduler not started because DIP is disabled or missing required credentials.")
+    cfg = load_config()
+    dip_cfg = cfg.get("dip", {}) if isinstance(cfg.get("dip"), dict) else {}
+    if not dip_cfg.get("enabled"):
+        logger.info("DIP integration is disabled; startup connection test and scheduler are skipped.")
+        return False
+    if not dip_cfg.get("username") or not dip_cfg.get("password"):
+        logger.warning("DIP integration is enabled but credentials are incomplete; scheduler was not started.")
+        return False
+    if not DIP_SERVICE:
+        logger.error("DIP integration is enabled but the DIP service is not initialized.")
         return False
     with RUNTIME_STATE.dip_thread_guard:
         if RUNTIME_STATE.dip_thread and RUNTIME_STATE.dip_thread.is_alive():
@@ -1111,6 +1119,12 @@ def start_dip_scheduler():
 
         RUNTIME_STATE.dip_thread = threading.Thread(target=loop, name="dip-scheduler", daemon=True)
         RUNTIME_STATE.dip_thread.start()
+        logger.info(
+            "DIP scheduler started: startup_test=%s periodic_sync=%s interval_hours=%s.",
+            bool(dip_cfg.get("verify_on_startup", True)),
+            bool(dip_cfg.get("sync_enabled", True)),
+            int(dip_cfg.get("sync_interval_hours", 24) or 24),
+        )
         return True
 
 def log_cache_status():

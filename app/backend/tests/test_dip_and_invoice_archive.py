@@ -41,6 +41,18 @@ def test_dip_service_sync_persists_normalized_profile(tmp_path):
     assert result["ok"] is True
     assert service.get_profile()["source"] == "dip"
     assert service.get_status({"dip": {"enabled": True, "username": "user", "password": "secret"}})["healthy"] is True
+    assert service.get_status({"dip": {"enabled": True, "username": "user", "password": "secret"}})["state"] == "connected"
+
+
+def test_dip_status_does_not_report_stale_error_when_disabled_or_unconfigured(tmp_path):
+    service = DIPService(tmp_path)
+    service.status_path.write_text('{"healthy": false, "last_error": {"code": "DIP_LOGIN_FAILED", "message": "old"}}', encoding="utf-8")
+    disabled = service.get_status({"dip": {"enabled": False}})
+    unconfigured = service.get_status({"dip": {"enabled": True, "username": ""}})
+    assert disabled["state"] == "disabled"
+    assert disabled["last_error"] is None
+    assert unconfigured["state"] == "not_configured"
+    assert unconfigured["last_error"] is None
 
 
 def test_dip_normalization_keeps_billing_fields_without_bank_identifiers():
