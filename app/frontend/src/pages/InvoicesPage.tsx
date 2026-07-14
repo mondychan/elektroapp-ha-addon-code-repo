@@ -47,7 +47,7 @@ const InvoicesPage = ({ maxMonth }: { maxMonth: string }) => {
           return <div className="invoice-document" key={document.id}>
             <div><strong>{document.filename}</strong><span>{parsed.document_type || "Dokument"} · {parsed.period || [parsed.period_from, parsed.period_to].filter(Boolean).join(" - ")}</span></div>
             <div className="invoice-document__actions"><button type="button" onClick={() => audit(document.id)}>Provést audit</button><button type="button" className="ghost-button" onClick={async () => { await elektroappApi.deleteInvoice(document.id); await loadDocuments(); }}>Smazat</button></div>
-            {result && <div className={`invoice-audit invoice-audit--${result.overall}`}><strong>{result.overall === "match" ? "Shoda" : result.overall === "warning" ? "Varování" : "Chyba"}</strong>{result.comparisons?.map((item: any) => <span key={item.field}>{item.field}: faktura {item.expected}, aplikace {item.actual}, rozdíl {item.difference}</span>)}</div>}
+            {result && <div className={`invoice-audit invoice-audit--${result.overall}`}><strong>{result.overall === "match" ? "Shoda" : result.overall === "warning" ? "Varování" : "Chyba"}</strong>{result.comparisons?.map((item: any) => <span key={item.field}>{item.field}: faktura {item.expected}, aplikace {item.actual}, rozdíl {item.difference} ({item.difference_percent} %)</span>)}</div>}
           </div>;
         })}
         {!documents.length && <div className="config-muted">Zatím nebyly nahrány žádné faktury.</div>}

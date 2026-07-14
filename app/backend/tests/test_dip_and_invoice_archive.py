@@ -79,11 +79,25 @@ def test_invoice_archive_stores_lists_audits_and_deletes_xlsx(tmp_path):
 
     result = service.audit(record["id"], {
         "actual": {"kwh_total": 184.0},
-        "invoice": {"actual": {"commercial": {"spot_energy": 530.0}}},
+        "invoice": {"actual": {"commercial": {"spot_energy": 530.0}}, "interval_detail": {"consumption_kwh": 184.0, "spot_energy": 530.0}},
     })
-    assert result["overall"] == "error"
+    assert result["overall"] == "warning"
     assert service.delete(record["id"]) is True
     assert service.get_document(record["id"]) is None
+
+
+def test_invoice_audit_uses_interval_totals_and_relative_tolerance(tmp_path):
+    service = InvoiceArchiveService(tmp_path)
+    supply = service.store("supply.xlsx", _xlsx_bytes())
+    result = service.audit(supply["id"], {
+        "invoice": {
+            "actual": {"commercial": {"spot_energy": 338.99}},
+            "interval_detail": {"consumption_kwh": 184.000003, "spot_energy": 528.7933},
+        }
+    })
+    assert result["overall"] == "match"
+    assert all(item["level"] == "match" for item in result["comparisons"])
+    assert result["comparisons"][1]["actual"] == 528.7933
 
 
 @pytest.mark.parametrize("filename,data", [("fake.pdf", b"not pdf"), ("fake.xlsx", b"not xlsx")])

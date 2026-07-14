@@ -179,6 +179,7 @@ class InvoiceArchiveService:
             raise FileNotFoundError(document_id)
         reference = record.get("parsed", {})
         invoice = virtual_invoice.get("invoice", {}).get("actual", {})
+        interval_detail = virtual_invoice.get("invoice", {}).get("interval_detail", {})
         document_type = reference.get("document_type")
         if document_type == "invoice_pdf":
             mappings = {
@@ -189,13 +190,13 @@ class InvoiceArchiveService:
             }
         elif document_type == "supply_detail_xlsx":
             mappings = {
-                "quantity_mwh": (virtual_invoice.get("actual", {}).get("kwh_total") or 0.0) / 1000.0,
-                "total_czk": invoice.get("commercial", {}).get("spot_energy"),
+                "quantity_mwh": (interval_detail.get("consumption_kwh") or 0.0) / 1000.0,
+                "total_czk": interval_detail.get("spot_energy"),
             }
         else:
             mappings = {
-                "quantity_mwh": (virtual_invoice.get("actual", {}).get("export_kwh_total") or 0.0) / 1000.0,
-                "total_czk": invoice.get("sell_total"),
+                "quantity_mwh": (interval_detail.get("export_kwh") or 0.0) / 1000.0,
+                "total_czk": interval_detail.get("export_total"),
             }
         comparisons = []
         for key, actual in mappings.items():
@@ -204,8 +205,20 @@ class InvoiceArchiveService:
                 continue
             difference = round(float(actual) - float(expected), 6)
             absolute = abs(difference)
-            level = "match" if absolute <= 0.02 else "warning" if absolute <= 1.0 else "error"
-            comparisons.append({"field": key, "expected": expected, "actual": actual, "difference": difference, "level": level})
+            reference_size = abs(float(expected))
+            match_tolerance = max(0.000005 if key == "quantity_mwh" else 0.02, reference_size * 0.001)
+            warning_tolerance = max(0.00005 if key == "quantity_mwh" else 1.0, reference_size * 0.005)
+            level = "match" if absolute <= match_tolerance else "warning" if absolute <= warning_tolerance else "error"
+            difference_percent = (difference / reference_size * 100.0) if reference_size else 0.0
+            comparisons.append({
+                "field": key,
+                "expected": expected,
+                "actual": actual,
+                "difference": difference,
+                "difference_percent": round(difference_percent, 6),
+                "match_tolerance": round(match_tolerance, 6),
+                "level": level,
+            })
         overall = "error" if any(item["level"] == "error" for item in comparisons) else "warning" if any(item["level"] == "warning" for item in comparisons) else "match"
         result = {"document_id": document_id, "overall": overall, "comparisons": comparisons, "audited_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
         audit_dir = self.audits_dir / document_id

@@ -412,6 +412,12 @@ class BillingService:
             "invoice": {
                 "actual": build_invoice(1.0),
                 "projected": build_invoice(projection_factor),
+                "interval_detail": {
+                    "consumption_kwh": round(actual_kwh, 7),
+                    "spot_energy": round(invoice_variable["spot"], 7),
+                    "export_kwh": round(actual_export_kwh, 7) if export_days_with_data else None,
+                    "export_total": round(actual_sell_total, 7) if export_days_with_data else None,
+                },
                 "dph_percent": dph_percent,
                 "price_provider": cfg.get("price_provider"),
                 "billed_quantity_rounding": "floor_tariff_kwh" if use_billed_quantity_floor else "exact_interval_kwh",
