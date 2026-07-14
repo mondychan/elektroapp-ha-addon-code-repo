@@ -1049,44 +1049,169 @@ body[data-theme="dark"] .row-weekend {
 
 .invoice-document-list {
   display: grid;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.invoice-period-group {
+  min-width: 0;
+  border-top: 1px solid var(--row-border);
+}
+
+.invoice-period-group__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 8px;
+}
+
+.invoice-period-group__header h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.invoice-period-group__header span {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .invoice-document {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
+  grid-template-columns: minmax(0, 1fr) 112px auto;
+  align-items: center;
+  gap: 10px 16px;
+  min-height: 58px;
   padding: 10px 0;
   border-bottom: 1px solid var(--row-border);
 }
 
-.invoice-document > div:first-child {
+.invoice-document__identity {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
-.invoice-document > div:first-child span {
-  color: var(--text-muted);
-  font-size: 13px;
-  overflow-wrap: anywhere;
+.invoice-document__identity strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.invoice-document__type {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.invoice-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.invoice-status--match { border-color: var(--sell-text); color: var(--sell-text); }
+.invoice-status--warning { border-color: var(--accent); color: var(--accent); }
+.invoice-status--error { border-color: var(--buy-text); color: var(--buy-text); }
 
 .invoice-document__actions {
   display: flex;
   gap: 6px;
-  align-items: start;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.invoice-document__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  white-space: nowrap;
+}
+
+.invoice-document__actions .ghost-button {
+  margin-top: 0;
+}
+
+.invoice-document__actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.invoice-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: invoice-spin 0.75s linear infinite;
+}
+
+@keyframes invoice-spin {
+  to { transform: rotate(360deg); }
+}
+
+.invoice-audit-progress {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 12px;
+  background: var(--panel-2);
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .invoice-audit {
   grid-column: 1 / -1;
-  display: grid;
-  gap: 3px;
-  padding: 8px 10px;
+  overflow-x: auto;
+  padding: 4px 10px 8px;
   border-left: 3px solid var(--border);
   background: var(--panel-2);
   font-size: 13px;
+}
+
+.invoice-audit table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.invoice-audit th,
+.invoice-audit td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--row-border);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-audit thead th {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.invoice-audit th:first-child,
+.invoice-audit td:first-child {
+  text-align: left;
+}
+
+.invoice-audit tbody tr:last-child th,
+.invoice-audit tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .invoice-audit--match { border-left-color: var(--sell-text); }
@@ -1159,9 +1284,14 @@ body[data-theme="dark"] .row-weekend {
 
 @media (max-width: 780px) {
   .invoice-config-grid { grid-template-columns: 1fr; }
-  .invoice-document { grid-template-columns: 1fr; }
-  .invoice-document__actions { flex-wrap: wrap; }
+  .invoice-document { grid-template-columns: minmax(0, 1fr) auto; }
+  .invoice-status { justify-self: end; }
+  .invoice-document__actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
   .invoice-preview__table { min-width: 720px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invoice-spinner { animation-duration: 1.5s; }
 }
 
 .summary-export-btn {

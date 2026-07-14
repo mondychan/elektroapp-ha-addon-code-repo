@@ -1,9 +1,34 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { elektroappApi } from "../api/elektroappApi";
 import BillingCard from "../components/BillingCard";
 import DataCard from "../components/common/DataCard";
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
+const documentLabels: Record<string, string> = {
+  invoice_pdf: "Vyúčtovací faktura",
+  supply_detail_xlsx: "Detail dodávky",
+  export_detail_xlsx: "Detail výkupu",
+};
+const fieldLabels: Record<string, string> = {
+  quantity_mwh: "Množství",
+  total_czk: "Částka",
+  supply_without_vat: "Dodávka bez DPH",
+  commercial_without_vat: "Obchodní platby bez DPH",
+  regulated_without_vat: "Regulované platby bez DPH",
+  export_total: "Výkup elektřiny",
+};
+
+const documentPeriod = (document: any) => {
+  const parsed = document.parsed || {};
+  const from = parsed.period_from;
+  const to = parsed.period_to;
+  if (from && to) {
+    const formatDate = (input: string) => new Date(`${input}T12:00:00`).toLocaleDateString("cs-CZ");
+    return { key: `${from}|${to}`, label: `${formatDate(from)} - ${formatDate(to)}` };
+  }
+  const label = parsed.period || "Neurčené období";
+  return { key: label, label };
+};
 
 const InvoicesPage = ({ maxMonth }: { maxMonth: string }) => {
   const [month, setMonth] = useState(currentMonth());
@@ -12,6 +37,8 @@ const InvoicesPage = ({ maxMonth }: { maxMonth: string }) => {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
   const [auditResults, setAuditResults] = useState<Record<string, any>>({});
+  const [auditingIds, setAuditingIds] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
 
   const loadDocuments = async () => setDocuments((await elektroappApi.getInvoices())?.documents || []);
@@ -30,9 +57,29 @@ const InvoicesPage = ({ maxMonth }: { maxMonth: string }) => {
   };
 
   const audit = async (id: string) => {
+    setAuditingIds((previous) => new Set(previous).add(id));
     try { const result = await elektroappApi.auditInvoice(id); setAuditResults((previous) => ({ ...previous, [id]: result })); }
     catch (error: any) { setMessage(error?.response?.data?.detail || "Audit se nepodařilo spustit."); }
+    finally { setAuditingIds((previous) => { const next = new Set(previous); next.delete(id); return next; }); }
   };
+
+  const remove = async (id: string) => {
+    setDeletingIds((previous) => new Set(previous).add(id));
+    try { await elektroappApi.deleteInvoice(id); await loadDocuments(); }
+    catch (error: any) { setMessage(error?.response?.data?.detail || "Dokument se nepodařilo smazat."); }
+    finally { setDeletingIds((previous) => { const next = new Set(previous); next.delete(id); return next; }); }
+  };
+
+  const documentGroups = useMemo(() => {
+    const groups = new Map<string, { label: string; documents: any[] }>();
+    documents.forEach((document) => {
+      const period = documentPeriod(document);
+      const group: { label: string; documents: any[] } = groups.get(period.key) || { label: period.label, documents: [] };
+      group.documents.push(document);
+      groups.set(period.key, group);
+    });
+    return Array.from(groups.entries()).sort(([left], [right]) => right.localeCompare(left, "cs"));
+  }, [documents]);
 
   return <div className="invoice-page">
     <DataCard title="Virtuální vyúčtování" loading={loading} error={billingError}>
@@ -42,14 +89,26 @@ const InvoicesPage = ({ maxMonth }: { maxMonth: string }) => {
       <label className="invoice-upload"><input type="file" accept=".pdf,.xlsx" multiple onChange={upload} /><span>Nahrát PDF nebo XLSX</span></label>
       {message && <div className="config-muted invoice-page__message">{message}</div>}
       <div className="invoice-document-list">
-        {documents.map((document) => {
-          const parsed = document.parsed || {}; const result = auditResults[document.id];
-          return <div className="invoice-document" key={document.id}>
-            <div><strong>{document.filename}</strong><span>{parsed.document_type || "Dokument"} · {parsed.period || [parsed.period_from, parsed.period_to].filter(Boolean).join(" - ")}</span></div>
-            <div className="invoice-document__actions"><button type="button" onClick={() => audit(document.id)}>Provést audit</button><button type="button" className="ghost-button" onClick={async () => { await elektroappApi.deleteInvoice(document.id); await loadDocuments(); }}>Smazat</button></div>
-            {result && <div className={`invoice-audit invoice-audit--${result.overall}`}><strong>{result.overall === "match" ? "Shoda" : result.overall === "warning" ? "Varování" : "Chyba"}</strong>{result.comparisons?.map((item: any) => <span key={item.field}>{item.field}: faktura {item.expected}, aplikace {item.actual}, rozdíl {item.difference} ({item.difference_percent} %)</span>)}</div>}
-          </div>;
-        })}
+        {documentGroups.map(([periodKey, group]) => <section className="invoice-period-group" key={periodKey}>
+          <header className="invoice-period-group__header"><h3>{group.label}</h3><span>{group.documents.length} {group.documents.length === 1 ? "dokument" : group.documents.length < 5 ? "dokumenty" : "dokumentů"}</span></header>
+          {group.documents.map((document) => {
+            const parsed = document.parsed || {}; const result = auditResults[document.id];
+            const auditing = auditingIds.has(document.id); const deleting = deletingIds.has(document.id);
+            const statusLabel = result?.overall === "match" ? "Shoda" : result?.overall === "warning" ? "Varování" : result?.overall === "error" ? "Chyba" : "Neauditováno";
+            return <article className="invoice-document" key={document.id} aria-busy={auditing || deleting}>
+              <div className="invoice-document__identity"><span className="invoice-document__type">{documentLabels[parsed.document_type] || "Dokument"}</span><strong title={document.filename}>{document.filename}</strong></div>
+              <span className={`invoice-status invoice-status--${result?.overall || "idle"}`}>{auditing ? "Probíhá audit" : statusLabel}</span>
+              <div className="invoice-document__actions">
+                <button type="button" onClick={() => audit(document.id)} disabled={auditing || deleting}>{auditing && <span className="invoice-spinner" aria-hidden="true" />}{auditing ? "Načítám data" : "Provést audit"}</button>
+                <button type="button" className="ghost-button" onClick={() => remove(document.id)} disabled={auditing || deleting}>{deleting ? "Mažu…" : "Smazat"}</button>
+              </div>
+              {auditing && <div className="invoice-audit-progress"><span className="invoice-spinner" aria-hidden="true" /><span>Načítám historické ceny a porovnávám dokument…</span></div>}
+              {result && !auditing && <div className={`invoice-audit invoice-audit--${result.overall}`}>
+                <table><thead><tr><th>Položka</th><th>Faktura</th><th>Aplikace</th><th>Rozdíl</th><th>Odchylka</th></tr></thead><tbody>{result.comparisons?.map((item: any) => <tr key={item.field}><th>{fieldLabels[item.field] || item.field}</th><td>{item.expected}</td><td>{item.actual}</td><td>{item.difference}</td><td>{item.difference_percent} %</td></tr>)}</tbody></table>
+              </div>}
+            </article>;
+          })}
+        </section>)}
         {!documents.length && <div className="config-muted">Zatím nebyly nahrány žádné faktury.</div>}
       </div>
     </DataCard>
