@@ -239,6 +239,7 @@ class SolarOverviewConfig(StrictModel):
 
 class AppConfigModel(StrictModel):
     dph: float = Field(default=0.0, ge=0.0, le=100.0)
+    mesicni_zaloha: float = Field(default=0.0, ge=0.0)
     price_provider: Literal["spotovaelektrina", "ote"] = Field(default=DEFAULT_PRICE_PROVIDER)
     poplatky: PoplatkyConfig = Field(default_factory=PoplatkyConfig)
     fixni: FixniConfig = Field(default_factory=FixniConfig)

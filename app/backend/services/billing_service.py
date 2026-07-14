@@ -336,18 +336,33 @@ class BillingService:
                 detail="Nepodarilo se nacist data z InfluxDB. Zkontroluj entity_id.",
             )
 
+        summary = {
+            "kwh_total": round(total_kwh, 5),
+            "cost_total": round(total_cost, 5),                     # variable only (kWh × final_price)
+            "fixed_cost_total": round(total_fixed_cost, 2),          # daily share of fixed charges → matches invoice
+            "total_cost": round(total_cost + total_fixed_cost, 2),   # variable + fixed = invoice amount
+            "pv_kwh": round(total_pv_kwh, 5) if any_pv_series else None,
+            "export_kwh_total": round(total_export_kwh, 5) if any_export_series else None,
+            "sell_total": round(total_sell, 5) if any_export_series else None,
+        }
+        monthly_advance = max(float(cfg.get("mesicni_zaloha") or 0.0), 0.0)
+        if monthly_advance > 0:
+            billing = self.compute_monthly_billing(cfg, month, tzinfo, require_data=False)
+            projected_net_total = billing.get("projected", {}).get("net_total")
+            if projected_net_total is not None:
+                summary.update(
+                    {
+                        "monthly_advance": round(monthly_advance, 2),
+                        "projected_net_total": round(projected_net_total, 2),
+                        # Positive means refund, negative means surcharge.
+                        "settlement_estimate": round(monthly_advance - projected_net_total, 2),
+                    }
+                )
+
         return {
             "month": month,
             "days": days,
-            "summary": {
-                "kwh_total": round(total_kwh, 5),
-                "cost_total": round(total_cost, 5),                     # variable only (kWh × final_price)
-                "fixed_cost_total": round(total_fixed_cost, 2),          # daily share of fixed charges → matches invoice
-                "total_cost": round(total_cost + total_fixed_cost, 2),   # variable + fixed = invoice amount
-                "pv_kwh": round(total_pv_kwh, 5) if any_pv_series else None,
-                "export_kwh_total": round(total_export_kwh, 5) if any_export_series else None,
-                "sell_total": round(total_sell, 5) if any_export_series else None,
-            },
+            "summary": summary,
         }
 
     def get_billing_month(self, *, month: str, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:

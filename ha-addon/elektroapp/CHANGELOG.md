@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.54
+- Přidána volitelná konfigurace `mesicni_zaloha` pro měsíční zálohu za elektřinu
+- Měsíční přehled zobrazuje odhad vratky nebo doplatku podle projektovaných netto nákladů
+- Hlavní obrazovka při aktivní záloze zobrazuje KPI kartu s odhadem vratky nebo doplatku pro aktuální měsíc
+
 ## 0.3.53
 - Monthly overview table: přidán sloupec "Fixní (Kč)" s denním podílem fixních poplatků (jistič, stálý plat, provoz)
 - Sloupec "Náklady (Kč)" nyní zobrazuje celkové (variabilní + fixní) — měsíční součet sedí s fakturou

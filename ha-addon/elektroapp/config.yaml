@@ -2,7 +2,7 @@ name: "Elektroapp"
 slug: "elektroapp"
 description: "Spot prices and energy costs UI with Ingress for Home Assistant"
 url: "https://github.com/mondychan/elektroapp-ha-addon"
-version: "0.3.53"
+version: "0.3.54"
 arch:
   - amd64
   - aarch64
@@ -15,7 +15,7 @@ homeassistant_api: true
 panel_icon: "mdi:flash"
 image: "mondychan/elektroapp-ha"
 environment:
-  ADDON_VERSION: "0.3.53"
+  ADDON_VERSION: "0.3.54"
 ports:
   8000/tcp: null
 ports_description:
@@ -25,6 +25,7 @@ map:
   - config:rw
 options:
   dph: 21
+  mesicni_zaloha: 0
   price_provider: "spotovaelektrina.cz"
   poplatky:
     komodita_sluzba: 0.35
@@ -127,6 +128,7 @@ options:
     title: ""
 schema:
   dph: float
+  mesicni_zaloha: float?
   price_provider: list(spotovaelektrina.cz|ote-cr.cz)?
   poplatky:
     komodita_sluzba: float

@@ -153,6 +153,16 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         </button>
       </div>
 
+      {monthlyTotals?.settlement_estimate != null && (
+        <div className={`monthly-settlement-estimate ${monthlyTotals.settlement_estimate >= 0 ? "is-refund" : "is-surcharge"}`}>
+          <strong>{monthlyTotals.settlement_estimate >= 0 ? "Odhad vratky" : "Odhad doplatku"}: </strong>
+          {Math.abs(monthlyTotals.settlement_estimate).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč
+          <span>
+            Záloha {monthlyTotals.monthly_advance?.toLocaleString("cs-CZ")} Kč, odhadované netto náklady {monthlyTotals.projected_net_total?.toLocaleString("cs-CZ", { maximumFractionDigits: 2 })} Kč
+          </span>
+        </div>
+      )}
+
       <div className="table-responsive monthly-summary-table-container">
         <table className="data-table table-spaced monthly-summary-table">
           <thead className="sticky-header">

@@ -106,6 +106,15 @@ const ModernOverviewPage = (props: any) => {
       ? (costsSummary?.cost_total || 0) - (exportSummary?.sell_total || 0)
       : null;
   const pvPower = batteryData?.current_energy?.pv_power_total_w ?? solarForecast?.actual?.power_now_w ?? solarForecast?.status?.power_now_w;
+  const settlementEstimate = monthlyTotals?.settlement_estimate;
+  const settlementKpi = settlementEstimate != null
+    ? {
+        label: settlementEstimate >= 0 ? "Odhad vratky" : "Odhad doplatku",
+        value: formatCurrency(Math.abs(settlementEstimate)),
+        detail: "tento měsíc",
+        tone: settlementEstimate >= 0 ? "green" : "red",
+      }
+    : null;
 
   const kpis = [
     { label: "Aktuální cena", value: formatPriceValue(currentPriceNumber), unit: "/kWh", detail: todayData?.[effectiveHighlightSlot]?.time || null, tone: "price" },
@@ -121,6 +130,7 @@ const ModernOverviewPage = (props: any) => {
       tone: "amber",
     },
     { label: "Výkon FV", value: formatPowerW(pvPower), detail: "aktuálně", tone: "green" },
+    ...(settlementKpi ? [settlementKpi] : []),
   ];
 
   return (

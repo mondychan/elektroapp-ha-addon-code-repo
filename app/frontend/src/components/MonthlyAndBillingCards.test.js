@@ -58,6 +58,27 @@ describe("MonthlySummaryCard", () => {
 
     expect(screen.getByText("Chyba pri nacitani mesicniho souhrnu.")).toBeInTheDocument();
   });
+
+  test("renders refund estimate when monthly advance is configured", () => {
+    render(
+      <MonthlySummaryCard
+        selectedMonth="2026-02"
+        setSelectedMonth={() => {}}
+        monthlySummary={[{ date: "2026-02-10", kwh_total: 1, cost_total: 10 }]}
+        monthlyTotals={{
+          kwh_total: 1,
+          cost_total: 10,
+          monthly_advance: 2500,
+          projected_net_total: 2100,
+          settlement_estimate: 400,
+        }}
+        monthlyError={null}
+      />
+    );
+
+    expect(screen.getByText(/Odhad vratky/)).toBeInTheDocument();
+    expect(screen.getByText(/Záloha 2 500 Kč/)).toBeInTheDocument();
+  });
 });
 
 describe("BillingCard", () => {

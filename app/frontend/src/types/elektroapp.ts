@@ -1,5 +1,6 @@
 export interface Config {
   dph: number;
+  mesicni_zaloha?: number;
   price_provider: "ote" | "spotovaelektrina.cz";
   poplatky?: {
     komodita_sluzba?: number;
@@ -412,6 +413,9 @@ export interface MonthlyTotals {
   pv_kwh?: number | null;
   export_kwh_total?: number;
   sell_total?: number;
+  monthly_advance?: number;
+  projected_net_total?: number;
+  settlement_estimate?: number;
 }
 
 export interface DashboardSnapshot {

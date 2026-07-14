@@ -199,6 +199,7 @@ const App: React.FC = () => {
 
     return [
       { label: "DPH", value: String(dphVal), unit: "%" },
+      { label: "Mesicni zaloha", value: config.mesicni_zaloha ? String(config.mesicni_zaloha) : "-", unit: "Kc" },
       { label: "Zdroj cen", value: priceProviderLabel, unit: "" },
       row("Sluzba obchodu", config.poplatky?.komodita_sluzba, "Kc/kWh"),
       row("OZE", config.poplatky?.oze, "Kc/kWh"),

@@ -2,6 +2,9 @@ configuration:
   dph:
     name: "Price fees - VAT"
     description: "VAT rate in percent, for example 21."
+  mesicni_zaloha:
+    name: "Monthly advance payment"
+    description: "Monthly electricity advance payment in CZK. Set to 0 to disable the refund or surcharge estimate."
   price_provider:
     name: "Prices - spot price source"
     description: "Select the readable spot price source."

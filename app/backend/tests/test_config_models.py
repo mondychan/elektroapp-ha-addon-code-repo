@@ -21,6 +21,7 @@ def test_config_model_normalizes_provider_dph_and_applies_defaults():
     dumped = model.model_dump()
 
     assert dumped["dph"] == pytest.approx(21.0)
+    assert dumped["mesicni_zaloha"] == 0.0
     assert dumped["price_provider"] == "ote"
     assert dumped["influxdb"]["port"] == 8086
     assert dumped["poplatky"]["oze"] == 0.0
@@ -46,6 +47,14 @@ def test_config_model_rejects_unknown_keys():
                 }
             }
         )
+
+
+def test_config_model_accepts_non_negative_monthly_advance():
+    model = AppConfigModel.model_validate({"mesicni_zaloha": 2500})
+    assert model.mesicni_zaloha == 2500
+
+    with pytest.raises(ValidationError):
+        AppConfigModel.model_validate({"mesicni_zaloha": -1})
 
 
 def test_tarif_periods_accept_string_and_validate_range():

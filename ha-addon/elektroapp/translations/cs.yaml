@@ -2,6 +2,9 @@ configuration:
   dph:
     name: "Cenove poplatky - DPH"
     description: "Sazba DPH v procentech, napr. 21."
+  mesicni_zaloha:
+    name: "Mesicni zaloha"
+    description: "Mesicni zaloha za elektrinu v Kc. Hodnota 0 vypne odhad vratky nebo doplatku."
   price_provider:
     name: "Ceny - zdroj spotovych cen"
     description: "Vyber citelny zdroj spotovych cen."
