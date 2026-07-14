@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.59
+- Archiv faktur je nově seskupen podle fakturačního období; PDF, detail dodávky a detail výkupu stejného měsíce jsou zobrazeny společně.
+- Každý dokument má přehledný stav auditu a stabilně zarovnaný panel akcí.
+- Dlouhotrvající audit historického měsíce zobrazuje spinner, průběhový stav a dočasně deaktivuje konfliktní akce.
+- Výsledky auditu jsou zobrazeny v porovnávací tabulce s fakturovanou hodnotou, hodnotou aplikace, rozdílem a procentní odchylkou.
+- Upraveno responsivní zobrazení, zarovnání tlačítek a chování dlouhých názvů souborů.
+
 ## 0.3.58
 - Audit dodavatelského odběrového XLSX nyní porovnává přesné intervalové PND částky, nikoli fakturačně zaokrouhlené množství NT/VT.
 - Audit výkupního XLSX používá nezaokrouhlenou intervalovou částku a množství.
