@@ -323,8 +323,7 @@ class BillingService:
                 total_kwh += totals["kwh_total"]
             if totals["cost_total"] is not None:
                 total_cost += totals["cost_total"]
-            if day_total_cost is not None:
-                total_fixed_cost += fixed_cost
+            total_fixed_cost += fixed_cost  # always — fixed charges apply even on zero-consumption days
             if export_totals["export_kwh_total"] is not None:
                 total_export_kwh += export_totals["export_kwh_total"]
             if export_totals["sell_total"] is not None:
@@ -342,7 +341,9 @@ class BillingService:
             "days": days,
             "summary": {
                 "kwh_total": round(total_kwh, 5),
-                "cost_total": round(total_cost, 5),
+                "cost_total": round(total_cost, 5),                     # variable only (kWh × final_price)
+                "fixed_cost_total": round(total_fixed_cost, 2),          # daily share of fixed charges → matches invoice
+                "total_cost": round(total_cost + total_fixed_cost, 2),   # variable + fixed = invoice amount
                 "pv_kwh": round(total_pv_kwh, 5) if any_pv_series else None,
                 "export_kwh_total": round(total_export_kwh, 5) if any_export_series else None,
                 "sell_total": round(total_sell, 5) if any_export_series else None,

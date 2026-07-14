@@ -394,7 +394,9 @@ export interface DiagnosticsSummary {
 export interface MonthlyDayData {
   date: string;
   kwh_total: number | null;
-  cost_total: number | null;
+  cost_total: number | null;        // variable only (kWh × final_price)
+  fixed_cost_total?: number | null; // daily share of fixed charges (jistic, staly plat, provoz)
+  total_cost?: number | null;       // variable + fixed = matches invoice
   pv_kwh?: number | null;
   export_kwh_total: number | null;
   sell_total: number | null;
@@ -404,7 +406,9 @@ export interface MonthlyDayData {
 
 export interface MonthlyTotals {
   kwh_total?: number;
-  cost_total?: number;
+  cost_total?: number;          // variable only
+  fixed_cost_total?: number;    // total fixed charges for the month
+  total_cost?: number;          // variable + fixed = matches invoice
   pv_kwh?: number | null;
   export_kwh_total?: number;
   sell_total?: number;

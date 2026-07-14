@@ -35,7 +35,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
       const kwhSold = day.export_kwh_total || 0;
       const netKwh = day.kwh_total != null || day.export_kwh_total != null ? kwhBought - kwhSold : null;
 
-      const costBought = day.cost_total || 0;
+      const costBought = day.total_cost ?? day.cost_total ?? 0;
       const costSold = day.sell_total || 0;
       const netCost = day.cost_total != null || day.sell_total != null ? costBought - costSold : null;
 
@@ -113,7 +113,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
       footerKwhClass = footerNetKwh > 0 ? "cell-buy" : footerNetKwh < 0 ? "cell-sell" : "";
     }
 
-    const costBought = monthlyTotals.cost_total || 0;
+    const costBought = monthlyTotals.total_cost ?? monthlyTotals.cost_total ?? 0;
     const costSold = monthlyTotals.sell_total || 0;
     if (monthlyTotals.cost_total != null || monthlyTotals.sell_total != null) {
       footerNetCost = costBought - costSold;
@@ -170,6 +170,9 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
               <th className="cell-right sortable" onClick={() => requestSort("cost_total")}>
                 Náklady (Kč) {getSortIcon("cost_total")}
               </th>
+              <th className="cell-right sortable" onClick={() => requestSort("fixed_cost_total")}>
+                Fixní (Kč) {getSortIcon("fixed_cost_total")}
+              </th>
               <th className="cell-right sortable" onClick={() => requestSort("export_kwh_total")}>
                 Prodej (kWh) {getSortIcon("export_kwh_total")}
               </th>
@@ -200,6 +203,7 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
                   <td data-label="Nakup kWh" className="cell-right">{day.kwh_total == null ? "-" : day.kwh_total.toFixed(2)}</td>
                   <td data-label="Vyrobeno FV" className="cell-right cell-sell">{day.pv_kwh == null ? "-" : day.pv_kwh.toFixed(2)}</td>
                   <td data-label="Naklady Kc" className="cell-right cell-buy">{day.cost_total == null ? "-" : day.cost_total.toFixed(2)}</td>
+                  <td data-label="Fixni Kc" className="cell-right cell-buy">{day.fixed_cost_total == null ? "-" : day.fixed_cost_total.toFixed(2)}</td>
                   <td data-label="Prodej kWh" className="cell-right">{day.export_kwh_total == null ? "-" : day.export_kwh_total.toFixed(2)}</td>
                   <td data-label="Trzby Kc" className="cell-right cell-sell">{day.sell_total == null ? "-" : day.sell_total.toFixed(2)}</td>
                   <td data-label="Netto kWh" className={`cell-right ${kwhClass}`}>
@@ -218,7 +222,8 @@ const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
                 <td data-label="Souhrn" colSpan={2}>Součet</td>
                 <td data-label="Nakup kWh" className="cell-right">{monthlyTotals.kwh_total?.toFixed(2)}</td>
                 <td data-label="Vyrobeno FV" className="cell-right cell-sell">{monthlyTotals.pv_kwh == null ? "-" : monthlyTotals.pv_kwh.toFixed(2)}</td>
-                <td data-label="Naklady Kc" className="cell-right cell-buy">{monthlyTotals.cost_total?.toFixed(2)}</td>
+                <td data-label="Naklady Kc" className="cell-right cell-buy">{(monthlyTotals.total_cost ?? monthlyTotals.cost_total)?.toFixed(2)}</td>
+                <td data-label="Fixni Kc" className="cell-right cell-buy">{monthlyTotals.fixed_cost_total?.toFixed(2) ?? "-"}</td>
                 <td data-label="Prodej kWh" className="cell-right">{monthlyTotals.export_kwh_total?.toFixed(2)}</td>
                 <td data-label="Trzby Kc" className="cell-right cell-sell">{monthlyTotals.sell_total?.toFixed(2)}</td>
                 <td data-label="Netto kWh" className={`cell-right ${footerKwhClass}`}>
