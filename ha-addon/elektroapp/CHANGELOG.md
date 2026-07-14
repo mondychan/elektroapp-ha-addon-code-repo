@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.55
+- Opraven měsíční přehled: denní sloupec Náklady nyní konzistentně zobrazuje celkové náklady včetně fixních poplatků
+- Řazení sloupce Náklady používá celkové náklady stejně jako výpočet Netto Kč a souhrnný řádek
+- Nadpis sloupce výroby byl sjednocen na `Vyrobeno FV (kWh)`
+
 ## 0.3.54
 - Přidána volitelná konfigurace `mesicni_zaloha` pro měsíční zálohu za elektřinu
 - Měsíční přehled zobrazuje odhad vratky nebo doplatku podle projektovaných netto nákladů

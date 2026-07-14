@@ -21,6 +21,8 @@ describe("MonthlySummaryCard", () => {
             kwh_total: 12.345,
             pv_kwh: 33.456,
             cost_total: 45.678,
+            fixed_cost_total: 33.27,
+            total_cost: 78.948,
             export_kwh_total: 1.5,
             sell_total: 2.75,
           },
@@ -29,6 +31,8 @@ describe("MonthlySummaryCard", () => {
           kwh_total: 12.345,
           pv_kwh: 33.456,
           cost_total: 45.678,
+          fixed_cost_total: 33.27,
+          total_cost: 78.948,
           export_kwh_total: 1.5,
           sell_total: 2.75,
         }}
@@ -37,9 +41,11 @@ describe("MonthlySummaryCard", () => {
     );
 
     expect(screen.getByText(/Sou/)).toBeInTheDocument();
+    expect(screen.getByText(/Vyrobeno FV \(kWh\)/)).toBeInTheDocument();
     expect(screen.getAllByText("12.35").length).toBeGreaterThan(0);
     expect(screen.getAllByText("33.46").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("45.68").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("78.95").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+76.20").length).toBeGreaterThan(0);
     expect(container.querySelector(".monthly-summary-table-container")).not.toHaveAttribute("style");
   });
 
