@@ -3,6 +3,7 @@ import { IconBulb, IconChevronRight } from "./icons";
 
 interface StatusStripProps {
   statusLabel: string;
+  statusTone?: "cheap" | "expensive" | "normal";
   currentPrice: string;
   nextCheapWindow?: string | null;
   recommendation?: string | null;
@@ -11,13 +12,14 @@ interface StatusStripProps {
 
 const StatusStrip: React.FC<StatusStripProps> = ({
   statusLabel,
+  statusTone = "normal",
   currentPrice,
   nextCheapWindow,
   recommendation,
   onOpenRecommendations,
 }) => (
   <section className="status-strip" aria-label="Aktuální stav">
-    <div className="status-strip__badge">{statusLabel}</div>
+    <div className={`status-strip__badge status-strip__badge--${statusTone}`}>{statusLabel}</div>
     <div className="status-strip__price">
       <strong>Aktuální cena: {currentPrice}</strong>
       <span>{nextCheapWindow || "Další levné okno není k dispozici."}</span>

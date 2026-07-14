@@ -143,6 +143,7 @@ const ModernOverviewPage = (props: any) => {
 
       <StatusStrip
         statusLabel={buildStatusLabel(alerts)}
+        statusTone={alerts?.is_expensive_now ? "expensive" : alerts?.is_cheap_now ? "cheap" : "normal"}
         currentPrice={formatPrice(currentPriceNumber)}
         nextCheapWindow={nextCheapWindow}
         recommendation={alerts?.recommendation || recommendations?.actions?.[0]?.title}
