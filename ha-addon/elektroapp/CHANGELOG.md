@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.57
+- Virtuální faktura dokončeného měsíce nyní zachovává přesná 15minutová PND data pro cenu a fakturační množství NT/VT zaokrouhluje dolů na celé kWh podle metodiky dodavatele.
+- Zaokrouhlení se aktivuje pouze u uzavřeného měsíce s kompletními PND daty; aktuální měsíc, statistiky a detailní CSV zůstávají v plné přesnosti.
+- DIP startovní log rozlišuje vypnutou integraci, neúplné credentials, neinicializovanou službu a skutečnou chybu.
+- Úspěšná DIP synchronizace nově zapisuje potvrzení spojení a počet načtených odběrných míst.
+- Vypnutý nebo nenakonfigurovaný DIP již nezobrazuje starou uloženou chybu přihlášení jako aktuální stav.
+
 ## 0.3.56
 - Přidána ověřená integrace Distribučního portálu ČEZ přes CAS/OIDC a strukturované DIP API.
 - Nová samostatná stránka Distribuční portál zobrazuje spotřební i výrobní EAN, kontakty, technické údaje, smlouvy, odečty, HDO a odstávky.
