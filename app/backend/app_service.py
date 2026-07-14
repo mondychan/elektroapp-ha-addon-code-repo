@@ -804,6 +804,9 @@ def _invalidate_series_cache_for_day(date_str: str) -> None:
         CONSUMPTION_CACHE.invalidate(date_str)
     if EXPORT_CACHE:
         EXPORT_CACHE.invalidate(date_str)
+
+
+def _require_pnd_service() -> PNDService:
     if not PND_SERVICE:
         raise HTTPException(status_code=503, detail="PND service neni inicializovana.")
     return PND_SERVICE
