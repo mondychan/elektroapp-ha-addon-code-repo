@@ -275,10 +275,12 @@ class BillingService:
         next_month_local = next_month.replace(tzinfo=tzinfo)
         pv_totals_by_day = self._get_monthly_pv_totals(cfg, start_local, next_month_local, tzinfo)
 
+        days_in_month = calendar.monthrange(year, month_num)[1]
         days = []
         current = start
         total_kwh = 0.0
         total_cost = 0.0
+        total_fixed_cost = 0.0
         total_export_kwh = 0.0
         total_sell = 0.0
         total_pv_kwh = 0.0
@@ -297,11 +299,21 @@ class BillingService:
                 any_series = True
             if export_totals.get("has_series"):
                 any_export_series = True
+
+            # Denní podíl fixních poplatků (aby měsíční součet = faktuře 1:1)
+            fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
+            daily_fixed, monthly_fixed = self._compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
+            fixed_cost = sum(daily_fixed.values()) + sum(monthly_fixed.values())
+            variable_cost = totals["cost_total"] or 0.0
+            day_total_cost = variable_cost + fixed_cost if totals["cost_total"] is not None else None
+
             days.append(
                 {
                     "date": date_str,
                     "kwh_total": totals["kwh_total"],
-                    "cost_total": totals["cost_total"],
+                    "cost_total": totals["cost_total"],          # variable only (kWh * final_price)
+                    "fixed_cost_total": round(fixed_cost, 2),    # daily share of fixed charges
+                    "total_cost": round(day_total_cost, 2) if day_total_cost is not None else None,  # variable + fixed
                     "pv_kwh": pv_kwh,
                     "export_kwh_total": export_totals["export_kwh_total"],
                     "sell_total": export_totals["sell_total"],
@@ -311,6 +323,8 @@ class BillingService:
                 total_kwh += totals["kwh_total"]
             if totals["cost_total"] is not None:
                 total_cost += totals["cost_total"]
+            if day_total_cost is not None:
+                total_fixed_cost += fixed_cost
             if export_totals["export_kwh_total"] is not None:
                 total_export_kwh += export_totals["export_kwh_total"]
             if export_totals["sell_total"] is not None:

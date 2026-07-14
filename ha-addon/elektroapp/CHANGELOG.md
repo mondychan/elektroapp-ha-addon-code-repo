@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.52
+- CSV export: "Naklady (Kč)" nyní zahrnuje fixní poplatky (jistič, stálý plat, provoz infrastruktury) rozpočtené na den — měsíční součet sedí s fakturou 1:1
+- Přidán součtový řádek "CELKEM" na konec CSV exportu
+- Fix: `PND_SERVICE` nebylo přiřazeno do modulové globální proměnné v `finalize_initialization()` (chybějící `global`) — PND override v billing pipeline nyní správně funguje
+
 ## 0.3.51
 - Wire PND (distributor meter) data into billing/cost pipeline: finalized 15-min meter readings now override Influx for past days, so monthly CSV and dashboard match the actual invoice
 - Fix: _pnd_day_points no longer requires full InfluxDB config (reads timezone directly from cfg)

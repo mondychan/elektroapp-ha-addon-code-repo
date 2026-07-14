@@ -1,0 +1,3 @@
+- Billing CSV export now includes fixed charges (jistič, stálý plat, provoz infrastruktury) distributed per-day, so monthly "Naklady (Kč)" totals match the invoice 1:1
+- Adds `total_cost` (variable + fixed) and `fixed_cost_total` to daily summary; CSV generator uses `total_cost` and appends a "CELKEM" row
+- Fix: `PND_SERVICE` was never assigned to the module-level global in `finalize_initialization()` (missing `global` keyword) — PND meter data is now correctly used in billing/cost pipeline
