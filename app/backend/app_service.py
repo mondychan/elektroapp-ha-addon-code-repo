@@ -360,7 +360,10 @@ def _pnd_day_points(cfg, date: str, *, kind: str) -> dict | None:
     intervals = day.get("intervals")
     if not intervals:
         return None
-    tzinfo = get_local_tz(get_influx_cfg(cfg).get("timezone"))
+    # Read timezone directly from cfg — get_influx_cfg is strict about
+    # requiring host/port/… and may raise; PND override doesn't need influx.
+    tz_name = cfg.get("influxdb", {}).get("timezone", "Europe/Prague")
+    tzinfo = get_local_tz(tz_name)
     return _pnd_to_points(day, tzinfo, kind=kind)
 
 
