@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.58
+- Audit dodavatelského odběrového XLSX nyní porovnává přesné intervalové PND částky, nikoli fakturačně zaokrouhlené množství NT/VT.
+- Audit výkupního XLSX používá nezaokrouhlenou intervalovou částku a množství.
+- PDF vyúčtování se nadále porovnává s fakturačními hodnotami po aplikaci dodavatelské metodiky.
+- Klasifikace auditu používá relativní toleranci: shoda do 0,1 %, varování do 0,5 % a chyba nad tuto hranici.
+- Výsledek auditu nově zobrazuje absolutní i procentní odchylku.
+
 ## 0.3.57
 - Virtuální faktura dokončeného měsíce nyní zachovává přesná 15minutová PND data pro cenu a fakturační množství NT/VT zaokrouhluje dolů na celé kWh podle metodiky dodavatele.
 - Zaokrouhlení se aktivuje pouze u uzavřeného měsíce s kompletními PND daty; aktuální měsíc, statistiky a detailní CSV zůstávají v plné přesnosti.
