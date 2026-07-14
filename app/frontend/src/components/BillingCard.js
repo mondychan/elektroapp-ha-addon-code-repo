@@ -2,6 +2,7 @@ import React from "react";
 import MonthNavigator from "./MonthNavigator";
 import YearNavigator from "./YearNavigator";
 import { formatCurrency, formatMonthLabel } from "../utils/formatters";
+import { elektroappApi } from "../api/elektroappApi";
 
 const BillingCard = ({
   billingMode,
@@ -27,6 +28,18 @@ const BillingCard = ({
     return y < currentYear || (y === currentYear && m < currentMonth);
   };
 
+  const downloadInvoiceDetail = async (kind) => {
+    const csvData = await elektroappApi.getInvoiceDetailCsv(billingMonth, kind);
+    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `elektroapp-detail-${kind === "supply" ? "dodavka" : "vykup"}-${billingMonth}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
   if (billingLoading || billingError) return null; // Handled by DataCard
 
   const renderBillingMonth = () => {
@@ -38,6 +51,19 @@ const BillingCard = ({
     const daysWithData = billingData.days_with_data ?? 0;
     const daysInMonth = billingData.days_in_month ?? 0;
     const actualValue = actual.net_total ?? actual.total_cost;
+    const settlementEstimate = billingData.settlement_estimate;
+    const invoice = billingData.invoice?.[pastMonth ? "actual" : "projected"];
+    const dphMultiplier = 1 + Number(billingData.invoice?.dph_percent || 0) / 100;
+    const invoiceKwh = (invoice?.regulated?.distribution_nt_kwh || 0) + (invoice?.regulated?.distribution_vt_kwh || 0);
+    const invoiceRow = (label, quantity, unit, amount, className = "") => (
+      <tr key={label}>
+        <td className={className}>{label}</td>
+        <td className="cell-right">{quantity == null ? "-" : Number(quantity).toFixed(unit === "kWh" ? 2 : 0)}</td>
+        <td>{unit}</td>
+        <td className={`cell-right ${className}`}>{formatCurrency(amount)}</td>
+        <td className={`cell-right ${className}`}>{formatCurrency(amount == null ? null : amount * dphMultiplier)}</td>
+      </tr>
+    );
     const actualLabel = pastMonth
       ? "Náklady měsíce"
       : `Náklady za ${daysWithData} dní z ${daysInMonth}`;
@@ -45,7 +71,48 @@ const BillingCard = ({
 
     return (
       <div className="billing-content">
-        <div className="table-responsive">
+        {invoice && (
+          <div className="table-responsive invoice-preview">
+            <div className="invoice-preview__status">{pastMonth ? "Skutečné vyúčtování" : "Průběžný odhad za celý měsíc"}</div>
+            {billingData.invoice?.price_provider !== "ote" && billingData.invoice?.price_provider !== "ote-cr.cz" && (
+              <div className="invoice-preview__note">Pro přímé porovnání EUR/MWh a kurzu ČNB v detailním CSV nastavte zdroj cen OTE.</div>
+            )}
+            <table className="data-table table-spaced invoice-preview__table">
+              <thead>
+                <tr>
+                  <th className="cell-left">Položka</th>
+                  <th className="cell-right">Množství</th>
+                  <th>Jednotka</th>
+                  <th className="cell-right">Bez DPH</th>
+                  <th className="cell-right">S DPH</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="invoice-preview__section"><td colSpan="5">Obchodní platby</td></tr>
+                {invoiceRow("Stálý plat", billingData.days_in_month, "den", invoice.commercial?.standing_charge, "cell-buy")}
+                {invoiceRow("Cena za služby obchodu", invoiceKwh, "kWh", invoice.commercial?.supplier_service, "cell-buy")}
+                {invoiceRow("Cena za silovou elektřinu", invoiceKwh, "kWh", invoice.commercial?.spot_energy, "cell-buy")}
+                <tr className="invoice-preview__subtotal"><td colSpan="3">Součet obchodní platby</td><td className="cell-right">{formatCurrency(invoice.commercial?.total)}</td><td className="cell-right">{formatCurrency(invoice.commercial?.total * dphMultiplier)}</td></tr>
+                <tr className="invoice-preview__section"><td colSpan="5">Regulované platby</td></tr>
+                {invoiceRow("Distribuované množství elektřiny NT", invoice.regulated?.distribution_nt_kwh, "kWh", invoice.regulated?.distribution_nt, "cell-buy")}
+                {invoiceRow("Distribuované množství elektřiny VT", invoice.regulated?.distribution_vt_kwh, "kWh", invoice.regulated?.distribution_vt, "cell-buy")}
+                {invoiceRow("Měsíční plat za příkon - jistič", 1, "měsíc", invoice.regulated?.breaker, "cell-buy")}
+                {invoiceRow("Cena za provoz nesíťové infrastruktury", 1, "měsíc", invoice.regulated?.infrastructure, "cell-buy")}
+                {invoiceRow("Cena na podporu výkupu elektřiny (OZE)", invoiceKwh, "kWh", invoice.regulated?.oze, "cell-buy")}
+                {invoiceRow("Daň z elektřiny", invoiceKwh, "kWh", invoice.regulated?.electricity_tax, "cell-buy")}
+                {invoiceRow("Systémové služby ČEPS, a.s.", invoiceKwh, "kWh", invoice.regulated?.system_services, "cell-buy")}
+                <tr className="invoice-preview__subtotal"><td colSpan="3">Součet regulované platby</td><td className="cell-right">{formatCurrency(invoice.regulated?.total)}</td><td className="cell-right">{formatCurrency(invoice.regulated?.total * dphMultiplier)}</td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td colSpan="3">Dodávka energií</td><td className="cell-right">{formatCurrency(invoice.supply_without_vat)}</td><td className="cell-right">{formatCurrency(invoice.supply_with_vat)}</td></tr>
+                <tr className="cell-sell"><td colSpan="4">Výkup elektřiny</td><td className="cell-right">{formatCurrency(-Number(invoice.sell_total || 0))}</td></tr>
+                {billingData.monthly_advance > 0 && <tr className="cell-sell"><td colSpan="4">Vyúčtované zálohy</td><td className="cell-right">{formatCurrency(-Number(billingData.monthly_advance))}</td></tr>}
+                <tr><td colSpan="4">Výsledek vyúčtování</td><td className="cell-right">{formatCurrency(invoice.net_after_sell - Number(billingData.monthly_advance || 0))}</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+        {!invoice && <div className="table-responsive">
           <table className="data-table table-spaced">
             <tbody>
               <tr>
@@ -78,7 +145,14 @@ const BillingCard = ({
               )}
             </tbody>
           </table>
-        </div>
+        </div>}
+        {!pastMonth && settlementEstimate != null && (
+          <div className={`billing-settlement-estimate ${settlementEstimate >= 0 ? "is-refund" : "is-surcharge"}`}>
+            <strong>{settlementEstimate >= 0 ? "Odhad vratky" : "Odhad doplatku"}: </strong>
+            {Math.abs(settlementEstimate).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč
+            <span>Záloha {billingData.monthly_advance?.toLocaleString("cs-CZ")} Kč</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -152,6 +226,12 @@ const BillingCard = ({
         )}
       </div>
       {billingMode === "month" && renderBillingMonth()}
+      {billingMode === "month" && (
+        <div className="invoice-export-actions">
+          <button type="button" className="ghost-button" onClick={() => downloadInvoiceDetail("supply")}>Detail dodávky CSV</button>
+          <button type="button" className="ghost-button" onClick={() => downloadInvoiceDetail("export")}>Detail výkupu CSV</button>
+        </div>
+      )}
       {billingMode === "year" && renderBillingYear()}
     </div>
   );

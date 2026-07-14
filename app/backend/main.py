@@ -23,6 +23,8 @@ def _wire_service_from_container():
     app_service.CONSUMPTION_CACHE_DIR = cfg.consumption_cache_dir
     app_service.EXPORT_CACHE_DIR = cfg.export_cache_dir
     app_service.PND_CACHE_DIR = cfg.pnd_cache_dir
+    app_service.DIP_CACHE_DIR = cfg.dip_cache_dir
+    app_service.INVOICES_DIR = cfg.invoices_dir
     app_service.OPTIONS_BACKUP_FILE = cfg.options_backup_file
     app_service.FEES_HISTORY_FILE = cfg.fees_history_file
     config_loader.CONFIG_FILE = cfg.config_file
@@ -71,6 +73,7 @@ app.include_router(api_router)
 def startup_hook():
     app_service.start_prefetch_scheduler()
     app_service.start_pnd_scheduler()
+    app_service.start_dip_scheduler()
     app_service.log_cache_status()
 
 

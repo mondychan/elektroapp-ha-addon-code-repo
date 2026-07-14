@@ -26,3 +26,9 @@ configuration:
   hp:
     name: "HP"
     description: "Konfigurace zalozky tepelneho cerpadla"
+  dip:
+    name: "Distribucni portal CEZ"
+    description: "Samostatne prihlaseni pro profil odberneho mista, EAN, elektromer, jistic, sazbu a odecty."
+  supply_point:
+    name: "Odberne misto - rucni udaje"
+    description: "Rucni hodnoty maji prednost pred udaji synchronizovanymi z DIP."

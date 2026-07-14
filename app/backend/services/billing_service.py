@@ -73,6 +73,63 @@ class BillingService:
             return {"kwh_total": None, "cost_total": None, "has_series": has_series}
         return {"kwh_total": round(total_kwh, 5), "cost_total": round(total_cost, 5), "has_series": has_series}
 
+    def calculate_daily_invoice(self, cfg: dict[str, Any], date_str: str) -> dict[str, Any]:
+        consumption = self._get_consumption_points(cfg, date=date_str)
+        tzinfo = consumption["tzinfo"]
+        if not consumption.get("has_series", False):
+            return {"has_series": False, "kwh_total": None, "variable_cost": None, "items": {}}
+
+        price_map, price_map_utc = self._build_price_map_for_date(cfg, date_str, tzinfo)
+        fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
+        fees = fee_snapshot.get("kwh_fees", {})
+        distribution = fees.get("distribuce", {})
+        vt_periods = cfg.get("tarif", {}).get("vt_periods", [])
+        dph_multiplier = 1 + (float(fee_snapshot.get("dph_percent") or 0.0) / 100.0)
+        items = {
+            "spot": 0.0,
+            "supplier_service": 0.0,
+            "distribution_nt": 0.0,
+            "distribution_vt": 0.0,
+            "oze": 0.0,
+            "electricity_tax": 0.0,
+            "system_services": 0.0,
+            "nt_kwh": 0.0,
+            "vt_kwh": 0.0,
+        }
+        total_kwh = 0.0
+        variable_cost = 0.0
+
+        for entry in consumption["points"]:
+            kwh = entry.get("kwh")
+            if kwh is None:
+                continue
+            time_local = datetime.fromisoformat(entry["time"])
+            price = price_map.get(time_local.strftime("%Y-%m-%d %H:%M"))
+            if price is None:
+                time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
+                price = price_map_utc.get(time_utc.strftime("%Y-%m-%d %H:%M"))
+            if price is None:
+                continue
+            is_vt = any(start <= time_local.hour < end for start, end in vt_periods)
+            tariff = "VT" if is_vt else "NT"
+            total_kwh += kwh
+            items["spot"] += kwh * price["spot"]
+            items["supplier_service"] += kwh * float(fees.get("komodita_sluzba") or 0.0)
+            items["oze"] += kwh * float(fees.get("oze") or 0.0)
+            items["electricity_tax"] += kwh * float(fees.get("dan") or 0.0)
+            items["system_services"] += kwh * float(fees.get("systemove_sluzby") or 0.0)
+            items[f"{tariff.lower()}_kwh"] += kwh
+            items[f"distribution_{tariff.lower()}"] += kwh * float(distribution.get(tariff) or 0.0)
+            variable_cost += kwh * price["final"]
+
+        return {
+            "has_series": True,
+            "kwh_total": round(total_kwh, 5),
+            "variable_cost": round(variable_cost, 5),
+            "dph_multiplier": dph_multiplier,
+            "items": items,
+        }
+
     def calculate_daily_export_totals(self, cfg: dict[str, Any], date_str: str) -> dict[str, Any]:
         export_entity_id = self._get_export_entity_id(cfg)
         if not export_entity_id:
@@ -172,12 +229,30 @@ class BillingService:
         export_days_with_data = 0
         fixed_total = 0.0
         fixed_breakdown = {"daily": {}, "monthly": {}}
+        invoice_variable = {
+            "spot": 0.0,
+            "supplier_service": 0.0,
+            "distribution_nt": 0.0,
+            "distribution_vt": 0.0,
+            "oze": 0.0,
+            "electricity_tax": 0.0,
+            "system_services": 0.0,
+            "nt_kwh": 0.0,
+            "vt_kwh": 0.0,
+        }
+        invoice_fixed = {"standing_charge": 0.0, "breaker": 0.0, "infrastructure": 0.0}
 
         for day_offset in range(days_in_month):
             date_obj = start_date + timedelta(days=day_offset)
             date_str = date_obj.strftime("%Y-%m-%d")
 
             fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
+            fixed_cfg = fee_snapshot.get("fixed", {})
+            daily_cfg = fixed_cfg.get("daily", {})
+            monthly_cfg = fixed_cfg.get("monthly", {})
+            invoice_fixed["standing_charge"] += float(daily_cfg.get("staly_plat") or 0.0)
+            invoice_fixed["breaker"] += float(monthly_cfg.get("jistic") or 0.0) / days_in_month
+            invoice_fixed["infrastructure"] += float(monthly_cfg.get("provoz_nesitove_infrastruktury") or 0.0) / days_in_month
             daily_fixed, monthly_fixed = self._compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
             for key, value in daily_fixed.items():
                 fixed_breakdown["daily"][key] = fixed_breakdown["daily"].get(key, 0.0) + value
@@ -186,11 +261,17 @@ class BillingService:
             fixed_total += sum(daily_fixed.values()) + sum(monthly_fixed.values())
 
             if date_obj <= today:
-                totals = self.calculate_daily_totals(cfg, date_str)
+                invoice_day = self.calculate_daily_invoice(cfg, date_str)
+                totals = {
+                    "kwh_total": invoice_day.get("kwh_total"),
+                    "cost_total": invoice_day.get("variable_cost"),
+                }
                 if totals["kwh_total"] is not None:
                     actual_kwh += totals["kwh_total"]
                     actual_variable += totals["cost_total"]
                     days_with_data += 1
+                    for key in invoice_variable:
+                        invoice_variable[key] += float(invoice_day.get("items", {}).get(key) or 0.0)
                 export_totals = self.calculate_daily_export_totals(cfg, date_str)
                 if export_totals["export_kwh_total"] is not None:
                     actual_export_kwh += export_totals["export_kwh_total"]
@@ -252,14 +333,74 @@ class BillingService:
         fixed_breakdown["daily"] = {k: round(v, 5) for k, v in fixed_breakdown["daily"].items()}
         fixed_breakdown["monthly"] = {k: round(v, 5) for k, v in fixed_breakdown["monthly"].items()}
 
-        return {
+        dph_percent = float(cfg.get("dph") or 0.0)
+        projection_factor = (days_in_month / days_with_data) if days_with_data else 0.0
+
+        def build_invoice(variable_factor: float) -> dict[str, Any]:
+            variable = {key: value * variable_factor for key, value in invoice_variable.items()}
+            commercial = variable["spot"] + variable["supplier_service"] + invoice_fixed["standing_charge"]
+            regulated = (
+                variable["distribution_nt"]
+                + variable["distribution_vt"]
+                + variable["oze"]
+                + variable["electricity_tax"]
+                + variable["system_services"]
+                + invoice_fixed["breaker"]
+                + invoice_fixed["infrastructure"]
+            )
+            supply_without_vat = commercial + regulated
+            supply_with_vat = supply_without_vat * (1 + dph_percent / 100.0)
+            sell = actual_sell_total * variable_factor if export_days_with_data else 0.0
+            return {
+                "commercial": {
+                    "standing_charge": round(invoice_fixed["standing_charge"], 2),
+                    "supplier_service": round(variable["supplier_service"], 2),
+                    "spot_energy": round(variable["spot"], 2),
+                    "total": round(commercial, 2),
+                },
+                "regulated": {
+                    "distribution_nt_kwh": round(variable["nt_kwh"], 5),
+                    "distribution_nt": round(variable["distribution_nt"], 2),
+                    "distribution_vt_kwh": round(variable["vt_kwh"], 5),
+                    "distribution_vt": round(variable["distribution_vt"], 2),
+                    "breaker": round(invoice_fixed["breaker"], 2),
+                    "infrastructure": round(invoice_fixed["infrastructure"], 2),
+                    "oze": round(variable["oze"], 2),
+                    "electricity_tax": round(variable["electricity_tax"], 2),
+                    "system_services": round(variable["system_services"], 2),
+                    "total": round(regulated, 2),
+                },
+                "supply_without_vat": round(supply_without_vat, 2),
+                "vat": round(supply_with_vat - supply_without_vat, 2),
+                "supply_with_vat": round(supply_with_vat, 2),
+                "sell_total": round(sell, 2),
+                "net_after_sell": round(supply_with_vat - sell, 2),
+            }
+
+        result = {
             "month": month_str,
             "days_in_month": days_in_month,
             "days_with_data": days_with_data,
             "actual": actual,
             "projected": projected,
             "fixed_breakdown": fixed_breakdown,
+            "invoice": {
+                "actual": build_invoice(1.0),
+                "projected": build_invoice(projection_factor),
+                "dph_percent": dph_percent,
+                "price_provider": cfg.get("price_provider"),
+            },
         }
+        monthly_advance = max(float(cfg.get("mesicni_zaloha") or 0.0), 0.0)
+        projected_net_total = projected.get("net_total")
+        if monthly_advance > 0 and projected_net_total is not None:
+            result.update(
+                {
+                    "monthly_advance": round(monthly_advance, 2),
+                    "settlement_estimate": round(monthly_advance - projected_net_total, 2),
+                }
+            )
+        return result
 
     def get_daily_summary(self, *, month: str, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
         if not re.match(r"^\d{4}-\d{2}$", month):
@@ -364,6 +505,64 @@ class BillingService:
             "days": days,
             "summary": summary,
         }
+
+    def get_invoice_detail_rows(self, cfg: dict[str, Any], month_str: str, tzinfo, *, kind: str) -> list[dict[str, Any]]:
+        if kind not in {"supply", "export"}:
+            raise ValueError("Invoice detail kind must be 'supply' or 'export'.")
+        if not re.match(r"^\d{4}-\d{2}$", month_str):
+            raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
+        year, month_num = map(int, month_str.split("-"))
+        days_in_month = calendar.monthrange(year, month_num)[1]
+        today = datetime.now(tzinfo).date()
+        rows: list[dict[str, Any]] = []
+
+        for day_num in range(1, days_in_month + 1):
+            date_obj = datetime(year, month_num, day_num).date()
+            if date_obj > today:
+                break
+            date_str = date_obj.isoformat()
+            series = self._get_consumption_points(cfg, date=date_str) if kind == "supply" else self._get_export_points(cfg, date=date_str)
+            price_map, price_map_utc = self._build_price_map_for_date(cfg, date_str, tzinfo)
+            fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
+            coefficient_mwh = self._calculate_sell_coefficient(cfg, fee_snapshot) * 1000.0
+            for entry in series.get("points", []):
+                kwh = entry.get("kwh")
+                if kwh is None:
+                    continue
+                time_local = datetime.fromisoformat(entry["time"])
+                price = price_map.get(time_local.strftime("%Y-%m-%d %H:%M"))
+                if price is None:
+                    time_utc = datetime.fromisoformat(entry["time_utc"].replace("Z", "+00:00"))
+                    price = price_map_utc.get(time_utc.strftime("%Y-%m-%d %H:%M"))
+                if price is None:
+                    continue
+                start_minutes = time_local.hour * 60 + time_local.minute
+                end_minutes = start_minutes + 14
+                interval = f"{start_minutes // 60:02d}:{start_minutes % 60:02d} - {end_minutes // 60:02d}:{end_minutes % 60:02d}"
+                spot_czk_mwh = float(price.get("price_czk_mwh") or price["spot"] * 1000.0)
+                spot_eur_mwh = price.get("price_eur_mwh")
+                exchange_rate = price.get("eur_czk_rate")
+                effective_czk_mwh = spot_czk_mwh if kind == "supply" else spot_czk_mwh - coefficient_mwh
+                effective_eur_mwh = None
+                if spot_eur_mwh is not None:
+                    effective_eur_mwh = float(spot_eur_mwh)
+                    if kind == "export" and exchange_rate:
+                        effective_eur_mwh -= coefficient_mwh / float(exchange_rate)
+                rows.append(
+                    {
+                        "date": date_str,
+                        "interval": interval,
+                        "spot_eur_mwh": spot_eur_mwh,
+                        "spot_czk_mwh": spot_czk_mwh,
+                        "effective_eur_mwh": effective_eur_mwh,
+                        "effective_czk_mwh": effective_czk_mwh,
+                        "kwh": float(kwh),
+                        "exchange_rate": exchange_rate,
+                        "result_eur": None if effective_eur_mwh is None else float(kwh) * effective_eur_mwh / 1000.0,
+                        "result_czk": float(kwh) * effective_czk_mwh / 1000.0,
+                    }
+                )
+        return rows
 
     def get_billing_month(self, *, month: str, cfg: dict[str, Any], tzinfo) -> dict[str, Any]:
         return self.compute_monthly_billing(cfg, month, tzinfo)

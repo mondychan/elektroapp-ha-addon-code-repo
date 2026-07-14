@@ -8,11 +8,9 @@ class DataExportService:
 
     def generate_monthly_csv(self, cfg: Dict[str, Any], month_str: str, tzinfo) -> str:
         """
-        Generuje CSV pro měsíční přehled (den po dni).
-        
-        Sloupec Naklady (Kc) nyní odpovídá faktuře 1:1 — zahrnuje variabilní
-        i fixní poplatky (jistič, stálý plat, provoz infrastruktury) rozpočítané
-        na den. V prvním řádku za daty je uveden součet.
+        Generuje provozní CSV měsíčního přehledu (den po dni).
+        Sloupec Náklady obsahuje pouze variabilní náklady na import; fakturační
+        položky a fixní poplatky jsou v samostatných invoice detail exportech.
         """
         data = self.billing_service.get_daily_summary(month=month_str, cfg=cfg, tzinfo=tzinfo)
         
@@ -40,9 +38,7 @@ class DataExportService:
         for day in days:
             kwh = day.get("kwh_total") or 0.0
             pv_kwh = day.get("pv_kwh")
-            # total_cost zahrnuje variabilní + fixní (od 0.3.51).
-            # Pro zpětnou kompatibilitu fallback na cost_total (variable only).
-            cost = day.get("total_cost") or day.get("cost_total") or 0.0
+            cost = day.get("cost_total") or 0.0
             export = day.get("export_kwh_total") or 0.0
             sell = day.get("sell_total") or 0.0
             
@@ -79,3 +75,35 @@ class DataExportService:
         ])
             
         return output.getvalue()
+
+    def generate_invoice_detail_csv(self, cfg: Dict[str, Any], month_str: str, tzinfo, *, kind: str) -> str:
+        rows = self.billing_service.get_invoice_detail_rows(cfg, month_str, tzinfo, kind=kind)
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=";")
+
+        if kind == "supply":
+            writer.writerow(["Datum", "Interval", "EUR/MWh", "CZK/MWh", "Spotřeba kWh", "Kurz", "EUR", "CZK"])
+            for row in rows:
+                writer.writerow([
+                    row["date"], row["interval"], self._csv_number(row["spot_eur_mwh"], 4),
+                    self._csv_number(row["spot_czk_mwh"], 4), self._csv_number(row["kwh"], 5),
+                    self._csv_number(row["exchange_rate"], 4), self._csv_number(row["result_eur"], 6),
+                    self._csv_number(row["result_czk"], 6),
+                ])
+        else:
+            writer.writerow(["Datum", "Interval", "Cena DT OTE EUR/MWh", "Cena DT OTE Kč/MWh", "Cena výkupu EUR/MWh", "Cena výkupu Kč/MWh", "Výkup kWh", "Kurz", "Výsledná cena EUR", "Výsledná cena Kč"])
+            for row in rows:
+                writer.writerow([
+                    row["date"], row["interval"], self._csv_number(row["spot_eur_mwh"], 4),
+                    self._csv_number(row["spot_czk_mwh"], 4), self._csv_number(row["effective_eur_mwh"], 4),
+                    self._csv_number(row["effective_czk_mwh"], 4), self._csv_number(row["kwh"], 5),
+                    self._csv_number(row["exchange_rate"], 4), self._csv_number(row["result_eur"], 6),
+                    self._csv_number(row["result_czk"], 6),
+                ])
+        return output.getvalue()
+
+    @staticmethod
+    def _csv_number(value, decimals: int) -> str:
+        if value is None:
+            return ""
+        return f"{float(value):.{decimals}f}".replace(".", ",")

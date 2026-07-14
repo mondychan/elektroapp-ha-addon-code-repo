@@ -26,3 +26,9 @@ configuration:
   hp:
     name: "HP"
     description: "Heat pump tab configuration"
+  dip:
+    name: "CEZ distribution portal"
+    description: "Separate login for supply point profile, EAN, meter, breaker, tariff and readings."
+  supply_point:
+    name: "Supply point - manual data"
+    description: "Manual values take precedence over data synchronized from DIP."

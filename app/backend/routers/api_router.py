@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Body, Depends, Query, Response
+from fastapi import APIRouter, Body, Depends, File, Query, Response, UploadFile
 import logging
+from typing import Literal
 
 import app_service as svc
 from api_models import (
@@ -93,6 +94,44 @@ def get_pnd_data(
     ctx: RequestContext = Depends(get_request_context),
 ):
     return svc.get_pnd_data(from_date=from_date, to_date=to_date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/dip/status")
+def get_dip_status(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_dip_status(cfg=ctx.config)
+
+
+@router.get("/dip/profile")
+def get_dip_profile(ctx: RequestContext = Depends(get_request_context)):
+    return svc.get_dip_profile(cfg=ctx.config)
+
+
+@router.post("/dip/sync", dependencies=[Depends(require_mutation_access)])
+def sync_dip(ctx: RequestContext = Depends(get_request_context)):
+    return svc.sync_dip(cfg=ctx.config)
+
+
+@router.get("/invoices")
+def list_invoices():
+    return svc.list_invoice_documents()
+
+
+@router.post("/invoices/upload", dependencies=[Depends(require_mutation_access)])
+async def upload_invoice(files: list[UploadFile] = File(...)):
+    stored = []
+    for file in files:
+        stored.append(svc.store_invoice_document(file.filename or "document", await file.read()))
+    return {"documents": stored}
+
+
+@router.delete("/invoices/{document_id}", dependencies=[Depends(require_mutation_access)])
+def delete_invoice(document_id: str):
+    return svc.delete_invoice_document(document_id)
+
+
+@router.post("/invoices/{document_id}/audit", dependencies=[Depends(require_mutation_access)])
+def audit_invoice(document_id: str, ctx: RequestContext = Depends(get_request_context)):
+    return svc.audit_invoice_document(document_id, cfg=ctx.config, tzinfo=ctx.tzinfo)
 
 
 @router.get("/hp/data")
@@ -237,6 +276,18 @@ def export_csv(params: MonthQuery = Depends(), ctx: RequestContext = Depends(get
         content=csv_data,
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/invoice-detail-csv")
+def export_invoice_detail_csv(month: str, kind: Literal["supply", "export"], ctx: RequestContext = Depends(get_request_context)):
+    csv_data = svc.export_invoice_detail_csv(month=month, kind=kind, cfg=ctx.config, tzinfo=ctx.tzinfo)
+    suffix = "dodavka" if kind == "supply" else "vykup"
+    filename = f"elektroapp-detail-{suffix}-{month}.csv"
+    return Response(
+        content="\ufeff" + csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

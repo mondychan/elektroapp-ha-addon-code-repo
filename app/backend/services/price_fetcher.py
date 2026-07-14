@@ -70,6 +70,9 @@ def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "price_czk_mwh": round(price_czk_mwh, 5),
+                "price_eur_mwh": None,
+                "eur_czk_rate": None,
             }
         )
     return entries
@@ -94,6 +97,9 @@ def build_entries_from_ote(
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "price_czk_mwh": round(spot_kwh * 1000.0, 5),
+                "price_eur_mwh": round(item["price_eur_mwh"], 5),
+                "eur_czk_rate": round(eur_to_czk_rate, 5),
             }
         )
     return entries
@@ -120,6 +126,9 @@ def build_entries_from_spot_html(
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "price_czk_mwh": round(price_czk, 5),
+                "price_eur_mwh": None,
+                "eur_czk_rate": None,
             }
         )
     return entries
@@ -289,6 +298,15 @@ def apply_fee_snapshot(
         adjusted.append({**entry, "final": final})
     return adjusted
 
+
+def _cache_has_invoice_metadata(entries: List[Dict[str, Any]], provider: str) -> bool:
+    if provider != PRICE_PROVIDER_OTE:
+        return True
+    return bool(entries) and all(
+        entry.get("price_eur_mwh") is not None and entry.get("eur_czk_rate") is not None
+        for entry in entries
+    )
+
 def get_prices_for_date(
     cfg: dict[str, Any],
     date_str: str,
@@ -312,7 +330,7 @@ def get_prices_for_date(
     if not force_refresh:
         cached = PRICES_CACHE.get(date_str)
         if cached:
-            if not is_live_date or is_price_cache_provider_match(date_str, provider, get_cached_price_provider_fn):
+            if _cache_has_invoice_metadata(cached, provider) and (not is_live_date or is_price_cache_provider_match(date_str, provider, get_cached_price_provider_fn)):
                 return apply_fee_snapshot(cached, cfg, fee_snapshot)
             cached_provider = get_cached_price_provider_fn(date_str)
             logger.info("Skipping in-memory cache for %s due to provider switch (%s -> %s)", date_str, cached_provider, provider)
@@ -320,7 +338,9 @@ def get_prices_for_date(
         cached = load_prices_cache_fn(date_str)
         if cached:
             cached_provider = get_cached_price_provider_fn(date_str)
-            if is_live_date and cached_provider != normalize_price_provider(provider):
+            if not _cache_has_invoice_metadata(cached, provider):
+                logger.info("Skipping legacy OTE cache for %s because invoice metadata is missing", date_str)
+            elif is_live_date and cached_provider != normalize_price_provider(provider):
                 logger.info("Skipping file cache for %s due to provider switch (%s -> %s)", date_str, cached_provider, provider)
             else:
                 PRICES_CACHE[date_str] = cached
@@ -437,6 +457,13 @@ def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
             time_local = time_local.replace(tzinfo=tzinfo)
         key_local = time_local.strftime("%Y-%m-%d %H:%M")
         key_utc = time_local.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
-        price_map[key_local] = {"spot": entry["spot"], "final": entry["final"]}
-        price_map_utc[key_utc] = {"spot": entry["spot"], "final": entry["final"]}
+        price_data = {
+            "spot": entry["spot"],
+            "final": entry["final"],
+            "price_czk_mwh": entry.get("price_czk_mwh", entry["spot"] * 1000.0),
+            "price_eur_mwh": entry.get("price_eur_mwh"),
+            "eur_czk_rate": entry.get("eur_czk_rate"),
+        }
+        price_map[key_local] = price_data
+        price_map_utc[key_utc] = price_data
     return price_map, price_map_utc

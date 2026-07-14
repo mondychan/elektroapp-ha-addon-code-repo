@@ -60,6 +60,28 @@ export interface Config {
     nightly_sync_window_start_hour?: number;
     nightly_sync_window_end_hour?: number;
   };
+  dip?: {
+    enabled?: boolean;
+    username?: string;
+    password?: string;
+    url?: string;
+    primary_supply_point_id?: string;
+    verify_on_startup?: boolean;
+    sync_enabled?: boolean;
+    sync_interval_hours?: number;
+  };
+  supply_point?: {
+    customer_name?: string;
+    billing_address?: string;
+    mailing_address?: string;
+    supply_point_number?: string;
+    consumption_ean?: string;
+    production_ean?: string;
+    meter_id?: string;
+    phases?: number;
+    breaker_amps?: number;
+    distribution_tariff?: string;
+  };
   hp?: {
     enabled?: boolean;
     source_mode?: "manual" | "prefix" | "regex";

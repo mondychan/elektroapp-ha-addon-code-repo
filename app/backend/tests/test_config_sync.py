@@ -94,6 +94,28 @@ def test_save_config_writes_ha_and_backup_options(isolated_storage, monkeypatch)
     assert response["supervisor_sync"]["ok"] is True
 
 
+def test_config_api_masks_and_preserves_integration_passwords(isolated_storage, monkeypatch):
+    supervisor = DummySupervisorService()
+    monkeypatch.setattr(app_service, "SUPERVISOR_SERVICE", supervisor)
+    monkeypatch.setattr(app_service, "PND_SERVICE", None)
+    isolated_storage["config_file"].write_text(
+        "price_provider: spotovaelektrina\n"
+        "pnd:\n  enabled: true\n  username: pnd-user\n  password: pnd-secret\n"
+        "dip:\n  enabled: true\n  username: dip-user\n  password: dip-secret\n",
+        encoding="utf-8",
+    )
+
+    public_config = app_service.get_config()
+    assert "password" not in public_config["pnd"]
+    assert "password" not in public_config["dip"]
+
+    public_config["dip"]["primary_supply_point_id"] = "0001234567"
+    app_service.save_config(public_config)
+    stored = config_loader.load_config()
+    assert stored["pnd"]["password"] == "pnd-secret"
+    assert stored["dip"]["password"] == "dip-secret"
+
+
 def test_load_config_prefers_custom_backup_over_newer_default_ha_options(isolated_storage):
     config_path = isolated_storage["config_file"]
     ha_options_path = isolated_storage["ha_options_file"]

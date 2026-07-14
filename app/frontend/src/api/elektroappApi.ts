@@ -6,6 +6,7 @@ const API_PREFIX = "./api";
 const get = (path: string, params?: any) => axios.get(`${API_PREFIX}${path}`, params ? { params } : undefined).then((res) => res.data);
 const post = (path: string, payload?: any) => axios.post(`${API_PREFIX}${path}`, payload).then((res) => res.data);
 const put = (path: string, payload?: any) => axios.put(`${API_PREFIX}${path}`, payload).then((res) => res.data);
+const del = (path: string) => axios.delete(`${API_PREFIX}${path}`).then((res) => res.data);
 
 export const elektroappApi = {
   getPrices: (date?: string) => get("/prices", date ? { date } : undefined),
@@ -34,6 +35,18 @@ export const elektroappApi = {
   getDiagnostics: () => get("/diagnostics"),
   invalidateCache: (payload: { domain: "prices" | "consumption" | "export" | "pnd" | "all"; date?: string }) => post("/cache/invalidate", payload),
   getExportCsv: (month: string) => get("/export-csv", { month }),
+  getInvoiceDetailCsv: (month: string, kind: "supply" | "export") => get("/invoice-detail-csv", { month, kind }),
+  getDipStatus: () => get("/dip/status"),
+  getDipProfile: () => get("/dip/profile"),
+  syncDip: () => post("/dip/sync"),
+  getInvoices: () => get("/invoices"),
+  uploadInvoices: (files: File[]) => {
+    const form = new FormData();
+    files.forEach((file) => form.append("files", file));
+    return axios.post(`${API_PREFIX}/invoices/upload`, form).then((res) => res.data);
+  },
+  auditInvoice: (id: string) => post(`/invoices/${id}/audit`),
+  deleteInvoice: (id: string) => del(`/invoices/${id}`),
   getPndStatus: () => get("/pnd/status"),
   getPndCacheStatus: () => get("/pnd/cache-status"),
   verifyPnd: () => post("/pnd/verify"),

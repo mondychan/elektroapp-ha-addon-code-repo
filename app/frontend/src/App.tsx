@@ -27,6 +27,8 @@ import {
 } from "./hooks/useDashboardData";
 
 const DetailPage = lazy(() => import("./pages/DetailPage"));
+const InvoicesPage = lazy(() => import("./pages/InvoicesPage"));
+const DipPage = lazy(() => import("./pages/DipPage"));
 const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage"));
 const PndPage = lazy(() => import("./pages/PndPage"));
 const HpPage = lazy(() => import("./pages/HpPage"));
@@ -427,6 +429,14 @@ const App: React.FC = () => {
           </SectionCard>
         </div>
       );
+    }
+
+    if (pageMode === "invoices") {
+      return <InvoicesPage maxMonth={currentMonthStr} />;
+    }
+
+    if (pageMode === "dip") {
+      return <DipPage />;
     }
 
     if (pageMode === "stats") {

@@ -34,3 +34,5 @@ Doplnek pomaha odpovedet hlavne na tyhle otazky:
 ## Poznamka
 
 Obsah tohoto repozitare je synchronizovan automaticky z code repa behem release workflow.
+
+Add-on obsahuje samostatné obrazovky `Distribuční portál` pro profil odběrných a výrobních EAN a `Vyúčtování` pro virtuální fakturu, dodavatelské exporty a audit PDF/XLSX dokumentů. Přihlašovací údaje DIP se konfigurují pouze přes Home Assistant add-on konfiguraci nebo YAML.

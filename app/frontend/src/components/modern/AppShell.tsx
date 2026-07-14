@@ -29,6 +29,8 @@ export type PageMode =
   | "battery"
   | "solar"
   | "monthly"
+  | "invoices"
+  | "dip"
   | "stats"
   | "hp"
   | "pnd"
@@ -62,7 +64,9 @@ const navItems: NavItem[] = [
   { id: "battery", label: "Baterie", icon: <IconBattery /> },
   { id: "solar", label: "Soláry / FV", icon: <IconSun /> },
   { id: "pnd", label: "Síť / PND", ariaLabel: "PND", icon: <IconGridTower /> },
+  { id: "dip", label: "Distribuční portál", ariaLabel: "DIP", icon: <IconGridTower /> },
   { id: "monthly", label: "Měsíční přehled", icon: <IconTable /> },
+  { id: "invoices", label: "Vyúčtování", icon: <IconTable /> },
   { id: "stats", label: "Statistiky", icon: <IconTrend /> },
   { id: "settings", label: "Nastavení", icon: <IconSettings /> },
 ];

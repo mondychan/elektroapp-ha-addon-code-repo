@@ -6,6 +6,8 @@ Elektroapp je pokročilý Home Assistant add-on pro komplexní sledování energ
 - **Spotové ceny**: Načítání cen (dnes/zítra) z OTE nebo `spotovaelektrina.cz` s automatickým přepočtem na konečnou cenu (DPH, distribuce, OZE).
 - **Náklady a tržby**: Výpočet v reálném čase podle dat z InfluxDB (např. ze Solaxu).
 - **PND Integrace**: Automatický import dat z Portálu naměřených dat (ČEZ Distribuce).
+- **DIP Integrace**: Synchronizace odběrných i výrobních EAN z Distribučního portálu ČEZ, včetně technických údajů, odečtů, HDO a odstávek.
+- **Virtuální vyúčtování**: Fakturační přehled, dodavatelské CSV exporty a audit nahraných PDF/XLSX dokumentů.
 - **Srovnání dat**: Unikátní možnost porovnání "oficiálních" dat z elektroměru (PND) s lokálními senzory střídače pro odhalení nepřesností.
 - **Solární předpověď**: Hybridní odhad výroby (Forecast.Solar) kalibrovaný podle reálného chování vašeho systému, včetně historického backfillu z InfluxDB, hodinového biasu a systémově upraveného odhadu zítřka.
 - **Baterie**: Detailní monitoring SoC, výkonu a inteligentní projekce času nabití/vybití.
@@ -36,6 +38,24 @@ pnd:
   meter_id: "3000012345"
   nightly_sync_enabled: true
 ```
+
+## Konfigurace (DIP)
+
+Přístup k Distribučnímu portálu se nastavuje pouze v konfiguraci Home Assistant add-onu:
+
+```yaml
+dip:
+  enabled: true
+  username: "vas_email@domena.cz"
+  password: "vase_heslo"
+  url: "https://dip.cezdistribuce.cz/irj/portal/prehled-om/"
+  primary_supply_point_id: ""
+  verify_on_startup: true
+  sync_enabled: true
+  sync_interval_hours: 24
+```
+
+Při vypnutém DIP lze základní údaje zadat staticky v sekci `supply_point`. Ruční hodnoty mají přednost před synchronizovanými údaji.
 
 ## API
 Backend poskytuje bohaté rozhraní:

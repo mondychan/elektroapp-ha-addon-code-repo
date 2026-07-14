@@ -102,6 +102,26 @@ options:
     nightly_sync_enabled: true
     nightly_sync_window_start_hour: 2
     nightly_sync_window_end_hour: 7
+  dip:
+    enabled: false
+    username: ""
+    password: ""
+    url: "https://dip.cezdistribuce.cz/irj/portal/prehled-om/"
+    primary_supply_point_id: ""
+    verify_on_startup: true
+    sync_enabled: true
+    sync_interval_hours: 24
+  supply_point:
+    customer_name: ""
+    billing_address: ""
+    mailing_address: ""
+    supply_point_number: ""
+    consumption_ean: ""
+    production_ean: ""
+    meter_id: ""
+    phases: 3
+    breaker_amps: 32
+    distribution_tariff: ""
   hp:
     enabled: false
     source_mode: "manual"
@@ -205,6 +225,26 @@ schema:
     nightly_sync_enabled: bool?
     nightly_sync_window_start_hour: int?
     nightly_sync_window_end_hour: int?
+  dip:
+    enabled: bool?
+    username: str?
+    password: password?
+    url: str?
+    primary_supply_point_id: str?
+    verify_on_startup: bool?
+    sync_enabled: bool?
+    sync_interval_hours: int?
+  supply_point:
+    customer_name: str?
+    billing_address: str?
+    mailing_address: str?
+    supply_point_number: str?
+    consumption_ean: str?
+    production_ean: str?
+    meter_id: str?
+    phases: int?
+    breaker_amps: int?
+    distribution_tariff: str?
   hp:
     enabled: bool?
     source_mode: list(manual|prefix|regex)?

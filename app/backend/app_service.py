@@ -2,6 +2,7 @@ import logging
 import os
 import asyncio
 import atexit
+import copy
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from fastapi import Body, HTTPException, Query
@@ -89,6 +90,8 @@ from services.pnd_scheduler import (
     PND_LOCK_STALE_SECONDS,
 )
 from services.pnd_service import PNDService, PNDServiceError
+from services.dip_service import DIPService, DIPServiceError
+from services.invoice_archive_service import InvoiceArchiveService
 from services.supervisor_service import SupervisorService, SupervisorSyncError
 
 # Re-exporting injected services (for main.py and others)
@@ -120,6 +123,8 @@ CACHE_DIR = None
 CONSUMPTION_CACHE_DIR = None
 EXPORT_CACHE_DIR = None
 PND_CACHE_DIR = None
+DIP_CACHE_DIR = None
+INVOICES_DIR = None
 OPTIONS_BACKUP_FILE = None
 FEES_HISTORY_FILE = None
 
@@ -133,6 +138,8 @@ SUPERVISOR_SERVICE = SupervisorService(logger=logger)
 CONSUMPTION_CACHE: Optional[SeriesCache] = None
 EXPORT_CACHE: Optional[SeriesCache] = None
 PND_SERVICE: Optional[PNDService] = None
+DIP_SERVICE: Optional[DIPService] = None
+INVOICE_ARCHIVE_SERVICE: Optional[InvoiceArchiveService] = None
 
 # --- Price Cache Helpers ---
 def load_prices_cache(date_str):
@@ -530,7 +537,12 @@ RECOMMENDATION_SERVICE = RecommendationService()
 # --- Public API Functions (Compatibility) ---
 
 def get_config():
-    return load_config()
+    config = copy.deepcopy(load_config())
+    for section_name in ("pnd", "dip"):
+        section = config.get(section_name)
+        if isinstance(section, dict):
+            section.pop("password", None)
+    return config
 
 
 def _can_start_pnd_scheduler(cfg: Optional[dict[str, Any]] = None) -> bool:
@@ -538,8 +550,21 @@ def _can_start_pnd_scheduler(cfg: Optional[dict[str, Any]] = None) -> bool:
     pnd_cfg = get_pnd_cfg(effective_cfg)
     return bool(pnd_cfg.get("enabled") and has_pnd_required_cfg(pnd_cfg))
 
+
+def _can_start_dip_scheduler(cfg: Optional[dict[str, Any]] = None) -> bool:
+    effective_cfg = cfg if isinstance(cfg, dict) else load_config()
+    dip_cfg = effective_cfg.get("dip", {}) if isinstance(effective_cfg.get("dip"), dict) else {}
+    return bool(dip_cfg.get("enabled") and dip_cfg.get("username") and dip_cfg.get("password"))
+
 def save_config(new_config: dict = Body(...)):
     if isinstance(new_config, dict):
+        current_config = load_config()
+        for section_name in ("pnd", "dip"):
+            section = new_config.get(section_name)
+            current_section = current_config.get(section_name) if isinstance(current_config, dict) else None
+            if isinstance(section, dict) and isinstance(current_section, dict):
+                if not section.get("password") and current_section.get("password"):
+                    section["password"] = current_section["password"]
         new_config["price_provider"] = normalize_price_provider(new_config.get("price_provider"))
         supervisor_options = {**new_config, "price_provider": display_price_provider(new_config.get("price_provider"))}
     else:
@@ -580,6 +605,8 @@ def save_config(new_config: dict = Body(...)):
                     "details": exc.details,
                 }
             start_pnd_scheduler()
+    if _can_start_dip_scheduler(new_config):
+        start_dip_scheduler()
     return response
 
 def get_fees_history(cfg=None, tzinfo=None):
@@ -597,13 +624,17 @@ def update_fees_history(payload: dict = Body(...), cfg=None, tzinfo=None):
     return {"history": normalized}
 
 def finalize_initialization():
-    global CONSUMPTION_CACHE, EXPORT_CACHE, PND_SERVICE
+    global CONSUMPTION_CACHE, EXPORT_CACHE, PND_SERVICE, DIP_SERVICE, INVOICE_ARCHIVE_SERVICE
     if CONSUMPTION_CACHE_DIR:
         CONSUMPTION_CACHE = SeriesCache("consumption", CONSUMPTION_CACHE_DIR, 600)
     if EXPORT_CACHE_DIR:
         EXPORT_CACHE = SeriesCache("export", EXPORT_CACHE_DIR, 600)
     if PND_CACHE_DIR:
         PND_SERVICE = PNDService(PND_CACHE_DIR, logger=logger)
+    if DIP_CACHE_DIR:
+        DIP_SERVICE = DIPService(DIP_CACHE_DIR, logger=logger)
+    if INVOICES_DIR:
+        INVOICE_ARCHIVE_SERVICE = InvoiceArchiveService(INVOICES_DIR)
 
 def get_cache_status():
     return {
@@ -611,6 +642,7 @@ def get_cache_status():
         "consumption": CONSUMPTION_CACHE.get_status() if CONSUMPTION_CACHE else {},
         "export": EXPORT_CACHE.get_status() if EXPORT_CACHE else {},
         "pnd": PND_SERVICE.get_cache_status() if PND_SERVICE else {},
+        "dip": DIP_SERVICE.get_status(load_config()) if DIP_SERVICE else {},
     }
 
 def invalidate_cache(domain: str, date: str | None = None):
@@ -679,6 +711,7 @@ def get_diagnostics(cfg=None):
             "ote_unavailable": is_ote_unavailable(),
             "prefetch_scheduler_running": bool(RUNTIME_STATE.prefetch_thread and RUNTIME_STATE.prefetch_thread.is_alive()),
             "pnd_scheduler_running": bool(RUNTIME_STATE.pnd_thread and RUNTIME_STATE.pnd_thread.is_alive()),
+            "dip_scheduler_running": bool(RUNTIME_STATE.dip_thread and RUNTIME_STATE.dip_thread.is_alive()),
         },
         "pnd": get_pnd_status(cfg=cfg) if PND_SERVICE else {"enabled": False, "configured": False},
     }
@@ -799,6 +832,87 @@ def get_billing_year(year: int, cfg=None, tzinfo=None):
 def export_monthly_csv(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return EXPORT_DATA_SERVICE.generate_monthly_csv(cfg, month, tzinfo)
+
+def export_invoice_detail_csv(month: str, kind: str, cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    return EXPORT_DATA_SERVICE.generate_invoice_detail_csv(cfg, month, tzinfo, kind=kind)
+
+
+def get_dip_status(cfg=None):
+    if not DIP_SERVICE:
+        return {"enabled": False, "configured": False, "profile_available": False}
+    return DIP_SERVICE.get_status(cfg if isinstance(cfg, dict) else load_config())
+
+
+def get_dip_profile(cfg=None):
+    effective_cfg = cfg if isinstance(cfg, dict) else load_config()
+    profile = DIP_SERVICE.get_profile() if DIP_SERVICE else {}
+    manual = effective_cfg.get("supply_point", {}) if isinstance(effective_cfg.get("supply_point"), dict) else {}
+    points = [dict(item) for item in profile.get("supply_points", []) if isinstance(item, dict)]
+    consumption_ean = manual.get("consumption_ean")
+    production_ean = manual.get("production_ean")
+    if not points:
+        if consumption_ean:
+            points.append({"ean": consumption_ean, "kind": "Spotřeba", "technical": {}})
+        if production_ean:
+            points.append({"ean": production_ean, "kind": "Mikrozdroj", "technical": {}})
+    primary = next((item for item in points if item.get("ean") == consumption_ean), points[0] if points else {})
+    if primary:
+        primary["customer_name"] = manual.get("customer_name") or primary.get("customer_name")
+        primary["supply_address"] = manual.get("billing_address") or primary.get("supply_address")
+        primary["mailing_address"] = manual.get("mailing_address") or primary.get("mailing_address")
+        primary["supply_point_number"] = manual.get("supply_point_number") or primary.get("supply_point_number")
+        technical = dict(primary.get("technical") or {})
+        technical["meter_id"] = manual.get("meter_id") or technical.get("meter_id")
+        technical["phases"] = manual.get("phases") or technical.get("phases")
+        technical["breaker_amps"] = manual.get("breaker_amps") or technical.get("breaker_amps")
+        technical["distribution_tariff"] = manual.get("distribution_tariff") or technical.get("distribution_tariff")
+        primary["technical"] = technical
+    return {**profile, "supply_points": points, "primary_supply_point": primary, "source": "dip+manual" if profile else "manual"}
+
+
+def sync_dip(cfg=None):
+    if not DIP_SERVICE:
+        raise HTTPException(status_code=503, detail="DIP služba není inicializována.")
+    try:
+        return DIP_SERVICE.sync(cfg if isinstance(cfg, dict) else load_config())
+    except DIPServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message, "details": exc.details}) from exc
+
+
+def list_invoice_documents():
+    return {"documents": INVOICE_ARCHIVE_SERVICE.list_documents() if INVOICE_ARCHIVE_SERVICE else []}
+
+
+def store_invoice_document(filename: str, data: bytes):
+    if not INVOICE_ARCHIVE_SERVICE:
+        raise HTTPException(status_code=503, detail="Archiv faktur není inicializován.")
+    try:
+        return INVOICE_ARCHIVE_SERVICE.store(filename, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def delete_invoice_document(document_id: str):
+    if not INVOICE_ARCHIVE_SERVICE or not INVOICE_ARCHIVE_SERVICE.delete(document_id):
+        raise HTTPException(status_code=404, detail="Dokument nebyl nalezen.")
+    return {"ok": True, "id": document_id}
+
+
+def audit_invoice_document(document_id: str, cfg=None, tzinfo=None):
+    if not INVOICE_ARCHIVE_SERVICE:
+        raise HTTPException(status_code=503, detail="Archiv faktur není inicializován.")
+    document = INVOICE_ARCHIVE_SERVICE.get_document(document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Dokument nebyl nalezen.")
+    parsed = document.get("parsed", {})
+    period_from = parsed.get("period_from")
+    period_to = parsed.get("period_to")
+    if not period_from or not period_to or period_from[:7] != period_to[:7]:
+        raise HTTPException(status_code=422, detail="Audit zatím vyžaduje fakturu v rámci jednoho kalendářního měsíce.")
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    virtual_invoice = BILLING_SERVICE.compute_monthly_billing(cfg, period_from[:7], tzinfo, require_data=False)
+    return INVOICE_ARCHIVE_SERVICE.audit(document_id, virtual_invoice)
 
 def _invalidate_series_cache_for_day(date_str: str) -> None:
     """Drop stale Influx series-cache files for a day after its PND
@@ -965,6 +1079,40 @@ def start_pnd_scheduler():
         ),
     )
 
+
+def start_dip_scheduler():
+    if not _can_start_dip_scheduler() or not DIP_SERVICE:
+        logger.info("DIP scheduler not started because DIP is disabled or missing required credentials.")
+        return False
+    with RUNTIME_STATE.dip_thread_guard:
+        if RUNTIME_STATE.dip_thread and RUNTIME_STATE.dip_thread.is_alive():
+            return True
+        RUNTIME_STATE.dip_stop_event.clear()
+
+        def loop():
+            first_run = True
+            while not RUNTIME_STATE.dip_stop_event.is_set():
+                cfg = load_config()
+                dip_cfg = cfg.get("dip", {}) if isinstance(cfg.get("dip"), dict) else {}
+                if not _can_start_dip_scheduler(cfg):
+                    RUNTIME_STATE.dip_stop_event.wait(300)
+                    continue
+                should_sync = bool(dip_cfg.get("sync_enabled", True))
+                if first_run and dip_cfg.get("verify_on_startup", True):
+                    should_sync = True
+                if should_sync:
+                    try:
+                        DIP_SERVICE.sync(cfg)
+                    except DIPServiceError as exc:
+                        logger.warning("DIP scheduled sync failed [%s]: %s", exc.code, exc.message)
+                first_run = False
+                interval_seconds = max(1, int(dip_cfg.get("sync_interval_hours", 24) or 24)) * 3600
+                RUNTIME_STATE.dip_stop_event.wait(interval_seconds)
+
+        RUNTIME_STATE.dip_thread = threading.Thread(target=loop, name="dip-scheduler", daemon=True)
+        RUNTIME_STATE.dip_thread.start()
+        return True
+
 def log_cache_status():
     status = get_cache_status()
     logger.info("Prices cache: %s", status["prices"])
@@ -972,3 +1120,4 @@ def log_cache_status():
 
 atexit.register(lambda: release_prefetch_process_lock(RUNTIME_STATE))
 atexit.register(lambda: release_pnd_process_lock(RUNTIME_STATE))
+atexit.register(lambda: RUNTIME_STATE.dip_stop_event.set())

@@ -22,6 +22,11 @@ class RuntimeState:
         self.pnd_lock_owned = False
         self.pnd_lock_path: Optional[Path] = None
 
+        # DIP scheduler state
+        self.dip_thread: Optional[threading.Thread] = None
+        self.dip_thread_guard = threading.Lock()
+        self.dip_stop_event = threading.Event()
+
     def mark_ote_unavailable(self, retry_seconds: int):
         self.ote_unavailable_until = time_module.time() + retry_seconds
 

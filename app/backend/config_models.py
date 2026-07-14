@@ -146,6 +146,30 @@ class PNDConfig(StrictModel):
         return self
 
 
+class DIPConfig(StrictModel):
+    enabled: bool = False
+    username: str | None = None
+    password: str | None = None
+    url: str = "https://dip.cezdistribuce.cz/irj/portal/prehled-om/"
+    primary_supply_point_id: str | None = None
+    verify_on_startup: bool = True
+    sync_enabled: bool = True
+    sync_interval_hours: int = Field(default=24, ge=1, le=168)
+
+
+class SupplyPointConfig(StrictModel):
+    customer_name: str | None = None
+    billing_address: str | None = None
+    mailing_address: str | None = None
+    supply_point_number: str | None = None
+    consumption_ean: str | None = None
+    production_ean: str | None = None
+    meter_id: str | None = None
+    phases: int | None = Field(default=None, ge=1, le=3)
+    breaker_amps: int | None = Field(default=None, ge=1, le=1000)
+    distribution_tariff: str | None = None
+
+
 class HPEntityConfig(StrictModel):
     entity_id: str = Field(min_length=1)
     label: str = Field(default="", min_length=0)
@@ -251,6 +275,8 @@ class AppConfigModel(StrictModel):
     forecast_solar: ForecastSolarConfig = Field(default_factory=ForecastSolarConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     pnd: PNDConfig = Field(default_factory=PNDConfig)
+    dip: DIPConfig = Field(default_factory=DIPConfig)
+    supply_point: SupplyPointConfig = Field(default_factory=SupplyPointConfig)
     hp: HPConfig = Field(default_factory=HPConfig)
     solar_overview: SolarOverviewConfig = Field(default_factory=SolarOverviewConfig, validation_alias="solar_overview")
 
