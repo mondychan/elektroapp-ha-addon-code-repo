@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.61
+- Opravena publikace releasu po chybném tagu verze 0.3.60.
+- Znovu sestaven a publikován multi-arch kontejner a synchronizována metadata Home Assistant add-onu.
+
 ## 0.3.59
 - Archiv faktur je nově seskupen podle fakturačního období; PDF, detail dodávky a detail výkupu stejného měsíce jsou zobrazeny společně.
 - Každý dokument má přehledný stav auditu a stabilně zarovnaný panel akcí.
