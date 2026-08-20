@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.63
+- Opraven frontend test virtuálního vyúčtování: testovaný měsíc je stabilně aktuální díky zmrazení systémového času.
+
 ## 0.3.62
 - PND synchronizace ověřuje kompletnost všech 96 čtvrthodinových intervalů spotřeby i výroby.
 - Noční synchronizace znovu kontroluje posledních 7 dnů a dohledává neúplná nebo chybějící data až 31 dnů zpětně.

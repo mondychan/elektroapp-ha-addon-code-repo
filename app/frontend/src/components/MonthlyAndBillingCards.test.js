@@ -66,6 +66,10 @@ describe("MonthlySummaryCard", () => {
 });
 
 describe("BillingCard", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("renders loading state", () => {
     render(
       <DataCard loading={true}>
@@ -87,20 +91,27 @@ describe("BillingCard", () => {
   });
 
   test("renders settlement estimate in billing card", () => {
+    // Freeze the clock so this test always exercises the current-month estimate branch.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2099, 5, 15, 12, 0, 0));
+    const now = new Date();
+    const billingMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
     render(
       <BillingCard
         billingMode="month"
         setBillingMode={() => {}}
-        billingMonth="2026-07"
+        billingMonth={billingMonth}
         setBillingMonth={() => {}}
-        billingYear="2026"
+        billingYear={String(now.getFullYear())}
         setBillingYear={() => {}}
-        maxMonth="2026-07"
-        maxYear="2026"
+        maxMonth={billingMonth}
+        maxYear={String(now.getFullYear())}
         billingData={{
-          month: "2026-07",
+          month: billingMonth,
           days_with_data: 14,
-          days_in_month: 31,
+          days_in_month: daysInMonth,
           actual: { kwh_total: 58.17, variable_cost: 142.45, fixed_cost: 1031.46, sell_total: 189.47, net_total: 984.45 },
           projected: { net_total: 927.35 },
           monthly_advance: 2500,
