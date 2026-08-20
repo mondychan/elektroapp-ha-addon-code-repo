@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.62
+- PND synchronizace ověřuje kompletnost všech 96 čtvrthodinových intervalů spotřeby i výroby.
+- Noční synchronizace znovu kontroluje posledních 7 dnů a dohledává neúplná nebo chybějící data až 31 dnů zpětně.
+- Platný lokální cache se již nepřepíše neúplnými daty z PND; změny intervalů se porovnávají před zápisem.
+- Virtuální vyúčtování zobrazuje stav `PND_DATA_INCOMPLETE` a chybějící dny.
+
 ## 0.3.61
 - Opravena publikace releasu po chybném tagu verze 0.3.60.
 - Znovu sestaven a publikován multi-arch kontejner a synchronizována metadata Home Assistant add-onu.

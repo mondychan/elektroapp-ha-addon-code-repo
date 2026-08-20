@@ -5,7 +5,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 from zoneinfo import ZoneInfo
@@ -16,6 +16,10 @@ import httpx
 PND_DASHBOARD_URL = "https://pnd.cezdistribuce.cz/cezpnd2/external/dashboard/view"
 PND_DATA_ENDPOINT = "https://pnd.cezdistribuce.cz/cezpnd2/external/data"
 DEFAULT_TZ = "Europe/Prague"
+PND_INTERVAL_MINUTES = 15
+PND_REVALIDATE_DAYS = 7
+PND_LOOKBACK_DAYS = 31
+PND_DATA_INCOMPLETE = "PND_DATA_INCOMPLETE"
 PND_LOGIN_PLACEHOLDERS = ("Zadejte svůj e-mail", "Zadejte své heslo", 'name="username"', 'name="password"', 'id="loginForm"')
 PND_DASHBOARD_MARKERS = ("NamÄ›Ĺ™enĂˇ data", "Naměřená data", "Namerena data")
 
@@ -419,6 +423,116 @@ def _parse_pnd_timestamp(value: Any, tz: ZoneInfo) -> datetime:
     raise ValueError(f"Unsupported timestamp: {raw}")
 
 
+def _expected_interval_keys(day_key: str, tz_name: str = DEFAULT_TZ) -> set[str]:
+    """Return UTC start instants expected for one local calendar day."""
+    tz = ZoneInfo(tz_name)
+    local_start = datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=tz)
+    next_local_start = (local_start.replace(tzinfo=None) + timedelta(days=1)).replace(tzinfo=tz)
+    current = local_start.astimezone(timezone.utc)
+    end = next_local_start.astimezone(timezone.utc)
+    result: set[str] = set()
+    while current < end:
+        result.add(current.isoformat())
+        current += timedelta(minutes=PND_INTERVAL_MINUTES)
+    return result
+
+
+def _expected_day_keys(start_date: date, end_date: date) -> set[str]:
+    """Return every local calendar day in an inclusive fetch range."""
+    result: set[str] = set()
+    cursor = start_date
+    while cursor <= end_date:
+        result.add(cursor.isoformat())
+        cursor += timedelta(days=1)
+    return result
+
+
+def build_pnd_day_integrity(day_key: str, intervals: list[dict[str, Any]], *, tz_name: str = DEFAULT_TZ) -> dict[str, Any]:
+    """Validate that both PND directions contain every expected 15-minute slot."""
+    expected = _expected_interval_keys(day_key, tz_name)
+    actual: dict[str, set[str]] = {"consumption_kwh": set(), "production_kwh": set()}
+    for interval in intervals:
+        try:
+            key = datetime.fromisoformat(str(interval["start"])).astimezone(timezone.utc).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        for field in actual:
+            if interval.get(field) is not None:
+                actual[field].add(key)
+
+    details: dict[str, Any] = {
+        "expected_interval_count": len(expected),
+        "interval_minutes": PND_INTERVAL_MINUTES,
+        "complete": True,
+    }
+    for field, keys in actual.items():
+        missing = sorted(expected - keys)
+        extra = sorted(keys - expected)
+        details[field] = {
+            "interval_count": len(keys),
+            "missing_count": len(missing),
+            "extra_count": len(extra),
+            "missing": missing,
+            "extra": extra,
+        }
+        if missing or extra:
+            details["complete"] = False
+    return details
+
+
+def compare_pnd_day_payloads(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
+    """Compare meter intervals while ignoring fetch metadata and raw-file names."""
+    if not isinstance(existing, dict):
+        return {"changed": True, "reason": "missing_cache", "changed_intervals": len(incoming.get("intervals") or [])}
+
+    def safe_number(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            return round(float(value), 9)
+        except (TypeError, ValueError):
+            return None
+
+    def signature(payload: dict[str, Any]) -> dict[str, tuple[Any, Any, Any]]:
+        result: dict[str, tuple[Any, Any, Any]] = {}
+        for interval in payload.get("intervals") or []:
+            start = str(interval.get("start") or "")
+            if not start:
+                continue
+            result[start] = (
+                interval.get("end"),
+                safe_number(interval.get("consumption_kwh")),
+                safe_number(interval.get("production_kwh")),
+            )
+        return result
+
+    old_intervals = signature(existing)
+    new_intervals = signature(incoming)
+    changed_keys = set(old_intervals) | set(new_intervals)
+    changed_count = sum(
+        1
+        for key in changed_keys
+        if old_intervals.get(key) != new_intervals.get(key)
+    )
+    return {
+        "changed": changed_count > 0,
+        "reason": "interval_values_changed" if changed_count else "unchanged",
+        "changed_intervals": changed_count,
+        "existing_interval_count": len(old_intervals),
+        "incoming_interval_count": len(new_intervals),
+        "consumption_delta_kwh": round(
+            (safe_number(incoming.get("totals", {}).get("consumption_kwh")) or 0.0)
+            - (safe_number(existing.get("totals", {}).get("consumption_kwh")) or 0.0),
+            9,
+        ),
+        "production_delta_kwh": round(
+            (safe_number(incoming.get("totals", {}).get("production_kwh")) or 0.0)
+            - (safe_number(existing.get("totals", {}).get("production_kwh")) or 0.0),
+            9,
+        ),
+    }
+
+
 def _inspect_json_payload(data: dict[str, Any], *, stage: str, tz_name: str = DEFAULT_TZ) -> dict[str, Any]:
     tz = ZoneInfo(tz_name)
     series = data.get("series")
@@ -566,6 +680,7 @@ def _normalize_json_series(data: dict[str, Any], *, fetched_at: str, raw_refs: d
             "recognized_series": inspected["recognized_series"],
             "unknown_series": inspected["unknown_series"],
             "intervals": intervals,
+            "integrity": build_pnd_day_integrity(day_key, intervals, tz_name=tz_name),
             "totals": {
                 "consumption_kwh": round(sum(item.get("consumption_kwh") or 0.0 for item in intervals), 6),
                 "production_kwh": round(sum(item.get("production_kwh") or 0.0 for item in intervals), 6),
@@ -655,6 +770,7 @@ def normalize_pnd_interval_exports(
             "portal_version": portal_version,
             "raw_refs": raw_refs,
             "intervals": intervals,
+            "integrity": build_pnd_day_integrity(day_key, intervals, tz_name=tz_name),
             "totals": {
                 "consumption_kwh": round(sum(item.get("consumption_kwh") or 0.0 for item in intervals), 6),
                 "production_kwh": round(sum(item.get("production_kwh") or 0.0 for item in intervals), 6),
@@ -700,7 +816,7 @@ class PNDService:
 
     def get_cache_status(self) -> dict[str, Any]:
         files = sorted(self.normalized_dir.glob("*.json"))
-        days = [path.stem for path in files if re.match(r"^\d{4}-\d{2}-\d{2}$", path.stem)]
+        days = [path.stem for path in files if re.match(r"^\d{4}-\d{2}-\d{2}$", path.stem) and self.has_day(path.stem)]
         return {
             "dir": str(self.root_dir),
             "days_count": len(days),
@@ -728,42 +844,58 @@ class PNDService:
             **state,
         }
 
-    def has_day(self, date_str: str) -> bool:
+    def _load_day(self, date_str: str) -> dict[str, Any] | None:
         path = self.normalized_dir / f"{date_str}.json"
         if not path.exists():
-            return False
+            return None
         try:
-            # Check if file has intervals and is not empty/corrupt
             content = path.read_text(encoding="utf-8").strip()
-            if not content: return False
+            if not content:
+                return None
             payload = json.loads(content)
-            return bool(payload.get("intervals"))
+            return payload if isinstance(payload, dict) else None
         except (OSError, json.JSONDecodeError):
-            return False
+            return None
 
-    def find_first_missing_date(self, max_lookback_days: int = 31, tzinfo=None) -> Optional[date]:
+    def is_day_complete(self, date_str: str) -> bool:
+        payload = self._load_day(date_str)
+        if not payload or not payload.get("intervals"):
+            return False
+        return bool(build_pnd_day_integrity(date_str, payload["intervals"]).get("complete"))
+
+    def has_day(self, date_str: str) -> bool:
+        return self.is_day_complete(date_str)
+
+    def find_first_invalid_date(self, max_lookback_days: int = PND_LOOKBACK_DAYS, tzinfo=None) -> Optional[date]:
         tz = tzinfo or ZoneInfo(DEFAULT_TZ)
         today = datetime.now(tz).date()
-        
-        # We check from today-1 back to today-max_lookback
-        for i in range(1, max_lookback_days + 1):
-            check_date = today - timedelta(days=i)
-            if not self.has_day(check_date.isoformat()):
-                # Continue looking further back to find the absolute oldest gap in the window
-                # so we can fetch everything from that gap up to yesterday in one go.
-                oldest_gap = check_date
-                for j in range(i + 1, max_lookback_days + 1):
-                    deeper_date = today - timedelta(days=j)
-                    if not self.has_day(deeper_date.isoformat()):
-                        oldest_gap = deeper_date
-                    else:
-                        # Once we find a day that EXISTS, we stop looking back
-                        # because we want the FIRST (oldest) gap in the CONSECUTIVE line of missing days
-                        # OR if we want to fill ALL gaps, we should find the oldest gap overall.
-                        # Usually PND API works best for ranges.
-                        pass
-                return oldest_gap
-        return None
+        oldest_invalid: date | None = None
+        for offset in range(1, max_lookback_days + 1):
+            candidate = today - timedelta(days=offset)
+            if not self.is_day_complete(candidate.isoformat()):
+                oldest_invalid = candidate
+        return oldest_invalid
+
+    def find_first_missing_date(self, max_lookback_days: int = PND_LOOKBACK_DAYS, tzinfo=None) -> Optional[date]:
+        return self.find_first_invalid_date(max_lookback_days=max_lookback_days, tzinfo=tzinfo)
+
+    def needs_nightly_sync(self, *, now: datetime, tzinfo=None) -> bool:
+        tz = tzinfo or now.tzinfo or ZoneInfo(DEFAULT_TZ)
+        status = self._load_status()
+        last_job = status.get("last_job")
+        # A manual or startup catch-up must not suppress the next scheduled check.
+        if not isinstance(last_job, dict) or last_job.get("type") != "sync" or last_job.get("reason") != "nightly":
+            return True
+        last_sync = status.get("last_sync_at")
+        if not last_sync:
+            return True
+        try:
+            synced_at = datetime.fromisoformat(str(last_sync).replace("Z", "+00:00")).astimezone(tz)
+        except (TypeError, ValueError):
+            return True
+        if synced_at.date() != now.astimezone(tz).date():
+            return True
+        return self.find_first_invalid_date(max_lookback_days=PND_LOOKBACK_DAYS, tzinfo=tz) is not None
 
     def verify(self, pnd_cfg: dict[str, Any]) -> dict[str, Any]:
         self._validate_config(pnd_cfg)
@@ -802,15 +934,10 @@ class PNDService:
         today = datetime.now(tz).date()
         yesterday = today - timedelta(days=1)
         
-        # Look for the oldest gap in the last 31 days
-        start_date = self.find_first_missing_date(max_lookback_days=31, tzinfo=tz)
-        
-        if not start_date:
-            return {"ok": True, "skipped": True, "reason": "already_cached", "date": yesterday.isoformat()}
-            
-        if start_date > yesterday:
-            # Should not happen given logic, but for safety:
-            return {"ok": True, "skipped": True, "reason": "no_past_gaps", "date": yesterday.isoformat()}
+        # Re-fetch recent days because PND may publish corrected values later.
+        recent_start = yesterday - timedelta(days=PND_REVALIDATE_DAYS - 1)
+        invalid_start = self.find_first_invalid_date(max_lookback_days=PND_LOOKBACK_DAYS, tzinfo=tz)
+        start_date = min(recent_start, invalid_start) if invalid_start else recent_start
 
         self.logger.info("PND nightly sync starting from first gap: %s to %s", start_date.isoformat(), yesterday.isoformat())
         try:
@@ -850,13 +977,63 @@ class PNDService:
                 details={"from": start_date.isoformat(), "to": end_date.isoformat()},
                 status_code=409,
             )
-        saved_days = self._write_normalized_days(normalized)
-        if saved_days <= 0:
+        expected_days = _expected_day_keys(start_date, end_date)
+        strict_day_range = not reason.startswith("backfill:max")
+        returned_days = set(normalized)
+        missing_days = expected_days - returned_days if strict_day_range else set()
+        normalized_in_range = (
+            {day_key: payload for day_key, payload in normalized.items() if day_key in expected_days}
+            if strict_day_range
+            else normalized
+        )
+        incomplete_days = {
+            day_key: payload.get("integrity", {})
+            for day_key, payload in normalized_in_range.items()
+            if not payload.get("integrity", {}).get("complete", False)
+        }
+        if missing_days:
+            incomplete_days["_missing_days"] = {"missing": sorted(missing_days)}
+        complete_days = {
+            day_key: payload
+            for day_key, payload in normalized_in_range.items()
+            if payload.get("integrity", {}).get("complete", False)
+        }
+        if not complete_days:
             raise PNDServiceError(
-                "PND_DATA_NOT_AVAILABLE",
-                "PND nevratilo zadna data k ulozeni do cache.",
-                stage="normalize",
-                details={"from": start_date.isoformat(), "to": end_date.isoformat()},
+                PND_DATA_INCOMPLETE,
+                "PND vratilo nekompletni denni data; existujici cache nebyla prepsana.",
+                stage="integrity",
+                details={
+                    "incomplete_days": incomplete_days,
+                    "from": start_date.isoformat(),
+                    "to": end_date.isoformat(),
+                },
+                status_code=409,
+            )
+
+        changed_days: dict[str, dict[str, Any]] = {}
+        unchanged_days: list[str] = []
+        comparisons: dict[str, dict[str, Any]] = {}
+        for day_key, payload in complete_days.items():
+            comparison = compare_pnd_day_payloads(self._load_day(day_key), payload)
+            comparisons[day_key] = comparison
+            if comparison["changed"]:
+                changed_days[day_key] = payload
+            else:
+                unchanged_days.append(day_key)
+
+        updated_days = self._write_normalized_days(changed_days)
+        if incomplete_days:
+            raise PNDServiceError(
+                PND_DATA_INCOMPLETE,
+                "PND vratilo nekompletni dny; kompletni dny byly ulozeny, nekompletni cache nebyla prepsana.",
+                stage="integrity",
+                details={
+                    "incomplete_days": incomplete_days,
+                    "saved_days": updated_days,
+                    "unchanged_days": unchanged_days,
+                    "comparisons": comparisons,
+                },
                 status_code=409,
             )
         self._save_status(
@@ -873,13 +1050,18 @@ class PNDService:
                     "range": {"from": start_date.isoformat(), "to": end_date.isoformat()},
                     "ok": True,
                     "finished_at": fetched_at,
-                    "saved_days": saved_days,
+                    "saved_days": updated_days,
+                    "validated_days": len(complete_days),
+                    "unchanged_days": len(unchanged_days),
                 },
             }
         )
         return {
             "ok": True,
-            "saved_days": saved_days,
+            "saved_days": updated_days,
+            "validated_days": len(complete_days),
+            "unchanged_days": unchanged_days,
+            "comparisons": comparisons,
             "range": {"from": start_date.isoformat(), "to": end_date.isoformat()},
             "portal_version": bundle.portal_version,
         }
@@ -928,7 +1110,7 @@ class PNDService:
                     break
                 raise
             fetched_days += result["saved_days"]
-            if range_name == "max" and result["saved_days"] == 0:
+            if range_name == "max" and result.get("validated_days", 0) == 0:
                 break
 
         status = self.get_status(pnd_cfg=pnd_cfg)
@@ -1009,8 +1191,10 @@ class PNDService:
         cursor = start
         while cursor <= end:
             path = self.normalized_dir / f"{cursor.isoformat()}.json"
-            if path.exists():
-                days.append(json.loads(path.read_text(encoding="utf-8")))
+            if path.exists() and self.has_day(cursor.isoformat()):
+                payload = self._load_day(cursor.isoformat())
+                if payload:
+                    days.append(payload)
             cursor += timedelta(days=1)
         return {"from": start_date, "to": end_date, "days": days, "days_count": len(days)}
 
@@ -1087,6 +1271,8 @@ class PNDService:
             return {"state": "portal_changed", "state_message": "Portal PND zmenil datovou strukturu nebo request contract."}
         if code == "PND_DATA_NOT_AVAILABLE":
             return {"state": "yesterday_not_available", "state_message": "Vcerejsi data zatim nejsou v PND publikovana."}
+        if code == PND_DATA_INCOMPLETE:
+            return {"state": "data_incomplete", "state_message": "PND data nejsou kompletni; cache se bude znovu overovat v dalsim nocnim okne."}
         if bool(status.get("healthy")) and int(cache_status.get("days_count") or 0) > 0:
             return {"state": "cache_ready", "state_message": "PND cache je validni a data jsou pripravená k pouziti."}
         if bool(status.get("healthy")):

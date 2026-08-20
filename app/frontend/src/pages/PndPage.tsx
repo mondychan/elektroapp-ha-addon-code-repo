@@ -78,6 +78,12 @@ const getStatePresentation = (status: PndStatus | null) => {
         title: "Vcerejsi data jeste nejsou publikovana",
         description: status.state_message || "Nocni sync bude zkouset PND znovu mezi 02:00 a 07:00.",
       };
+    case "data_incomplete":
+      return {
+        tone: "warning",
+        title: "PND vratilo nekompletni data",
+        description: status.state_message || "Nocni sync bude data znovu overovat a doplni je, jakmile PND zverejni cely den.",
+      };
     case "cache_ready":
       return {
         tone: "success",
@@ -128,6 +134,10 @@ const formatDiagnosticRows = (status: PndStatus | null) => {
   }
   if (Array.isArray(details.messages) && details.messages.length) {
     rows.push(`Portal message: ${details.messages.join(" | ")}`);
+  }
+  const missingDays = details.incomplete_days?._missing_days?.missing;
+  if (Array.isArray(missingDays) && missingDays.length) {
+    rows.push(`Chybi cele dny: ${missingDays.join(", ")}`);
   }
   return rows;
 };

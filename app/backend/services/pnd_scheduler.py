@@ -137,6 +137,9 @@ def _next_pnd_window_start(now: datetime, start_hour: int) -> datetime:
 
 
 def _has_recent_pnd_gaps(pnd_service, *, now: datetime, tzinfo) -> bool:
+    needs_nightly_sync = getattr(pnd_service, "needs_nightly_sync", None)
+    if callable(needs_nightly_sync):
+        return bool(needs_nightly_sync(now=now, tzinfo=tzinfo))
     find_first_missing_date = getattr(pnd_service, "find_first_missing_date", None)
     if callable(find_first_missing_date):
         return find_first_missing_date(max_lookback_days=31, tzinfo=tzinfo) is not None
