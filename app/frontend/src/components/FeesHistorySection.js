@@ -23,6 +23,7 @@ const toDraft = (entry) => {
   const daily = fixed.daily || {};
   const monthly = fixed.monthly || {};
   const prodej = snapshot.prodej || {};
+  const nakup = snapshot.nakup || {};
 
   return {
     id: entry.effective_from,
@@ -54,6 +55,12 @@ const toDraft = (entry) => {
     prodej: {
       koeficient_snizeni_ceny:
         prodej.koeficient_snizeni_ceny == null ? "" : String(prodej.koeficient_snizeni_ceny),
+      fixni_cena_enabled: !!prodej.fixni_cena_enabled,
+      fixni_cena: prodej.fixni_cena == null ? "" : String(prodej.fixni_cena),
+    },
+    nakup: {
+      fixni_cena_enabled: !!nakup.fixni_cena_enabled,
+      fixni_cena: nakup.fixni_cena == null ? "" : String(nakup.fixni_cena),
     },
     isNew: false,
   };
@@ -92,6 +99,12 @@ const toPayload = (draft) => {
       },
       prodej: {
         koeficient_snizeni_ceny: toNumber(draft.prodej.koeficient_snizeni_ceny),
+        fixni_cena_enabled: !!draft.prodej.fixni_cena_enabled,
+        fixni_cena: toNumber(draft.prodej.fixni_cena),
+      },
+      nakup: {
+        fixni_cena_enabled: !!draft.nakup.fixni_cena_enabled,
+        fixni_cena: toNumber(draft.nakup.fixni_cena),
       },
     },
   };
@@ -240,7 +253,10 @@ const FeesHistorySection = ({
       },
       prodej: {
         koeficient_snizeni_ceny: "",
+        fixni_cena_enabled: false,
+        fixni_cena: "",
       },
+      nakup: { fixni_cena_enabled: false, fixni_cena: "" },
     };
     const newId = `new-${Date.now()}`;
     const prevYear = new Date().getFullYear() - 1;
@@ -268,6 +284,12 @@ const FeesHistorySection = ({
       },
       prodej: {
         koeficient_snizeni_ceny: base.prodej?.koeficient_snizeni_ceny ?? "",
+        fixni_cena_enabled: !!base.prodej?.fixni_cena_enabled,
+        fixni_cena: base.prodej?.fixni_cena ?? "",
+      },
+      nakup: {
+        fixni_cena_enabled: !!base.nakup?.fixni_cena_enabled,
+        fixni_cena: base.nakup?.fixni_cena ?? "",
       },
       isNew: true,
     };
@@ -524,6 +546,18 @@ const FeesHistorySection = ({
                 }
               />
             ) : entry.prodej.koeficient_snizeni_ceny, unit: "Kc/MWh" },
+            { label: "Nakup za fix", value: isEditing ? (
+              <label><input type="checkbox" checked={entry.nakup.fixni_cena_enabled} onChange={(e) => updateDraft(entry.id, (draft) => ({ nakup: { ...draft.nakup, fixni_cena_enabled: e.target.checked } }))} /> Aktivni</label>
+            ) : (entry.nakup.fixni_cena_enabled ? "Ano" : "Ne"), unit: "" },
+            { label: "Fixni cena nakupu", value: isEditing ? (
+              <input type="text" inputMode="decimal" value={entry.nakup.fixni_cena} onChange={(e) => updateDraft(entry.id, (draft) => ({ nakup: { ...draft.nakup, fixni_cena: e.target.value } }))} />
+            ) : entry.nakup.fixni_cena, unit: "Kc/kWh" },
+            { label: "Prodej za fix", value: isEditing ? (
+              <label><input type="checkbox" checked={entry.prodej.fixni_cena_enabled} onChange={(e) => updateDraft(entry.id, (draft) => ({ prodej: { ...draft.prodej, fixni_cena_enabled: e.target.checked } }))} /> Aktivni</label>
+            ) : (entry.prodej.fixni_cena_enabled ? "Ano" : "Ne"), unit: "" },
+            { label: "Fixni cena prodeje", value: isEditing ? (
+              <input type="text" inputMode="decimal" value={entry.prodej.fixni_cena} onChange={(e) => updateDraft(entry.id, (draft) => ({ prodej: { ...draft.prodej, fixni_cena: e.target.value } }))} />
+            ) : entry.prodej.fixni_cena, unit: "Kc/kWh" },
           ];
 
           return (

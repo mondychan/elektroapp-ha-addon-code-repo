@@ -90,6 +90,7 @@ def build_fee_snapshot(cfg):
     fixni_denni = fixni.get("denni", {}) if isinstance(fixni.get("denni"), dict) else {}
     fixni_mesicni = fixni.get("mesicni", {}) if isinstance(fixni.get("mesicni"), dict) else {}
     prodej = cfg.get("prodej", {}) if isinstance(cfg.get("prodej"), dict) else {}
+    nakup = cfg.get("nakup", {}) if isinstance(cfg.get("nakup"), dict) else {}
     oze_value = poplatky.get("oze")
     if oze_value is None:
         oze_value = poplatky.get("poze", 0)
@@ -118,6 +119,12 @@ def build_fee_snapshot(cfg):
         },
         "prodej": {
             "koeficient_snizeni_ceny": _safe_float(prodej.get("koeficient_snizeni_ceny", 0)),
+            "fixni_cena_enabled": bool(prodej.get("fixni_cena_enabled", False)),
+            "fixni_cena": _safe_float(prodej.get("fixni_cena", 0)),
+        },
+        "nakup": {
+            "fixni_cena_enabled": bool(nakup.get("fixni_cena_enabled", False)),
+            "fixni_cena": _safe_float(nakup.get("fixni_cena", 0)),
         },
     }
 
@@ -133,6 +140,7 @@ def normalize_fee_snapshot(snapshot):
         daily = fixed.get("daily", {}) if isinstance(fixed.get("daily"), dict) else {}
         monthly = fixed.get("monthly", {}) if isinstance(fixed.get("monthly"), dict) else {}
         prodej = snapshot.get("prodej", {}) if isinstance(snapshot.get("prodej"), dict) else {}
+        nakup = snapshot.get("nakup", {}) if isinstance(snapshot.get("nakup"), dict) else {}
         return {
             "dph_percent": normalize_dph_percent(snapshot.get("dph_percent", snapshot.get("dph", 0))),
             "kwh_fees": {
@@ -160,6 +168,12 @@ def normalize_fee_snapshot(snapshot):
                 "koeficient_snizeni_ceny": _safe_float(
                     prodej.get("koeficient_snizeni_ceny", snapshot.get("koeficient_snizeni_ceny", 0))
                 ),
+                "fixni_cena_enabled": bool(prodej.get("fixni_cena_enabled", False)),
+                "fixni_cena": _safe_float(prodej.get("fixni_cena", 0)),
+            },
+            "nakup": {
+                "fixni_cena_enabled": bool(nakup.get("fixni_cena_enabled", False)),
+                "fixni_cena": _safe_float(nakup.get("fixni_cena", 0)),
             },
         }
 
@@ -169,6 +183,7 @@ def normalize_fee_snapshot(snapshot):
     fixni_denni = fixni.get("denni", {}) if isinstance(fixni.get("denni"), dict) else {}
     fixni_mesicni = fixni.get("mesicni", {}) if isinstance(fixni.get("mesicni"), dict) else {}
     prodej = snapshot.get("prodej", {}) if isinstance(snapshot.get("prodej"), dict) else {}
+    nakup = snapshot.get("nakup", {}) if isinstance(snapshot.get("nakup"), dict) else {}
     oze_value = poplatky.get("oze")
     if oze_value is None:
         oze_value = poplatky.get("poze", 0)
@@ -197,6 +212,12 @@ def normalize_fee_snapshot(snapshot):
         },
         "prodej": {
             "koeficient_snizeni_ceny": _safe_float(prodej.get("koeficient_snizeni_ceny", 0)),
+            "fixni_cena_enabled": bool(prodej.get("fixni_cena_enabled", False)),
+            "fixni_cena": _safe_float(prodej.get("fixni_cena", 0)),
+        },
+        "nakup": {
+            "fixni_cena_enabled": bool(nakup.get("fixni_cena_enabled", False)),
+            "fixni_cena": _safe_float(nakup.get("fixni_cena", 0)),
         },
     }
 
@@ -207,8 +228,10 @@ def calculate_final_price(price_spot_czk, hour, cfg, fee_snapshot):
     tarif_type = "VT" if is_vt else "NT"
     fees = fee_snapshot.get("kwh_fees", {})
     distribuce = fees.get("distribuce", {})
+    nakup = fee_snapshot.get("nakup", {})
+    commodity_price = nakup.get("fixni_cena", 0) if nakup.get("fixni_cena_enabled") else price_spot_czk
     subtotal = (
-        price_spot_czk
+        commodity_price
         + fees.get("komodita_sluzba", 0)
         + fees.get("oze", 0)
         + fees.get("dan", 0)

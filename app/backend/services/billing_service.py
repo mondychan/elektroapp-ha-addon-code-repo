@@ -84,6 +84,7 @@ class BillingService:
         fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
         fees = fee_snapshot.get("kwh_fees", {})
         distribution = fees.get("distribuce", {})
+        purchase_cfg = fee_snapshot.get("nakup", {})
         vt_periods = cfg.get("tarif", {}).get("vt_periods", [])
         dph_multiplier = 1 + (float(fee_snapshot.get("dph_percent") or 0.0) / 100.0)
         items = {
@@ -114,7 +115,12 @@ class BillingService:
             is_vt = any(start <= time_local.hour < end for start, end in vt_periods)
             tariff = "VT" if is_vt else "NT"
             total_kwh += kwh
-            items["spot"] += kwh * price["spot"]
+            commodity_price = (
+                float(purchase_cfg.get("fixni_cena") or 0.0)
+                if purchase_cfg.get("fixni_cena_enabled")
+                else price["spot"]
+            )
+            items["spot"] += kwh * commodity_price
             items["supplier_service"] += kwh * float(fees.get("komodita_sluzba") or 0.0)
             items["oze"] += kwh * float(fees.get("oze") or 0.0)
             items["electricity_tax"] += kwh * float(fees.get("dan") or 0.0)
@@ -157,7 +163,12 @@ class BillingService:
                 key_utc = time_utc.strftime("%Y-%m-%d %H:%M")
                 price = price_map_utc.get(key_utc)
             spot_price = price["spot"] if price else None
-            sell_price = spot_price - coef_kwh if spot_price is not None else None
+            sale_cfg = fee_snapshot.get("prodej", {})
+            sell_price = (
+                float(sale_cfg.get("fixni_cena") or 0.0)
+                if sale_cfg.get("fixni_cena_enabled")
+                else (spot_price - coef_kwh if spot_price is not None else None)
+            )
             if kwh is not None and sell_price is not None:
                 total_kwh += kwh
                 total_sell += kwh * sell_price
@@ -574,12 +585,20 @@ class BillingService:
                 spot_czk_mwh = float(price.get("price_czk_mwh") or price["spot"] * 1000.0)
                 spot_eur_mwh = price.get("price_eur_mwh")
                 exchange_rate = price.get("eur_czk_rate")
-                effective_czk_mwh = spot_czk_mwh if kind == "supply" else spot_czk_mwh - coefficient_mwh
+                if kind == "supply" and fee_snapshot.get("nakup", {}).get("fixni_cena_enabled"):
+                    effective_czk_mwh = float(fee_snapshot["nakup"].get("fixni_cena") or 0.0) * 1000.0
+                elif kind == "export" and fee_snapshot.get("prodej", {}).get("fixni_cena_enabled"):
+                    effective_czk_mwh = float(fee_snapshot["prodej"].get("fixni_cena") or 0.0) * 1000.0
+                else:
+                    effective_czk_mwh = spot_czk_mwh if kind == "supply" else spot_czk_mwh - coefficient_mwh
                 effective_eur_mwh = None
                 if spot_eur_mwh is not None:
-                    effective_eur_mwh = float(spot_eur_mwh)
-                    if kind == "export" and exchange_rate:
-                        effective_eur_mwh -= coefficient_mwh / float(exchange_rate)
+                    if exchange_rate and ((kind == "supply" and fee_snapshot.get("nakup", {}).get("fixni_cena_enabled")) or (kind == "export" and fee_snapshot.get("prodej", {}).get("fixni_cena_enabled"))):
+                        effective_eur_mwh = effective_czk_mwh / float(exchange_rate)
+                    else:
+                        effective_eur_mwh = float(spot_eur_mwh)
+                        if kind == "export" and exchange_rate:
+                            effective_eur_mwh -= coefficient_mwh / float(exchange_rate)
                 rows.append(
                     {
                         "date": date_str,

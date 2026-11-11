@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import HTTPException
+import config_loader
 
 
 def test_normalize_dph_percent_accepts_percent_and_multiplier(backend_main):
@@ -29,6 +30,56 @@ def test_calculate_final_price_respects_vt_and_nt_fees(backend_main):
 
     assert vt_price == round((2.0 + 0.1 + 0.2 + 0.3 + 0.4 + 1.5) * 1.21, 5)
     assert nt_price == round((2.0 + 0.1 + 0.2 + 0.3 + 0.4 + 0.5) * 1.21, 5)
+
+
+def test_calculate_final_price_uses_fixed_purchase_price_without_changing_regulated_fees(backend_main):
+    cfg = {"tarif": {"vt_periods": [[6, 7]]}}
+    fee_snapshot = {
+        "dph_percent": 21,
+        "nakup": {"fixni_cena_enabled": True, "fixni_cena": 1.25},
+        "kwh_fees": {
+            "komodita_sluzba": 0.1,
+            "oze": 0.2,
+            "dan": 0.3,
+            "systemove_sluzby": 0.4,
+            "distribuce": {"NT": 0.5, "VT": 1.5},
+        },
+    }
+
+    assert backend_main.calculate_final_price(9.0, 6, cfg, fee_snapshot) == round(
+        (1.25 + 0.1 + 0.2 + 0.3 + 0.4 + 1.5) * 1.21, 5
+    )
+
+
+def test_fee_snapshot_keeps_fixed_price_modes_independent(backend_main):
+    snapshot = backend_main.normalize_fee_snapshot(
+        {
+            "nakup": {"fixni_cena_enabled": True, "fixni_cena": 2.1},
+            "prodej": {"fixni_cena_enabled": False, "fixni_cena": 1.7},
+        }
+    )
+
+    assert snapshot["nakup"] == {"fixni_cena_enabled": True, "fixni_cena": 2.1}
+    assert snapshot["prodej"]["fixni_cena_enabled"] is False
+    assert snapshot["prodej"]["fixni_cena"] == 1.7
+
+
+def test_fee_history_preserves_previous_fixed_price_snapshot(isolated_storage):
+    tzinfo = ZoneInfo("Europe/Prague")
+    old = {
+        "effective_from": "2026-01-01",
+        "snapshot": {"nakup": {"fixni_cena_enabled": False, "fixni_cena": 0}},
+    }
+    new = {
+        "effective_from": "2026-06-01",
+        "snapshot": {"nakup": {"fixni_cena_enabled": True, "fixni_cena": 2.5}},
+    }
+    config_loader.update_fees_history_logic([old, new], tzinfo)
+
+    history = config_loader.load_fee_history()
+    assert history[0]["effective_to"] == "2026-05-31"
+    assert config_loader.get_fee_snapshot_for_date({}, "2026-05-31", tzinfo)["nakup"]["fixni_cena_enabled"] is False
+    assert config_loader.get_fee_snapshot_for_date({}, "2026-06-01", tzinfo)["nakup"]["fixni_cena"] == 2.5
 
 
 def test_parse_time_range_from_date_string_returns_utc_boundaries(backend_main):

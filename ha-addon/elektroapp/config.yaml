@@ -43,6 +43,9 @@ options:
       jistic: 710
   tarif:
     vt_periods: "6-7,9-10,13-14,16-17"
+  nakup:
+    fixni_cena_enabled: false
+    fixni_cena: 0.0
   influxdb:
     host: "192.168.1.100"
     port: 8086
@@ -58,6 +61,8 @@ options:
     interval: "15m"
   prodej:
     koeficient_snizeni_ceny: 390
+    fixni_cena_enabled: false
+    fixni_cena: 0.0
   battery:
     enabled: true
     soc_entity_id: "sensor.solar_battery_capacity"
@@ -166,6 +171,9 @@ schema:
       jistic: float
   tarif:
     vt_periods: str
+  nakup:
+    fixni_cena_enabled: bool
+    fixni_cena: float
   influxdb:
     host: str
     port: int
@@ -181,6 +189,8 @@ schema:
     interval: str
   prodej:
     koeficient_snizeni_ceny: float?
+    fixni_cena_enabled: bool?
+    fixni_cena: float?
   battery:
     enabled: bool?
     soc_entity_id: str?

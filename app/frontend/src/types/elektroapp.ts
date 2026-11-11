@@ -26,6 +26,12 @@ export interface Config {
   };
   prodej?: {
     koeficient_snizeni_ceny?: number;
+    fixni_cena_enabled?: boolean;
+    fixni_cena?: number;
+  };
+  nakup?: {
+    fixni_cena_enabled?: boolean;
+    fixni_cena?: number;
   };
   influxdb?: {
     entity_id?: string;

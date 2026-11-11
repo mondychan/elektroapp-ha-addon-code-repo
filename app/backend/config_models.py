@@ -82,8 +82,15 @@ class InfluxDbConfig(StrictModel):
     interval: str = Field(default="15m", pattern=r"^\d+[smhd]$")
 
 
+class NakupConfig(StrictModel):
+    fixni_cena_enabled: bool = False
+    fixni_cena: float = Field(default=0.0)
+
+
 class ProdejConfig(StrictModel):
     koeficient_snizeni_ceny: float = Field(default=0.0)
+    fixni_cena_enabled: bool = False
+    fixni_cena: float = Field(default=0.0)
 
 
 class BatteryConfig(StrictModel):
@@ -268,6 +275,7 @@ class AppConfigModel(StrictModel):
     poplatky: PoplatkyConfig = Field(default_factory=PoplatkyConfig)
     fixni: FixniConfig = Field(default_factory=FixniConfig)
     tarif: TarifConfig = Field(default_factory=TarifConfig)
+    nakup: NakupConfig = Field(default_factory=NakupConfig)
     influxdb: InfluxDbConfig = Field(default_factory=InfluxDbConfig)
     prodej: ProdejConfig = Field(default_factory=ProdejConfig)
     battery: BatteryConfig = Field(default_factory=BatteryConfig)

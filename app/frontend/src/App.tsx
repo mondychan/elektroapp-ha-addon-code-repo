@@ -216,6 +216,10 @@ const App: React.FC = () => {
       row("Staly plat", config.fixni?.denni?.staly_plat, "Kc/den"),
       row("Jistic", config.fixni?.mesicni?.jistic, "Kc/mesic"),
       row("Koeficient snizeni (prodej)", config.prodej?.koeficient_snizeni_ceny, "Kc/MWh"),
+      { label: "Nakup za fix", value: config.nakup?.fixni_cena_enabled ? "Ano" : "Ne", unit: "" },
+      row("Fixni cena nakupu", config.nakup?.fixni_cena, "Kc/kWh"),
+      { label: "Prodej za fix", value: config.prodej?.fixni_cena_enabled ? "Ano" : "Ne", unit: "" },
+      row("Fixni cena prodeje", config.prodej?.fixni_cena, "Kc/kWh"),
       { label: "Import entity_id", value: config.influxdb?.entity_id || "-", unit: "" },
       { label: "Export entity_id", value: config.influxdb?.export_entity_id || "-", unit: "" },
       { label: "Baterie (SoC entity_id)", value: config.battery?.soc_entity_id || "-", unit: "" },
@@ -262,6 +266,12 @@ const App: React.FC = () => {
       },
       prodej: {
         koeficient_snizeni_ceny: config.prodej?.koeficient_snizeni_ceny ?? "",
+        fixni_cena_enabled: !!config.prodej?.fixni_cena_enabled,
+        fixni_cena: config.prodej?.fixni_cena ?? "",
+      },
+      nakup: {
+        fixni_cena_enabled: !!config.nakup?.fixni_cena_enabled,
+        fixni_cena: config.nakup?.fixni_cena ?? "",
       },
     };
   }, [config]);

@@ -91,7 +91,12 @@ class ExportService:
                 fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_key, tzinfo)
                 coef_kwh = self._calculate_sell_coefficient(cfg, fee_snapshot)
                 coef_by_date[date_key] = coef_kwh
-            sell_price = spot_price - coef_kwh if spot_price is not None else None
+            fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_key, tzinfo)
+            sale_cfg = fee_snapshot.get("prodej", {})
+            if sale_cfg.get("fixni_cena_enabled"):
+                sell_price = float(sale_cfg.get("fixni_cena") or 0.0)
+            else:
+                sell_price = spot_price - coef_kwh if spot_price is not None else None
             sell = None
             if kwh is not None and sell_price is not None:
                 sell = round(kwh * sell_price, 5)

@@ -3,7 +3,7 @@ import json
 import yaml
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from api import get_local_tz
 from pricing import (
@@ -130,12 +130,18 @@ def ensure_fee_history(cfg, tzinfo):
         if record_to and today_date > record_to:
             continue
         current_record = record
-    if current_record:
-        if current_record.get("snapshot") != snapshot:
-            current_record["snapshot"] = snapshot
-            save_fee_history(history)
+    if current_record and current_record.get("snapshot") == snapshot:
         return history
-    history.append({"effective_from": today_str, "snapshot": snapshot})
+    # Keep prior-day snapshots immutable; a configuration change takes effect today.
+    today_record = next((record for record in history if record.get("effective_from") == today_str), None)
+    if today_record:
+        today_record["snapshot"] = snapshot
+        today_record.pop("effective_to", None)
+    else:
+        if current_record:
+            current_record["effective_to"] = (today_date - timedelta(days=1)).strftime("%Y-%m-%d")
+        history.append({"effective_from": today_str, "snapshot": snapshot})
+    history.sort(key=lambda x: x.get("effective_from", ""))
     save_fee_history(history)
     return history
 
