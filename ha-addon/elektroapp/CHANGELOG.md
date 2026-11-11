@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.64
+- Pridany nezavisle fixni ceny nakupu a prodeje elektriny bez DPH.
+- Historie konfigurace zachovava platnost cen podle data zmeny.
+- Vyuctovani, exporty a mesicni fakturacni detail pouzivaji zvolenou fixni cenu.
+
 ## 0.3.63
 - Opraven frontend test virtuálního vyúčtování: testovaný měsíc je stabilně aktuální díky zmrazení systémového času.
 
