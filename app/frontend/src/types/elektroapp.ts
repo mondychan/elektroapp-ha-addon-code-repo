@@ -215,6 +215,7 @@ export interface PriceItem {
   extra: number;
   final: number;
   rawSpot: number;
+  exportPrice?: number;
 }
 
 export interface RawPriceEntry {
@@ -223,6 +224,7 @@ export interface RawPriceEntry {
   minute?: number;
   spot: number;
   final: number;
+  export_price?: number;
 }
 
 export interface BatteryData {

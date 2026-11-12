@@ -169,6 +169,7 @@ const ModernOverviewPage = (props: any) => {
         >
           <PriceChartCard
             chartData={todayData}
+            fixedPriceMode={!!config?.nakup?.fixni_cena_enabled}
             fallbackMessage="Načítám data..."
             vtPeriods={config?.tarif?.vt_periods}
             highlightSlot={effectiveHighlightSlot}
@@ -188,6 +189,7 @@ const ModernOverviewPage = (props: any) => {
           >
             <PriceChartCard
               chartData={tomorrowData}
+              fixedPriceMode={!!config?.nakup?.fixni_cena_enabled}
               fallbackMessage="Data pro zítřek zatím nejsou k dispozici."
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={-1}

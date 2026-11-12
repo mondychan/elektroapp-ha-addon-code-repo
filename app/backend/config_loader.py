@@ -2,8 +2,10 @@ import os
 import json
 import yaml
 import logging
+import shutil
+import tempfile
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from api import get_local_tz
 from pricing import (
@@ -93,16 +95,156 @@ def load_fee_history():
         with open(FEES_HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, list) else []
-    except (OSError, json.JSONDecodeError, TypeError):
+    except (OSError, json.JSONDecodeError, TypeError) as exc:
+        logger.error("Unable to read fee history %s: %s", FEES_HISTORY_FILE, exc)
         return []
 
+def _validate_fee_history(history, *, require_snapshot_schema=True):
+    if not isinstance(history, list) or not history:
+        raise ValueError("Fee history must be a non-empty list.")
+    parsed = []
+    for record in history:
+        if not isinstance(record, dict) or not isinstance(record.get("snapshot"), dict):
+            raise ValueError("Each fee history record must contain a snapshot object.")
+        snapshot = record["snapshot"]
+        if require_snapshot_schema and not {"dph_percent", "kwh_fees", "fixed"}.issubset(snapshot):
+            raise ValueError("Fee history snapshot is missing required pricing fields.")
+        if require_snapshot_schema and (not isinstance(snapshot.get("kwh_fees"), dict) or not isinstance(snapshot.get("fixed"), dict)):
+            raise ValueError("Fee history pricing fields must be objects.")
+        if "prodej" in snapshot and not isinstance(snapshot["prodej"], dict):
+            raise ValueError("Fee history prodej must be an object.")
+        if "nakup" in snapshot and not isinstance(snapshot["nakup"], dict):
+            raise ValueError("Fee history nakup must be an object.")
+        start_raw = record.get("effective_from")
+        try:
+            start = datetime.strptime(start_raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid effective_from in fee history.") from exc
+        end_raw = record.get("effective_to")
+        try:
+            end = datetime.strptime(end_raw, "%Y-%m-%d").date() if end_raw else None
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid effective_to in fee history.") from exc
+        if end and end < start:
+            raise ValueError("Fee history effective_to precedes effective_from.")
+        parsed.append((start, end))
+    if parsed != sorted(parsed, key=lambda value: value[0]):
+        raise ValueError("Fee history periods are not ordered.")
+    for idx, (start, end) in enumerate(parsed[:-1]):
+        next_start = parsed[idx + 1][0]
+        if end is None or end >= next_start:
+            raise ValueError("Fee history periods overlap or have an open-ended non-final period.")
+
+
+def _history_backup_path():
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    return FEES_HISTORY_FILE.with_name(f"{FEES_HISTORY_FILE.name}.{stamp}.bak")
+
+
+def _atomic_write_fee_history(history, *, create_backup=True):
+    _validate_fee_history(history, require_snapshot_schema=False)
+    FEES_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    backup_path = None
+    if create_backup and FEES_HISTORY_FILE.exists():
+        backup_path = _history_backup_path()
+        shutil.copy2(FEES_HISTORY_FILE, backup_path)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{FEES_HISTORY_FILE.name}.", suffix=".tmp", dir=FEES_HISTORY_FILE.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, separators=(",", ":"))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_name, FEES_HISTORY_FILE)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+    return backup_path
+
+
 def save_fee_history(history):
-    if STORAGE_DIR:
-        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    with open(FEES_HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f)
+    return _atomic_write_fee_history(history, create_backup=FEES_HISTORY_FILE.exists())
+
+
+def migrate_fee_history():
+    if not FEES_HISTORY_FILE.exists():
+        return 0
+    try:
+        with open(FEES_HISTORY_FILE, "r", encoding="utf-8") as f:
+            original = json.load(f)
+        if not isinstance(original, list) or not original:
+            raise ValueError("Fee history must be a non-empty list.")
+        for record in original:
+            if not isinstance(record, dict) or not isinstance(record.get("snapshot"), dict):
+                raise ValueError("Each fee history record must contain a snapshot object.")
+            snapshot = record["snapshot"]
+            if not {"dph_percent", "kwh_fees", "fixed"}.issubset(snapshot):
+                raise ValueError("Fee history snapshot is missing required pricing fields.")
+            if not isinstance(snapshot.get("kwh_fees"), dict) or not isinstance(snapshot.get("fixed"), dict):
+                raise ValueError("Fee history pricing fields must be objects.")
+            if "prodej" in snapshot and not isinstance(snapshot["prodej"], dict):
+                raise ValueError("Fee history prodej must be an object.")
+            if "nakup" in snapshot and not isinstance(snapshot["nakup"], dict):
+                raise ValueError("Fee history nakup must be an object.")
+        _validate_fee_history(original)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Fee history is invalid; refusing to overwrite {FEES_HISTORY_FILE}: {exc}") from exc
+
+    migrated = []
+    changed = 0
+    for record in original:
+        new_record = dict(record)
+        snapshot = dict(record["snapshot"])
+        sale = snapshot.get("prodej")
+        if sale is None:
+            sale = {}
+        elif not isinstance(sale, dict):
+            raise RuntimeError("Fee history contains an invalid prodej snapshot; refusing migration.")
+        else:
+            sale = dict(sale)
+        purchase = snapshot.get("nakup")
+        if purchase is None:
+            purchase = {}
+        elif not isinstance(purchase, dict):
+            raise RuntimeError("Fee history contains an invalid nakup snapshot; refusing migration.")
+        else:
+            purchase = dict(purchase)
+        before = json.dumps(snapshot, sort_keys=True, ensure_ascii=False)
+        sale.setdefault("fixni_cena_enabled", False)
+        sale.setdefault("fixni_cena", 0)
+        purchase.setdefault("fixni_cena_enabled", False)
+        purchase.setdefault("fixni_cena", 0)
+        snapshot["prodej"] = sale
+        snapshot["nakup"] = purchase
+        new_record["snapshot"] = snapshot
+        if json.dumps(snapshot, sort_keys=True, ensure_ascii=False) != before:
+            changed += 1
+        migrated.append(new_record)
+
+    _validate_fee_history(migrated)
+    if len(migrated) != len(original) or [r.get("effective_from") for r in migrated] != [r.get("effective_from") for r in original] or [r.get("effective_to") for r in migrated] != [r.get("effective_to") for r in original]:
+        raise RuntimeError("Fee history migration changed period boundaries; refusing to write.")
+    if changed:
+        backup = _atomic_write_fee_history(migrated)
+        with open(FEES_HISTORY_FILE, "r", encoding="utf-8") as f:
+            written = json.load(f)
+        _validate_fee_history(written)
+        if written != migrated:
+            raise RuntimeError("Fee history migration verification failed.")
+        logger.info("Migrated %s fee history records; backup: %s", changed, backup)
+    return changed
 
 def ensure_fee_history(cfg, tzinfo):
+    if FEES_HISTORY_FILE.exists():
+        try:
+            existing = load_fee_history()
+            if not existing:
+                raise ValueError("Stored fee history cannot be read.")
+            _validate_fee_history(existing, require_snapshot_schema=False)
+        except ValueError as exc:
+            raise RuntimeError(f"Fee history is invalid; refusing to replace it: {exc}") from exc
     history = load_fee_history()
     history.sort(key=lambda x: x.get("effective_from", ""))
     today_date = datetime.now(tzinfo).date()
@@ -223,16 +365,31 @@ def load_config():
     return cfg
 
 def update_fees_history_logic(history_payload: list, tzinfo):
+    if not isinstance(history_payload, list) or not history_payload:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="History cannot be empty.")
+    current_history = load_fee_history()
+    if FEES_HISTORY_FILE.exists():
+        try:
+            if not current_history:
+                raise ValueError("Stored fee history cannot be read.")
+            _validate_fee_history(current_history, require_snapshot_schema=False)
+        except ValueError as exc:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=409, detail="Stored fee history is invalid; refusing to overwrite it.") from exc
     today = datetime.now(tzinfo).date()
 
     normalized_entries = []
     seen_dates = set()
+    from pricing import normalize_fee_snapshot
     for entry in history_payload:
         if not isinstance(entry, dict):
-            continue
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Each fee history period must be an object.")
         date_str = entry.get("effective_from")
         if not date_str:
-            continue
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Each fee history period needs effective_from.")
         try:
             date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
@@ -263,8 +420,14 @@ def update_fees_history_logic(history_payload: list, tzinfo):
                 from fastapi import HTTPException
                 raise HTTPException(status_code=400, detail="effective_to must be >= effective_from.")
         
-        from pricing import normalize_fee_snapshot
-        snapshot = normalize_fee_snapshot(entry.get("snapshot", {}))
+        snapshot_raw = entry.get("snapshot")
+        if not isinstance(snapshot_raw, dict) or not {"dph_percent", "kwh_fees", "fixed"}.issubset(snapshot_raw):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Each fee snapshot must contain dph_percent, kwh_fees and fixed.")
+        if not isinstance(snapshot_raw.get("kwh_fees"), dict) or not isinstance(snapshot_raw.get("fixed"), dict):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Fee snapshot pricing fields must be objects.")
+        snapshot = normalize_fee_snapshot(snapshot_raw)
         normalized_entries.append(
             {
                 "effective_from": date_str,
@@ -301,6 +464,12 @@ def update_fees_history_logic(history_payload: list, tzinfo):
             record["effective_to"] = entry["effective_to"]
         normalized.append(record)
     
+    submitted_dates = [entry["effective_from"] for entry in normalized]
+    if len(normalized) < len(current_history) or any(
+        record.get("effective_from") not in submitted_dates for record in current_history
+    ):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Fee history update cannot remove existing periods.")
     save_fee_history(normalized)
     return normalized
 

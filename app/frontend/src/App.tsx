@@ -179,13 +179,36 @@ const App: React.FC = () => {
   }, [config?.dph]);
 
   const mapPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
-    const spotWithDph = p.spot * dphMultiplier;
-    return { slot: i, time: formatSlotToTime(i), spot: spotWithDph, extra: p.final - spotWithDph, final: p.final, rawSpot: p.spot };
-  }), [dphMultiplier]);
+    const rawSpot = Number(p.spot);
+    const spotWithDph = rawSpot * dphMultiplier;
+    const final = Number(p.final);
+    const fixedPurchase = !!config?.nakup?.fixni_cena_enabled;
+    const extra = final - (fixedPurchase ? 0 : spotWithDph);
+    return {
+      slot: i,
+      time: formatSlotToTime(i),
+      spot: fixedPurchase ? 0 : spotWithDph,
+      extra: fixedPurchase ? final : extra,
+      final,
+      rawSpot,
+      exportPrice: p.export_price == null ? undefined : Number(p.export_price),
+    };
+  }), [config?.nakup?.fixni_cena, config?.nakup?.fixni_cena_enabled, dphMultiplier]);
 
   const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapPrices]);
   const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapPrices]);
   const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
+  const showSeparateExportPrice = !!config?.prodej?.fixni_cena_enabled ||
+    (!!config?.nakup?.fixni_cena_enabled && Number(config?.nakup?.fixni_cena) !== Number(config?.prodej?.fixni_cena));
+  const mapExportPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
+    const rawSpot = Number(p.spot);
+    const saleFixed = !!config?.prodej?.fixni_cena_enabled;
+    const exportValue = p.exportPrice == null
+      ? (saleFixed ? Number(config?.prodej?.fixni_cena || 0) : rawSpot - Number(config?.prodej?.koeficient_snizeni_ceny || 0) / 1000)
+      : Number(p.exportPrice);
+    return { slot: i, time: formatSlotToTime(i), spot: 0, extra: exportValue, final: exportValue, rawSpot, exportPrice: exportValue };
+  }), [config?.prodej?.fixni_cena, config?.prodej?.fixni_cena_enabled, config?.prodej?.koeficient_snizeni_ceny]);
+  const todayExportData = useMemo(() => mapExportPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapExportPrices]);
 
   const configRows = useMemo(() => {
     if (!config) return [];
@@ -396,6 +419,7 @@ const App: React.FC = () => {
           <SectionCard title="Cena elektřiny dnes" className="modern-section-card--wide">
             <PriceChartCard
               chartData={todayData}
+              fixedPriceMode={!!config?.nakup?.fixni_cena_enabled}
               fallbackMessage="Načítám data..."
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
@@ -405,6 +429,19 @@ const App: React.FC = () => {
               className="modern-price-chart"
             />
           </SectionCard>
+        {showSeparateExportPrice && <SectionCard title="Výkupní cena dnes" className="modern-section-card--wide">
+          <PriceChartCard
+            chartData={todayExportData}
+            fixedPriceMode
+            fallbackMessage="Načítám data..."
+            vtPeriods={config?.tarif?.vt_periods}
+            highlightSlot={effectiveHighlightSlot}
+            pinnedSlot={pinnedSlot}
+            onPinSlot={setPinnedSlot}
+            thresholds={dashboard.alerts}
+            className="modern-price-chart"
+          />
+        </SectionCard>}
         </div>
       );
     }

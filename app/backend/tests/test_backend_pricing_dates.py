@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -68,11 +68,11 @@ def test_fee_history_preserves_previous_fixed_price_snapshot(isolated_storage):
     tzinfo = ZoneInfo("Europe/Prague")
     old = {
         "effective_from": "2026-01-01",
-        "snapshot": {"nakup": {"fixni_cena_enabled": False, "fixni_cena": 0}},
+        "snapshot": {"dph_percent": 21, "kwh_fees": {}, "fixed": {}, "nakup": {"fixni_cena_enabled": False, "fixni_cena": 0}},
     }
     new = {
         "effective_from": "2026-06-01",
-        "snapshot": {"nakup": {"fixni_cena_enabled": True, "fixni_cena": 2.5}},
+        "snapshot": {"dph_percent": 21, "kwh_fees": {}, "fixed": {}, "nakup": {"fixni_cena_enabled": True, "fixni_cena": 2.5}},
     }
     config_loader.update_fees_history_logic([old, new], tzinfo)
 
@@ -80,6 +80,26 @@ def test_fee_history_preserves_previous_fixed_price_snapshot(isolated_storage):
     assert history[0]["effective_to"] == "2026-05-31"
     assert config_loader.get_fee_snapshot_for_date({}, "2026-05-31", tzinfo)["nakup"]["fixni_cena_enabled"] is False
     assert config_loader.get_fee_snapshot_for_date({}, "2026-06-01", tzinfo)["nakup"]["fixni_cena"] == 2.5
+
+
+def test_ensure_fee_history_keeps_older_ranges_when_fixed_price_changes(isolated_storage, monkeypatch):
+    tzinfo = ZoneInfo("Europe/Prague")
+    history = [
+        {"effective_from": "2025-01-01", "effective_to": "2025-12-31", "snapshot": {"legacy": "2025"}},
+        {"effective_from": "2026-01-01", "effective_to": "2026-10-31", "snapshot": {"legacy": "2026"}},
+        {"effective_from": "2026-11-01", "snapshot": {"legacy": "spot"}},
+    ]
+    config_loader.save_fee_history(history)
+    monkeypatch.setattr(config_loader, "build_fee_snapshot", lambda cfg: {"nakup": {"fixni_cena_enabled": True}})
+    monkeypatch.setattr(config_loader, "datetime", type("FixedDateTime", (datetime,), {"now": classmethod(lambda cls, tz=None: datetime(2026, 11, 12, tzinfo=tz))}))
+
+    updated = config_loader.ensure_fee_history({}, tzinfo)
+
+    assert [record["effective_from"] for record in updated] == ["2025-01-01", "2026-01-01", "2026-11-01", "2026-11-12"]
+    assert updated[0]["effective_to"] == "2025-12-31"
+    assert updated[1]["effective_to"] == "2026-10-31"
+    assert updated[2]["effective_to"] == "2026-11-11"
+    assert updated[3]["snapshot"] == {"nakup": {"fixni_cena_enabled": True}}
 
 
 def test_parse_time_range_from_date_string_returns_utc_boundaries(backend_main):

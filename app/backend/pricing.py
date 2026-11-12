@@ -141,7 +141,7 @@ def normalize_fee_snapshot(snapshot):
         monthly = fixed.get("monthly", {}) if isinstance(fixed.get("monthly"), dict) else {}
         prodej = snapshot.get("prodej", {}) if isinstance(snapshot.get("prodej"), dict) else {}
         nakup = snapshot.get("nakup", {}) if isinstance(snapshot.get("nakup"), dict) else {}
-        return {
+        normalized_snapshot = {
             "dph_percent": normalize_dph_percent(snapshot.get("dph_percent", snapshot.get("dph", 0))),
             "kwh_fees": {
                 "komodita_sluzba": _safe_float(kwh_fees.get("komodita_sluzba", 0)),
@@ -176,6 +176,10 @@ def normalize_fee_snapshot(snapshot):
                 "fixni_cena": _safe_float(nakup.get("fixni_cena", 0)),
             },
         }
+        for key, value in snapshot.items():
+            if key not in normalized_snapshot:
+                normalized_snapshot[key] = value
+        return normalized_snapshot
 
     poplatky = snapshot.get("poplatky", {}) if isinstance(snapshot.get("poplatky"), dict) else {}
     distribuce = poplatky.get("distribuce", {}) if isinstance(poplatky.get("distribuce"), dict) else {}
@@ -187,7 +191,7 @@ def normalize_fee_snapshot(snapshot):
     oze_value = poplatky.get("oze")
     if oze_value is None:
         oze_value = poplatky.get("poze", 0)
-    return {
+    normalized_snapshot = {
         "dph_percent": normalize_dph_percent(snapshot.get("dph", 0)),
         "kwh_fees": {
             "komodita_sluzba": _safe_float(poplatky.get("komodita_sluzba", 0)),
@@ -220,6 +224,10 @@ def normalize_fee_snapshot(snapshot):
             "fixni_cena": _safe_float(nakup.get("fixni_cena", 0)),
         },
     }
+    for key, value in snapshot.items():
+        if key not in {"dph", "poplatky", "fixni", "prodej", "nakup", "koeficient_snizeni_ceny"}:
+            normalized_snapshot[key] = value
+    return normalized_snapshot
 
 
 def calculate_final_price(price_spot_czk, hour, cfg, fee_snapshot):

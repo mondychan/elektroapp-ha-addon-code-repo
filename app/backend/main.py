@@ -71,6 +71,7 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 def startup_hook():
+    config_loader.migrate_fee_history()
     app_service.start_prefetch_scheduler()
     app_service.start_pnd_scheduler()
     app_service.start_dip_scheduler()

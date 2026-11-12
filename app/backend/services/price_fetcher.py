@@ -63,6 +63,9 @@ def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
             continue
         spot_kwh = price_czk_mwh / 1000.0
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
+        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
+        sale_fixed = bool(sale.get("fixni_cena_enabled"))
+        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale_fixed else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -70,6 +73,7 @@ def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "export_price": round(export_price, 5),
                 "price_czk_mwh": round(price_czk_mwh, 5),
                 "price_eur_mwh": None,
                 "eur_czk_rate": None,
@@ -90,6 +94,8 @@ def build_entries_from_ote(
         minute = item["minute"]
         spot_kwh = (item["price_eur_mwh"] * eur_to_czk_rate) / 1000.0
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
+        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
+        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale.get("fixni_cena_enabled") else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -97,6 +103,7 @@ def build_entries_from_ote(
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "export_price": round(export_price, 5),
                 "price_czk_mwh": round(spot_kwh * 1000.0, 5),
                 "price_eur_mwh": round(item["price_eur_mwh"], 5),
                 "eur_czk_rate": round(eur_to_czk_rate, 5),
@@ -119,6 +126,8 @@ def build_entries_from_spot_html(
         hour, minute = map(int, time_str.split(":"))
         spot_kwh = price_czk / 1000
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
+        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
+        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale.get("fixni_cena_enabled") else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -126,6 +135,7 @@ def build_entries_from_spot_html(
                 "minute": minute,
                 "spot": round(spot_kwh, 5),
                 "final": final_price,
+                "export_price": round(export_price, 5),
                 "price_czk_mwh": round(price_czk, 5),
                 "price_eur_mwh": None,
                 "eur_czk_rate": None,
@@ -291,11 +301,16 @@ def apply_fee_snapshot(
     if not entries:
         return []
     adjusted = []
+    sale_cfg = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
+    sale_fixed = bool(sale_cfg.get("fixni_cena_enabled"))
+    sale_fixed_price = _safe_float(sale_cfg.get("fixni_cena", 0))
+    sale_coefficient = _safe_float(sale_cfg.get("koeficient_snizeni_ceny", 0)) / 1000.0
     for entry in entries:
         hour = entry.get("hour", 0)
         spot = entry.get("spot", 0)
         final = calculate_final_price(spot, hour, cfg, fee_snapshot)
-        adjusted.append({**entry, "final": final})
+        export_price = sale_fixed_price if sale_fixed else spot - sale_coefficient
+        adjusted.append({**entry, "final": final, "export_price": round(export_price, 5)})
     return adjusted
 
 
@@ -460,6 +475,7 @@ def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
         price_data = {
             "spot": entry["spot"],
             "final": entry["final"],
+            "export_price": entry.get("export_price"),
             "price_czk_mwh": entry.get("price_czk_mwh", entry["spot"] * 1000.0),
             "price_eur_mwh": entry.get("price_eur_mwh"),
             "eur_czk_rate": entry.get("eur_czk_rate"),

@@ -11,6 +11,7 @@ const PriceChartCard = ({
   pinnedSlot,
   onPinSlot,
   thresholds,
+  fixedPriceMode = false,
   highlightSlot,
   height = 400,
 }) => {
@@ -24,8 +25,9 @@ const PriceChartCard = ({
         pinnedSlot,
         fallbackMessage,
         thresholds,
+        fixedPriceMode,
       }),
-    [chartData, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds]
+    [chartData, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds, fixedPriceMode]
   );
 
   if (!chartData.length && !fallbackMessage) {

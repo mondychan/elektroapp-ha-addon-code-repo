@@ -23,6 +23,7 @@ export const buildPriceChartConfig = ({
   pinnedSlot,
   fallbackMessage,
   thresholds = null,
+  fixedPriceMode = false,
 }) => {
   if (!chartData?.length) {
     return {
@@ -50,7 +51,10 @@ export const buildPriceChartConfig = ({
     let coveredNegative = null;
     let variable = null;
 
-    if (item.spot < 0) {
+    if (fixedPriceMode) {
+      fixed = item.final > 0 ? Number(item.final.toFixed(4)) : null;
+      variable = item.final < 0 ? Number(item.final.toFixed(4)) : null;
+    } else if (item.spot < 0) {
       const finalPrice = item.extra + item.spot;
       if (finalPrice >= 0) {
         fixed = finalPrice > 0 ? Number(finalPrice.toFixed(4)) : null;
@@ -77,7 +81,7 @@ export const buildPriceChartConfig = ({
   const datasets = [
     {
       type: "bar",
-      label: "Fixní složka",
+      label: fixedPriceMode ? "Cena" : "Fixní složka",
       data: dataFixed,
       backgroundColor: fixedColor,
       borderRadius: 5,
@@ -101,7 +105,7 @@ export const buildPriceChartConfig = ({
     },
     {
       type: "bar",
-      label: "Variabilní složka",
+      label: fixedPriceMode ? "Záporná cena" : "Variabilní složka",
       data: dataVariable,
       backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
       borderRadius: 5,
@@ -154,13 +158,16 @@ export const buildPriceChartConfig = ({
           const point = chartData[points?.[0]?.dataIndex] || null;
           if (!point) return null;
 
-          const sections = [
-            { label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor },
-          ];
-
-          if (point.spot < 0) {
-            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
+          const sections = [];
+          if (fixedPriceMode) {
+            sections.push({ label: "Cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
           } else {
+            sections.push({ label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
+          }
+
+          if (!fixedPriceMode && point.spot < 0) {
+            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
+          } else if (!fixedPriceMode) {
             sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: variableColor });
           }
 

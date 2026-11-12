@@ -10,7 +10,7 @@ from services.price_fetcher import build_price_map_for_date
 
 def test_build_price_map_for_date_supports_keyword_only_getters():
     tzinfo = ZoneInfo("Europe/Prague")
-    entries = [{"time": "2026-04-05 00:15", "spot": 1.25, "final": 2.5}]
+    entries = [{"time": "2026-04-05 00:15", "spot": 1.25, "final": 2.5, "export_price": 1.1}]
 
     def get_prices(*, cfg, date, tzinfo):
         assert cfg == {"source": "test"}
@@ -21,6 +21,7 @@ def test_build_price_map_for_date_supports_keyword_only_getters():
     price_map, price_map_utc = build_price_map_for_date({"source": "test"}, "2026-04-05", tzinfo, get_prices)
 
     assert price_map["2026-04-05 00:15"]["final"] == 2.5
+    assert price_map["2026-04-05 00:15"]["export_price"] == 1.1
     assert price_map_utc["2026-04-04 22:15"]["spot"] == 1.25
 
 
