@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.65
+- Bezpečná idempotentní migrace fees-history.json z verze .63.
+- Zachování historických období a sazeb, atomické zápisy a časové zálohy před uložením.
+- Ochrana historie před prázdným/neúplným payloadem.
+- Oddělený fixní nákup a prodej, správné historické exportní ceny a grafy.
+
 ## 0.3.64
 - Pridany nezavisle fixni ceny nakupu a prodeje elektriny bez DPH.
 - Historie konfigurace zachovava platnost cen podle data zmeny.
