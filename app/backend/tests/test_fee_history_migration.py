@@ -99,7 +99,8 @@ def test_fee_history_backup_is_kept_if_atomic_replace_fails(isolated_storage, mo
     assert json.loads(backups[0].read_text(encoding="utf-8")) == original
 
 
-def test_startup_migrates_before_services(monkeypatch):
+def test_startup_migrates_before_services(monkeypatch, tmp_path):
+    monkeypatch.setenv("ELEKTROAPP_STORAGE", str(tmp_path / "storage"))
     import main
 
     calls = []
