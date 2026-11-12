@@ -1,0 +1,5 @@
+- Bezpečná migrace obnovené historie poplatků z verze .63 včetně zachování všech období.
+- Automatické časové zálohy a atomické ukládání historie; ochrana před prázdným nebo neplatným payloadem.
+- Oddělené historické režimy fixního a spotového nákupu/prodeje pro výpočty, exporty a grafy.
+- Opravená měsíční projekce: budoucí fixní ceny se vyhodnocují podle platného období a chybějící spotová data používají tržní historii, ne fakturovanou fixní cenu.
+- Release se publikuje až po úspěšném backend lint/testu, frontend lint/testu a Docker buildu.

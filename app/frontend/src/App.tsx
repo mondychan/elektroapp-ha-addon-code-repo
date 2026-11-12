@@ -182,31 +182,48 @@ const App: React.FC = () => {
     const rawSpot = Number(p.spot);
     const spotWithDph = rawSpot * dphMultiplier;
     const final = Number(p.final);
-    const fixedPurchase = !!config?.nakup?.fixni_cena_enabled;
-    const extra = final - (fixedPurchase ? 0 : spotWithDph);
+    const fixedPurchase = p.purchase_fixed == null ? !!config?.nakup?.fixni_cena_enabled : !!p.purchase_fixed;
+    const pointDphMultiplier = p.dph_percent == null ? dphMultiplier : 1 + Number(p.dph_percent || 0) / 100;
+    const pointSpotWithDph = rawSpot * pointDphMultiplier;
+    const pointFinal = Number.isFinite(final) ? final : pointSpotWithDph;
+    const extra = pointFinal - (fixedPurchase ? 0 : pointSpotWithDph);
     return {
       slot: i,
       time: formatSlotToTime(i),
-      spot: fixedPurchase ? 0 : spotWithDph,
+      spot: fixedPurchase ? 0 : pointSpotWithDph,
       extra: fixedPurchase ? final : extra,
-      final,
+      final: pointFinal,
       rawSpot,
       exportPrice: p.export_price == null ? undefined : Number(p.export_price),
+      purchase_fixed: p.purchase_fixed,
+      sale_fixed: p.sale_fixed,
+      dph_percent: p.dph_percent,
     };
   }), [config?.nakup?.fixni_cena, config?.nakup?.fixni_cena_enabled, dphMultiplier]);
 
   const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapPrices]);
   const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapPrices]);
   const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
-  const showSeparateExportPrice = !!config?.prodej?.fixni_cena_enabled ||
-    (!!config?.nakup?.fixni_cena_enabled && Number(config?.nakup?.fixni_cena) !== Number(config?.prodej?.fixni_cena));
+  // Compare the actual dated results returned by the backend.  The current
+  // configuration is insufficient for historical ranges where fee snapshots
+  // may use different purchase/sale modes.
+  const showSeparateExportPrice = useMemo(() => {
+    const samples = [...(dashboard.prices || []), ...(dashboard.selectedDatePrices || [])];
+    return samples.some((p: any) => {
+      const purchase = Number(p?.final);
+      const exportPrice = Number(p?.export_price ?? p?.exportPrice);
+      return Number.isFinite(purchase) && Number.isFinite(exportPrice) && Math.abs(purchase - exportPrice) > 0.00001;
+    });
+  }, [dashboard.prices, dashboard.selectedDatePrices]);
   const mapExportPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
     const rawSpot = Number(p.spot);
-    const saleFixed = !!config?.prodej?.fixni_cena_enabled;
-    const exportValue = p.exportPrice == null
-      ? (saleFixed ? Number(config?.prodej?.fixni_cena || 0) : rawSpot - Number(config?.prodej?.koeficient_snizeni_ceny || 0) / 1000)
-      : Number(p.exportPrice);
-    return { slot: i, time: formatSlotToTime(i), spot: 0, extra: exportValue, final: exportValue, rawSpot, exportPrice: exportValue };
+    const saleFixed = p.sale_fixed == null ? !!config?.prodej?.fixni_cena_enabled : !!p.sale_fixed;
+    const exportValue = p.export_price != null
+      ? Number(p.export_price)
+      : p.exportPrice != null
+        ? Number(p.exportPrice)
+        : (saleFixed ? Number(config?.prodej?.fixni_cena || 0) : rawSpot - Number(config?.prodej?.koeficient_snizeni_ceny || 0) / 1000);
+    return { slot: i, time: formatSlotToTime(i), spot: 0, extra: exportValue, final: exportValue, rawSpot, exportPrice: exportValue, purchase_fixed: p.purchase_fixed, sale_fixed: p.sale_fixed, dph_percent: p.dph_percent };
   }), [config?.prodej?.fixni_cena, config?.prodej?.fixni_cena_enabled, config?.prodej?.koeficient_snizeni_ceny]);
   const todayExportData = useMemo(() => mapExportPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapExportPrices]);
 

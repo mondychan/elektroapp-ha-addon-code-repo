@@ -51,7 +51,8 @@ export const buildPriceChartConfig = ({
     let coveredNegative = null;
     let variable = null;
 
-    if (fixedPriceMode) {
+    const pointFixedPriceMode = item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed;
+    if (pointFixedPriceMode) {
       fixed = item.final > 0 ? Number(item.final.toFixed(4)) : null;
       variable = item.final < 0 ? Number(item.final.toFixed(4)) : null;
     } else if (item.spot < 0) {
@@ -159,15 +160,16 @@ export const buildPriceChartConfig = ({
           if (!point) return null;
 
           const sections = [];
-          if (fixedPriceMode) {
+          const pointFixedPriceMode = point.purchase_fixed == null ? fixedPriceMode : !!point.purchase_fixed;
+          if (pointFixedPriceMode) {
             sections.push({ label: "Cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
           } else {
             sections.push({ label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
           }
 
-          if (!fixedPriceMode && point.spot < 0) {
+          if (!pointFixedPriceMode && point.spot < 0) {
             sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
-          } else if (!fixedPriceMode) {
+          } else if (!pointFixedPriceMode) {
             sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: variableColor });
           }
 

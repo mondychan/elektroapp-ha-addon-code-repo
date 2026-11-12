@@ -89,6 +89,7 @@ class BillingService:
         dph_multiplier = 1 + (float(fee_snapshot.get("dph_percent") or 0.0) / 100.0)
         items = {
             "spot": 0.0,
+            "market_spot": 0.0,
             "supplier_service": 0.0,
             "distribution_nt": 0.0,
             "distribution_vt": 0.0,
@@ -121,13 +122,18 @@ class BillingService:
                 else price["spot"]
             )
             items["spot"] += kwh * commodity_price
+            items["market_spot"] += kwh * float(price.get("spot") or 0.0)
             items["supplier_service"] += kwh * float(fees.get("komodita_sluzba") or 0.0)
             items["oze"] += kwh * float(fees.get("oze") or 0.0)
             items["electricity_tax"] += kwh * float(fees.get("dan") or 0.0)
             items["system_services"] += kwh * float(fees.get("systemove_sluzby") or 0.0)
             items[f"{tariff.lower()}_kwh"] += kwh
             items[f"distribution_{tariff.lower()}"] += kwh * float(distribution.get(tariff) or 0.0)
-            variable_cost += kwh * price["final"]
+            variable_cost += kwh * (commodity_price + float(fees.get("komodita_sluzba") or 0.0)
+                                     + float(fees.get("oze") or 0.0)
+                                     + float(fees.get("dan") or 0.0)
+                                     + float(fees.get("systemove_sluzby") or 0.0)
+                                     + float(distribution.get(tariff) or 0.0)) * dph_multiplier
 
         return {
             "has_series": True,
@@ -223,6 +229,9 @@ class BillingService:
         month_str: str,
         tzinfo,
         require_data: bool | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        audit_kind: str = "invoice_pdf",
     ) -> dict[str, Any]:
         if not re.match(r"^\d{4}-\d{2}$", month_str):
             raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
@@ -237,6 +246,9 @@ class BillingService:
         actual_kwh = 0.0
         actual_export_kwh = 0.0
         actual_sell_total = 0.0
+        actual_supply_energy = 0.0
+        actual_market_energy = 0.0
+        actual_vat = 0.0
         days_with_data = 0
         export_days_with_data = 0
         fixed_total = 0.0
@@ -253,26 +265,37 @@ class BillingService:
             "vt_kwh": 0.0,
         }
         invoice_fixed = {"standing_charge": 0.0, "breaker": 0.0, "infrastructure": 0.0}
+        actual_fixed_vat = 0.0
 
+        daily_exports: dict[str, dict[str, float]] = {}
         for day_offset in range(days_in_month):
             date_obj = start_date + timedelta(days=day_offset)
             date_str = date_obj.strftime("%Y-%m-%d")
 
             fee_snapshot = self._get_fee_snapshot_for_date(cfg, date_str, tzinfo)
-            fixed_cfg = fee_snapshot.get("fixed", {})
-            daily_cfg = fixed_cfg.get("daily", {})
-            monthly_cfg = fixed_cfg.get("monthly", {})
-            invoice_fixed["standing_charge"] += float(daily_cfg.get("staly_plat") or 0.0)
-            invoice_fixed["breaker"] += float(monthly_cfg.get("jistic") or 0.0) / days_in_month
-            invoice_fixed["infrastructure"] += float(monthly_cfg.get("provoz_nesitove_infrastruktury") or 0.0) / days_in_month
-            daily_fixed, monthly_fixed = self._compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
-            for key, value in daily_fixed.items():
-                fixed_breakdown["daily"][key] = fixed_breakdown["daily"].get(key, 0.0) + value
-            for key, value in monthly_fixed.items():
-                fixed_breakdown["monthly"][key] = fixed_breakdown["monthly"].get(key, 0.0) + value
-            fixed_total += sum(daily_fixed.values()) + sum(monthly_fixed.values())
+            in_scope = (date_from is None or date_str >= date_from) and (date_to is None or date_str <= date_to)
+            # Fixed charges belong to the selected billing interval.  In particular,
+            # invoice audits must not add the whole month's charges to a partial period.
+            if in_scope:
+                fixed_cfg = fee_snapshot.get("fixed", {})
+                daily_cfg = fixed_cfg.get("daily", {})
+                monthly_cfg = fixed_cfg.get("monthly", {})
+                daily_fixed, monthly_fixed = self._compute_fixed_breakdown_for_day(fee_snapshot, days_in_month)
+                if date_obj <= today:
+                    invoice_fixed["standing_charge"] += float(daily_cfg.get("staly_plat") or 0.0)
+                    invoice_fixed["breaker"] += float(monthly_cfg.get("jistic") or 0.0) / days_in_month
+                    invoice_fixed["infrastructure"] += float(monthly_cfg.get("provoz_nesitove_infrastruktury") or 0.0) / days_in_month
+                    for key, value in daily_fixed.items():
+                        fixed_breakdown["daily"][key] = fixed_breakdown["daily"].get(key, 0.0) + value
+                    for key, value in monthly_fixed.items():
+                        fixed_breakdown["monthly"][key] = fixed_breakdown["monthly"].get(key, 0.0) + value
+                    fixed_total += sum(daily_fixed.values()) + sum(monthly_fixed.values())
+                    multiplier = 1 + float(fee_snapshot.get("dph_percent") or 0.0) / 100.0
+                    actual_fixed_vat += sum(daily_fixed.values()) + sum(monthly_fixed.values()) - (
+                        sum(daily_fixed.values()) + sum(monthly_fixed.values())
+                    ) / multiplier if multiplier else 0.0
 
-            if date_obj <= today:
+            if date_obj <= today and in_scope:
                 invoice_day = self.calculate_daily_invoice(cfg, date_str)
                 totals = {
                     "kwh_total": invoice_day.get("kwh_total"),
@@ -281,12 +304,20 @@ class BillingService:
                 if totals["kwh_total"] is not None:
                     actual_kwh += totals["kwh_total"]
                     actual_variable += totals["cost_total"]
+                    multiplier = float(invoice_day.get("dph_multiplier") or 1.0)
+                    daily_cost_without_vat = float(totals["cost_total"]) / multiplier if multiplier else float(totals["cost_total"])
+                    actual_vat += float(totals["cost_total"]) - daily_cost_without_vat
                     days_with_data += 1
                     for key in invoice_variable:
                         invoice_variable[key] += float(invoice_day.get("items", {}).get(key) or 0.0)
+                    # The supply detail audit compares the commodity amount billed
+                    # under the active historical snapshot, including fixed-price periods.
+                    actual_supply_energy += float(invoice_day.get("items", {}).get("spot") or 0.0)
+                    actual_market_energy += float(invoice_day.get("items", {}).get("market_spot") or 0.0)
                 export_totals = self.calculate_daily_export_totals(cfg, date_str)
                 if export_totals["export_kwh_total"] is not None:
                     actual_export_kwh += export_totals["export_kwh_total"]
+                    daily_exports[date_str] = {"kwh": float(export_totals["export_kwh_total"]), "sell": float(export_totals["sell_total"] or 0.0)}
                 if export_totals["sell_total"] is not None:
                     actual_sell_total += export_totals["sell_total"]
                     export_days_with_data += 1
@@ -315,15 +346,79 @@ class BillingService:
                 "net_total": None,
             }
         else:
-            projected_variable = (actual_variable / days_with_data) * days_in_month
-            projected_sell_total = None
-            if export_days_with_data > 0:
-                projected_sell_total = (actual_sell_total / export_days_with_data) * days_in_month
+            remaining_days = [start_date + timedelta(days=offset) for offset in range(days_in_month)
+                              if start_date + timedelta(days=offset) > today
+                              and (date_from is None or (start_date + timedelta(days=offset)).isoformat() >= date_from)
+                              and (date_to is None or (start_date + timedelta(days=offset)).isoformat() <= date_to)]
+            projected_variable = actual_variable
+            # A missing export series means no observed export to project. Keep the
+            # estimate numeric and let future export remain zero until data exists.
+            projected_sell_total = sum(item["sell"] for item in daily_exports.values())
+            projected_export_kwh = actual_export_kwh / export_days_with_data if export_days_with_data else 0.0
+            projected_variable_vat = actual_vat
+            projected_fixed_vat = actual_fixed_vat
+            projected_fixed_total = fixed_total
+            projected_fixed_invoice = dict(invoice_fixed)
+            projected_invoice_variable = dict(invoice_variable)
+            for future_date in remaining_days:
+                future_str = future_date.isoformat()
+                future_snapshot = self._get_fee_snapshot_for_date(cfg, future_str, tzinfo)
+                future_price_map, _ = self._build_price_map_for_date(cfg, future_str, tzinfo)
+                future_prices = [entry.get("spot") for entry in future_price_map.values() if entry.get("spot") is not None]
+                if not future_prices:
+                    # Use observed market prices, never the billed commodity amount,
+                    # which may be fixed-price for the current historical period.
+                    future_spot = actual_market_energy / actual_kwh if actual_kwh else 0.0
+                else:
+                    future_spot = sum(future_prices) / len(future_prices)
+                future_fees = future_snapshot.get("kwh_fees", {})
+                future_distribution = future_fees.get("distribuce", {})
+                future_purchase = future_snapshot.get("nakup", {})
+                future_commodity = float(future_purchase.get("fixni_cena") or 0.0) if future_purchase.get("fixni_cena_enabled") else future_spot
+                future_vt = cfg.get("tarif", {}).get("vt_periods", [])
+                future_nt_share = sum(1 for hour in range(24) if not any(a <= hour < b for a, b in future_vt)) / 24
+                future_vt_share = 1 - future_nt_share
+                future_unit = (future_commodity + float(future_fees.get("komodita_sluzba") or 0.0)
+                               + float(future_fees.get("oze") or 0.0) + float(future_fees.get("dan") or 0.0)
+                               + float(future_fees.get("systemove_sluzby") or 0.0)
+                               + future_nt_share * float(future_distribution.get("NT") or 0.0)
+                               + future_vt_share * float(future_distribution.get("VT") or 0.0))
+                future_multiplier = 1 + float(future_snapshot.get("dph_percent") or 0.0) / 100.0
+                future_day_cost_without_vat = (actual_kwh / days_with_data) * future_unit
+                future_day_vat = future_day_cost_without_vat * (future_multiplier - 1)
+                projected_variable_vat += future_day_vat
+                projected_variable += future_day_cost_without_vat + future_day_vat
+                future_kwh = actual_kwh / days_with_data
+                projected_invoice_variable["spot"] += future_kwh * future_commodity
+                projected_invoice_variable["supplier_service"] += future_kwh * float(future_fees.get("komodita_sluzba") or 0.0)
+                projected_invoice_variable["oze"] += future_kwh * float(future_fees.get("oze") or 0.0)
+                projected_invoice_variable["electricity_tax"] += future_kwh * float(future_fees.get("dan") or 0.0)
+                projected_invoice_variable["system_services"] += future_kwh * float(future_fees.get("systemove_sluzby") or 0.0)
+                projected_invoice_variable["nt_kwh"] += future_kwh * future_nt_share
+                projected_invoice_variable["vt_kwh"] += future_kwh * future_vt_share
+                projected_invoice_variable["distribution_nt"] += future_kwh * future_nt_share * float(future_distribution.get("NT") or 0.0)
+                projected_invoice_variable["distribution_vt"] += future_kwh * future_vt_share * float(future_distribution.get("VT") or 0.0)
+                future_daily_fixed, future_monthly_fixed = self._compute_fixed_breakdown_for_day(future_snapshot, days_in_month)
+                future_fixed = sum(future_daily_fixed.values()) + sum(future_monthly_fixed.values())
+                projected_fixed_total += future_fixed
+                future_pre_vat = 1 / future_multiplier if future_multiplier else 1.0
+                projected_fixed_vat += future_fixed - (
+                    sum(future_daily_fixed.values()) + sum(future_monthly_fixed.values())
+                ) * future_pre_vat
+                projected_fixed_invoice["standing_charge"] += sum(future_daily_fixed.values()) * future_pre_vat
+                projected_fixed_invoice["breaker"] += future_monthly_fixed.get("jistic", 0.0) * future_pre_vat
+                projected_fixed_invoice["infrastructure"] += future_monthly_fixed.get("provoz_nesitove_infrastruktury", 0.0) * future_pre_vat
+                future_sale = future_snapshot.get("prodej", {})
+                if future_sale.get("fixni_cena_enabled"):
+                    future_sell_price = float(future_sale.get("fixni_cena") or 0.0)
+                else:
+                    future_sell_price = future_spot - self._calculate_sell_coefficient(cfg, future_snapshot)
+                projected_sell_total += projected_export_kwh * future_sell_price
             actual_sell_value = round(actual_sell_total, 5) if export_days_with_data > 0 else None
             actual_export_value = round(actual_export_kwh, 5) if export_days_with_data > 0 else None
-            projected_sell_value = round(projected_sell_total, 5) if projected_sell_total is not None else None
+            projected_sell_value = round(projected_sell_total, 5)
             actual_total_cost = actual_variable + fixed_total
-            projected_total_cost = projected_variable + fixed_total
+            projected_total_cost = projected_variable + projected_fixed_total
             actual_net_total = actual_total_cost - (actual_sell_value or 0.0)
             projected_net_total = projected_total_cost - (projected_sell_value or 0.0)
             actual = {
@@ -337,16 +432,19 @@ class BillingService:
             }
             projected = {
                 "variable_cost": round(projected_variable, 5),
-                "fixed_cost": round(fixed_total, 5),
+                "fixed_cost": round(projected_fixed_total, 5),
                 "total_cost": round(projected_total_cost, 5),
                 "sell_total": projected_sell_value,
                 "net_total": round(projected_net_total, 5),
             }
+        if days_with_data == 0:
+            projected_invoice_variable = dict(invoice_variable)
+            projected_vat = 0.0
+            projected_fixed_invoice = dict(invoice_fixed)
         fixed_breakdown["daily"] = {k: round(v, 5) for k, v in fixed_breakdown["daily"].items()}
         fixed_breakdown["monthly"] = {k: round(v, 5) for k, v in fixed_breakdown["monthly"].items()}
 
         dph_percent = float(cfg.get("dph") or 0.0)
-        projection_factor = (days_in_month / days_with_data) if days_with_data else 0.0
         first_day_after_month = start_date + timedelta(days=days_in_month)
         use_billed_quantity_floor = first_day_after_month <= today and days_with_data == days_in_month
 
@@ -371,25 +469,37 @@ class BillingService:
             adjusted["vt_kwh"] = billed_vt
             return adjusted
 
-        def build_invoice(variable_factor: float) -> dict[str, Any]:
-            variable = {key: value * variable_factor for key, value in invoice_variable.items()}
+        def build_invoice(projected_mode: bool = False) -> dict[str, Any]:
+            source_variable = projected_invoice_variable if projected_mode else invoice_variable
+            variable = dict(source_variable)
             variable = apply_billed_quantity_floor(variable)
-            commercial = variable["spot"] + variable["supplier_service"] + invoice_fixed["standing_charge"]
+            fixed_invoice = projected_fixed_invoice if projected_mode else invoice_fixed
+            commercial = variable["spot"] + variable["supplier_service"] + fixed_invoice["standing_charge"]
             regulated = (
                 variable["distribution_nt"]
                 + variable["distribution_vt"]
                 + variable["oze"]
                 + variable["electricity_tax"]
                 + variable["system_services"]
-                + invoice_fixed["breaker"]
-                + invoice_fixed["infrastructure"]
+                + fixed_invoice["breaker"]
+                + fixed_invoice["infrastructure"]
             )
             supply_without_vat = commercial + regulated
-            supply_with_vat = supply_without_vat * (1 + dph_percent / 100.0)
-            sell = actual_sell_total * variable_factor if export_days_with_data else 0.0
+            variable_vat = projected_variable_vat if projected_mode else actual_vat
+            variable_keys = (
+                "spot", "supplier_service", "distribution_nt", "distribution_vt",
+                "oze", "electricity_tax", "system_services",
+            )
+            original_variable_total = sum(float(source_variable.get(key) or 0.0) for key in variable_keys)
+            adjusted_variable_total = sum(float(variable.get(key) or 0.0) for key in variable_keys)
+            if original_variable_total:
+                variable_vat *= adjusted_variable_total / original_variable_total
+            invoice_vat = variable_vat + (projected_fixed_vat if projected_mode else actual_fixed_vat)
+            supply_with_vat = supply_without_vat + invoice_vat
+            sell = projected_sell_total if projected_mode and days_with_data else actual_sell_total
             return {
                 "commercial": {
-                    "standing_charge": round(invoice_fixed["standing_charge"], 2),
+                    "standing_charge": round(fixed_invoice["standing_charge"], 2),
                     "supplier_service": round(variable["supplier_service"], 2),
                     "spot_energy": round(variable["spot"], 2),
                     "total": round(commercial, 2),
@@ -399,15 +509,15 @@ class BillingService:
                     "distribution_nt": round(variable["distribution_nt"], 2),
                     "distribution_vt_kwh": round(variable["vt_kwh"], 5),
                     "distribution_vt": round(variable["distribution_vt"], 2),
-                    "breaker": round(invoice_fixed["breaker"], 2),
-                    "infrastructure": round(invoice_fixed["infrastructure"], 2),
+                    "breaker": round(fixed_invoice["breaker"], 2),
+                    "infrastructure": round(fixed_invoice["infrastructure"], 2),
                     "oze": round(variable["oze"], 2),
                     "electricity_tax": round(variable["electricity_tax"], 2),
                     "system_services": round(variable["system_services"], 2),
                     "total": round(regulated, 2),
                 },
                 "supply_without_vat": round(supply_without_vat, 2),
-                "vat": round(supply_with_vat - supply_without_vat, 2),
+                "vat": round(invoice_vat, 2),
                 "supply_with_vat": round(supply_with_vat, 2),
                 "sell_total": round(sell, 2),
                 "net_after_sell": round(supply_with_vat - sell, 2),
@@ -421,11 +531,11 @@ class BillingService:
             "projected": projected,
             "fixed_breakdown": fixed_breakdown,
             "invoice": {
-                "actual": build_invoice(1.0),
-                "projected": build_invoice(projection_factor),
+                "actual": build_invoice(False),
+                "projected": build_invoice(True),
                 "interval_detail": {
                     "consumption_kwh": round(actual_kwh, 7),
-                    "spot_energy": round(invoice_variable["spot"], 7),
+                    "spot_energy": round(actual_supply_energy, 7),
                     "export_kwh": round(actual_export_kwh, 7) if export_days_with_data else None,
                     "export_total": round(actual_sell_total, 7) if export_days_with_data else None,
                 },
@@ -585,15 +695,13 @@ class BillingService:
                 spot_czk_mwh = float(price.get("price_czk_mwh") or price["spot"] * 1000.0)
                 spot_eur_mwh = price.get("price_eur_mwh")
                 exchange_rate = price.get("eur_czk_rate")
-                if kind == "supply" and fee_snapshot.get("nakup", {}).get("fixni_cena_enabled"):
-                    effective_czk_mwh = float(fee_snapshot["nakup"].get("fixni_cena") or 0.0) * 1000.0
-                elif kind == "export" and fee_snapshot.get("prodej", {}).get("fixni_cena_enabled"):
-                    effective_czk_mwh = float(fee_snapshot["prodej"].get("fixni_cena") or 0.0) * 1000.0
+                if kind == "supply":
+                    effective_czk_mwh = float(price.get("purchase_fixed_price") or 0.0) * 1000.0 if price.get("purchase_fixed") else spot_czk_mwh
                 else:
-                    effective_czk_mwh = spot_czk_mwh if kind == "supply" else spot_czk_mwh - coefficient_mwh
+                    effective_czk_mwh = float(price.get("sale_fixed_price") or 0.0) * 1000.0 if price.get("sale_fixed") else float(price.get("export_price") if price.get("export_price") is not None else spot_czk_mwh / 1000.0 - coefficient_mwh / 1000.0) * 1000.0
                 effective_eur_mwh = None
                 if spot_eur_mwh is not None:
-                    if exchange_rate and ((kind == "supply" and fee_snapshot.get("nakup", {}).get("fixni_cena_enabled")) or (kind == "export" and fee_snapshot.get("prodej", {}).get("fixni_cena_enabled"))):
+                    if exchange_rate and ((kind == "supply" and price.get("purchase_fixed")) or (kind == "export" and price.get("sale_fixed"))):
                         effective_eur_mwh = effective_czk_mwh / float(exchange_rate)
                     else:
                         effective_eur_mwh = float(spot_eur_mwh)

@@ -216,6 +216,9 @@ export interface PriceItem {
   final: number;
   rawSpot: number;
   exportPrice?: number;
+  purchase_fixed?: boolean;
+  sale_fixed?: boolean;
+  dph_percent?: number;
 }
 
 export interface RawPriceEntry {
@@ -225,6 +228,11 @@ export interface RawPriceEntry {
   spot: number;
   final: number;
   export_price?: number;
+  purchase_fixed?: boolean;
+  purchase_fixed_price?: number;
+  sale_fixed?: boolean;
+  sale_fixed_price?: number;
+  dph_percent?: number;
 }
 
 export interface BatteryData {

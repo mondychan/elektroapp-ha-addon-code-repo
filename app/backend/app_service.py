@@ -911,7 +911,16 @@ def audit_invoice_document(document_id: str, cfg=None, tzinfo=None):
     if not period_from or not period_to or period_from[:7] != period_to[:7]:
         raise HTTPException(status_code=422, detail="Audit zatím vyžaduje fakturu v rámci jednoho kalendářního měsíce.")
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
-    virtual_invoice = BILLING_SERVICE.compute_monthly_billing(cfg, period_from[:7], tzinfo, require_data=False)
+    document_type = parsed.get("document_type")
+    virtual_invoice = BILLING_SERVICE.compute_monthly_billing(
+        cfg,
+        period_from[:7],
+        tzinfo,
+        require_data=False,
+        date_from=period_from,
+        date_to=period_to,
+        audit_kind=document_type,
+    )
     return INVOICE_ARCHIVE_SERVICE.audit(document_id, virtual_invoice)
 
 def _invalidate_series_cache_for_day(date_str: str) -> None:

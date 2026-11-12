@@ -21,4 +21,21 @@ describe("buildPriceChartConfig", () => {
 
     expect(config.data.datasets.map((dataset) => dataset.data[0])).toEqual([6.4, null, null]);
   });
+
+  it("uses each point's historical purchase mode", () => {
+    const config = buildPriceChartConfig({
+      chartData: [
+        { slot: 0, spot: 4, extra: 2, final: 6, purchase_fixed: true },
+        { slot: 1, spot: 4, extra: 2, final: 6, purchase_fixed: false },
+      ],
+      vtPeriods: [],
+      fixedPriceMode: true,
+    });
+
+    expect(config.data.datasets.map((dataset) => dataset.data)).toEqual([
+      [6, 2],
+      [null, null],
+      [null, 4],
+    ]);
+  });
 });

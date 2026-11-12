@@ -305,12 +305,24 @@ def apply_fee_snapshot(
     sale_fixed = bool(sale_cfg.get("fixni_cena_enabled"))
     sale_fixed_price = _safe_float(sale_cfg.get("fixni_cena", 0))
     sale_coefficient = _safe_float(sale_cfg.get("koeficient_snizeni_ceny", 0)) / 1000.0
+    purchase_cfg = fee_snapshot.get("nakup", {}) if isinstance(fee_snapshot, dict) else {}
+    purchase_fixed = bool(purchase_cfg.get("fixni_cena_enabled"))
+    dph_percent = _safe_float(fee_snapshot.get("dph_percent", 0))
     for entry in entries:
         hour = entry.get("hour", 0)
         spot = entry.get("spot", 0)
         final = calculate_final_price(spot, hour, cfg, fee_snapshot)
         export_price = sale_fixed_price if sale_fixed else spot - sale_coefficient
-        adjusted.append({**entry, "final": final, "export_price": round(export_price, 5)})
+        adjusted.append({
+            **entry,
+            "final": final,
+            "export_price": round(export_price, 5),
+            "purchase_fixed": purchase_fixed,
+            "purchase_fixed_price": _safe_float(purchase_cfg.get("fixni_cena", 0)),
+            "sale_fixed": sale_fixed,
+            "sale_fixed_price": sale_fixed_price,
+            "dph_percent": dph_percent,
+        })
     return adjusted
 
 
@@ -479,6 +491,11 @@ def build_price_map_for_date(cfg, date_str, tzinfo, get_prices_for_date_fn):
             "price_czk_mwh": entry.get("price_czk_mwh", entry["spot"] * 1000.0),
             "price_eur_mwh": entry.get("price_eur_mwh"),
             "eur_czk_rate": entry.get("eur_czk_rate"),
+            "purchase_fixed": bool(entry.get("purchase_fixed", False)),
+            "purchase_fixed_price": entry.get("purchase_fixed_price"),
+            "sale_fixed": bool(entry.get("sale_fixed", False)),
+            "sale_fixed_price": entry.get("sale_fixed_price"),
+            "dph_percent": entry.get("dph_percent"),
         }
         price_map[key_local] = price_data
         price_map_utc[key_utc] = price_data
