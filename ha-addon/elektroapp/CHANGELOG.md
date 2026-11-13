@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.68
+- Fixní nákupní graf rozděluje distribuční poplatky dole a obchodní část nahoře.
+- Výkupní graf používá jedinou legendu „Prodejní cena“ a rozlišuje kladnou/zápornou cenu barvou.
+- Upraveno zobrazení odděleného výkupního grafu.
+
 ## 0.3.67
 - Hlavní dashboard rozděluje nákupní a výkupní graf při rozdílném cenovém modelu.
 - Fixní nákup zobrazuje samostatně komoditní cenu a variabilní poplatky.

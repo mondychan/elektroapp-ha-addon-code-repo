@@ -24,6 +24,7 @@ export const buildPriceChartConfig = ({
   fallbackMessage,
   thresholds = null,
   fixedPriceMode = false,
+  chartMode = "purchase",
 }) => {
   if (!chartData?.length) {
     return {
@@ -45,6 +46,8 @@ export const buildPriceChartConfig = ({
   const dataCoveredNegative = [];
   const dataVariable = [];
   const variableBackground = [];
+  const exportMode = chartMode === "export";
+  const fixedPriceModeOnly = chartData.every((item) => (item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed));
 
   chartData.forEach((item) => {
     let fixed = null;
@@ -52,11 +55,25 @@ export const buildPriceChartConfig = ({
     let variable = null;
 
     const pointFixedPriceMode = item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed;
-    if (pointFixedPriceMode) {
-      const commodity = Number.isFinite(Number(item.purchase_fixed_price)) ? Number(item.purchase_fixed_price) : Number(item.final);
-      const fees = Number(item.final) - commodity;
-      fixed = commodity > 0 ? Number(commodity.toFixed(4)) : null;
-      variable = fees !== 0 ? Number(fees.toFixed(4)) : null;
+    if (exportMode) {
+      // Export bars are one series: sale price (spot or fixed) minus the sale
+      // coefficient. Import fees and distribution charges never apply here.
+      variable = item.final == null ? null : Number(Number(item.final).toFixed(4));
+    } else if (pointFixedPriceMode) {
+      const hasCommodity = Number.isFinite(Number(item.purchase_fixed_price));
+      if (hasCommodity) {
+        const commodity = Number(item.purchase_fixed_price);
+        const fees = Number(item.final) - commodity;
+        // Distribution fees form the bottom of the bar, the commercial part
+        // sits on top of them.
+        fixed = fees !== 0 ? Number(fees.toFixed(4)) : null;
+        variable = commodity > 0 ? Number(commodity.toFixed(4)) : null;
+      } else {
+        // No commodity split available: the whole price belongs to the
+        // bottom (fees) series, never to the top one.
+        fixed = Number(Number(item.final).toFixed(4));
+        variable = null;
+      }
     } else if (item.spot < 0) {
       const finalPrice = item.extra + item.spot;
       if (finalPrice >= 0) {
@@ -81,43 +98,57 @@ export const buildPriceChartConfig = ({
     variableBackground.push(item.final < 0 ? negativeColor : colorScale(item.final, minFinal, maxFinal));
   });
 
-  const datasets = [
-    {
-      type: "bar",
-      label: "Fixní složka",
-      data: dataFixed,
-      backgroundColor: fixedColor,
-      borderRadius: 5,
-      borderSkipped: false,
-      stack: "price",
-      barPercentage: 0.9,
-      categoryPercentage: 1,
-    },
-    {
-      type: "bar",
-      label: "Pokryto zápornou cenou",
-      data: dataCoveredNegative,
-      backgroundColor: coveredNegativeColor,
-      borderColor: coveredNegativeColor,
-      borderWidth: 1,
-      borderRadius: 5,
-      borderSkipped: false,
-      stack: "price",
-      barPercentage: 0.9,
-      categoryPercentage: 1,
-    },
-    {
-      type: "bar",
-      label: "Variabilní složka",
-      data: dataVariable,
-      backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
-      borderRadius: 5,
-      borderSkipped: false,
-      stack: "price",
-      barPercentage: 0.9,
-      categoryPercentage: 1,
-    },
-  ];
+  const datasets = exportMode
+    ? [
+        {
+          type: "bar",
+          label: "Prodejní cena",
+          data: dataVariable,
+          backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? variableColor : negativeColor) : color)),
+          borderRadius: 5,
+          borderSkipped: false,
+          stack: "price",
+          barPercentage: 0.9,
+          categoryPercentage: 1,
+        },
+      ]
+    : [
+        {
+          type: "bar",
+          label: fixedPriceModeOnly ? "Distribuční poplatky" : "Fixní složka",
+          data: dataFixed,
+          backgroundColor: fixedColor,
+          borderRadius: 5,
+          borderSkipped: false,
+          stack: "price",
+          barPercentage: 0.9,
+          categoryPercentage: 1,
+        },
+        {
+          type: "bar",
+          label: "Pokryto zápornou cenou",
+          data: dataCoveredNegative,
+          backgroundColor: coveredNegativeColor,
+          borderColor: coveredNegativeColor,
+          borderWidth: 1,
+          borderRadius: 5,
+          borderSkipped: false,
+          stack: "price",
+          barPercentage: 0.9,
+          categoryPercentage: 1,
+        },
+        {
+          type: "bar",
+          label: fixedPriceModeOnly ? "Obchodní část" : "Variabilní složka",
+          data: dataVariable,
+          backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
+          borderRadius: 5,
+          borderSkipped: false,
+          stack: "price",
+          barPercentage: 0.9,
+          categoryPercentage: 1,
+        },
+      ];
 
   return {
     title,
@@ -160,6 +191,20 @@ export const buildPriceChartConfig = ({
         tooltip: buildTooltip(({ points }) => {
           const point = chartData[points?.[0]?.dataIndex] || null;
           if (!point) return null;
+
+          if (exportMode) {
+            const exportPrice = Number(point.final);
+            return {
+              title: `${formatSlotToTime(point.slot)} (${getVTStatus(point.slot, vtPeriods)})`,
+              sections: [
+                {
+                  label: "Prodejní cena",
+                  value: `${Number.isFinite(exportPrice) ? exportPrice.toFixed(2) : "-"} Kč`,
+                  color: exportPrice < 0 ? variableColor : negativeColor,
+                },
+              ],
+            };
+          }
 
           const sections = [];
           const pointFixedPriceMode = point.purchase_fixed == null ? fixedPriceMode : !!point.purchase_fixed;

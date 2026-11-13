@@ -14,6 +14,7 @@ const PriceChartCard = ({
   fixedPriceMode = false,
   highlightSlot,
   height = 400,
+  chartMode = "purchase",
 }) => {
   const chartConfig = useMemo(
     () =>
@@ -26,8 +27,9 @@ const PriceChartCard = ({
         fallbackMessage,
         thresholds,
         fixedPriceMode,
+        chartMode,
       }),
-    [chartData, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds, fixedPriceMode]
+    [chartData, vtPeriods, highlightSlot, pinnedSlot, fallbackMessage, thresholds, fixedPriceMode, chartMode]
   );
 
   if (!chartData.length && !fallbackMessage) {

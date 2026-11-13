@@ -196,6 +196,7 @@ const ModernOverviewPage = (props: any) => {
               pinnedSlot={pinnedSlot}
               onPinSlot={setPinnedSlot}
               thresholds={null}
+              chartMode="export"
               className="modern-price-chart"
               height={420}
             />
