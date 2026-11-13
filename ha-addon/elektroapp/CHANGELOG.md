@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.67
+- Hlavní dashboard rozděluje nákupní a výkupní graf při rozdílném cenovém modelu.
+- Fixní nákup zobrazuje samostatně komoditní cenu a variabilní poplatky.
+
 ## 0.3.65
 - Bezpečná idempotentní migrace fees-history.json z verze .63.
 - Zachování historických období a sazeb, atomické zápisy a časové zálohy před uložením.

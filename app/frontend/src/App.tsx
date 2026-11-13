@@ -193,6 +193,7 @@ const App: React.FC = () => {
       spot: fixedPurchase ? 0 : pointSpotWithDph,
       extra: fixedPurchase ? final : extra,
       final: pointFinal,
+      purchase_fixed_price: p.purchase_fixed_price == null ? undefined : Number(p.purchase_fixed_price) * pointDphMultiplier,
       rawSpot,
       exportPrice: p.export_price == null ? undefined : Number(p.export_price),
       purchase_fixed: p.purchase_fixed,

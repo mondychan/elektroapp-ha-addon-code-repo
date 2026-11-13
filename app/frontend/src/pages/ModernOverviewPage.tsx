@@ -115,6 +115,11 @@ const ModernOverviewPage = (props: any) => {
         tone: settlementEstimate >= 0 ? "green" : "red",
       }
     : null;
+  const separateExportPrice = (todayData || []).some((item: any) => {
+    const purchase = Number(item.final);
+    const exportPrice = Number(item.exportPrice);
+    return Number.isFinite(purchase) && Number.isFinite(exportPrice) && Math.abs(purchase - exportPrice) > 0.00001;
+  });
 
   const kpis = [
     { label: "Aktuální cena", value: formatPriceValue(currentPriceNumber), unit: "/kWh", detail: todayData?.[effectiveHighlightSlot]?.time || null, tone: "price" },
@@ -180,6 +185,22 @@ const ModernOverviewPage = (props: any) => {
             height={420}
           />
         </SectionCard>
+
+        {separateExportPrice && (
+          <SectionCard title="Výkupní cena dnes" eyebrow="Kč/kWh" className="modern-section-card--wide">
+            <PriceChartCard
+              chartData={todayData.map((item: any) => ({ ...item, final: Number(item.exportPrice), extra: Number(item.exportPrice), spot: 0, purchase_fixed: false }))}
+              fallbackMessage="Načítám data..."
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={effectiveHighlightSlot}
+              pinnedSlot={pinnedSlot}
+              onPinSlot={setPinnedSlot}
+              thresholds={null}
+              className="modern-price-chart"
+              height={420}
+            />
+          </SectionCard>
+        )}
 
         {tomorrowData?.length > 0 && (
           <SectionCard

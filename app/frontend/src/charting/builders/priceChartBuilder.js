@@ -53,8 +53,10 @@ export const buildPriceChartConfig = ({
 
     const pointFixedPriceMode = item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed;
     if (pointFixedPriceMode) {
-      fixed = item.final > 0 ? Number(item.final.toFixed(4)) : null;
-      variable = item.final < 0 ? Number(item.final.toFixed(4)) : null;
+      const commodity = Number.isFinite(Number(item.purchase_fixed_price)) ? Number(item.purchase_fixed_price) : Number(item.final);
+      const fees = Number(item.final) - commodity;
+      fixed = commodity > 0 ? Number(commodity.toFixed(4)) : null;
+      variable = fees !== 0 ? Number(fees.toFixed(4)) : null;
     } else if (item.spot < 0) {
       const finalPrice = item.extra + item.spot;
       if (finalPrice >= 0) {
@@ -82,7 +84,7 @@ export const buildPriceChartConfig = ({
   const datasets = [
     {
       type: "bar",
-      label: fixedPriceMode ? "Cena" : "Fixní složka",
+      label: "Fixní složka",
       data: dataFixed,
       backgroundColor: fixedColor,
       borderRadius: 5,
@@ -106,7 +108,7 @@ export const buildPriceChartConfig = ({
     },
     {
       type: "bar",
-      label: fixedPriceMode ? "Záporná cena" : "Variabilní složka",
+      label: "Variabilní složka",
       data: dataVariable,
       backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
       borderRadius: 5,
@@ -162,7 +164,9 @@ export const buildPriceChartConfig = ({
           const sections = [];
           const pointFixedPriceMode = point.purchase_fixed == null ? fixedPriceMode : !!point.purchase_fixed;
           if (pointFixedPriceMode) {
-            sections.push({ label: "Cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
+            sections.push({ label: "Fixní složka", value: `${point.purchase_fixed_price?.toFixed(2) ?? point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
+            const variablePart = Number(point.final) - Number(point.purchase_fixed_price ?? point.final);
+            if (variablePart) sections.push({ label: "Variabilní složka", value: `${variablePart.toFixed(2)} Kč`, color: variableColor });
           } else {
             sections.push({ label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
           }

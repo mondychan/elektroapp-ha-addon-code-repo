@@ -38,4 +38,12 @@ describe("buildPriceChartConfig", () => {
       [null, 4],
     ]);
   });
+
+  it("splits fixed commodity price from variable fees", () => {
+    const config = buildPriceChartConfig({
+      chartData: [{ slot: 0, final: 8.12, purchase_fixed: true, purchase_fixed_price: 6.43 }],
+      vtPeriods: [],
+    });
+    expect(config.data.datasets.map((dataset) => dataset.data[0])).toEqual([6.43, null, 1.69]);
+  });
 });
