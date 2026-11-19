@@ -57,6 +57,15 @@ const DateNavigator = ({
   const selectedDate = useMemo(() => parseDate(value), [value]);
   const minDateObj = useMemo(() => parseDate(minDate), [minDate]);
   const maxDateObj = useMemo(() => parseDate(maxDate), [maxDate]);
+  // react-day-picker v9 ignores the old `fromDate`/`toDate` props, so the range
+  // has to be expressed as a `disabled` matcher.  Without it every visible day
+  // stays clickable and an out-of-range pick silently closes the popover.
+  const disabledDays = useMemo(() => {
+    const matchers = [];
+    if (minDateObj) matchers.push({ before: minDateObj });
+    if (maxDateObj) matchers.push({ after: maxDateObj });
+    return matchers;
+  }, [minDateObj, maxDateObj]);
   const prevValue = useMemo(() => shiftDateValue(value, -1), [value]);
   const nextValue = useMemo(() => shiftDateValue(value, 1), [value]);
   const todayValue = useMemo(() => toDateValue(new Date()), []);
@@ -90,13 +99,14 @@ const DateNavigator = ({
     };
   }, []);
 
+  // Returns true only when the value was actually accepted, so callers can keep
+  // a picker open instead of closing it with no visible change.
   const applyValue = (nextValue) => {
-    if (typeof onChange !== "function" || !nextValue) return;
-    if (minDate && compareDateValues(nextValue, minDate) < 0) return;
-    if (maxDate && compareDateValues(nextValue, maxDate) > 0) return;
-    if (typeof onChange === "function" && nextValue) {
-      onChange(nextValue);
-    }
+    if (typeof onChange !== "function" || !nextValue) return false;
+    if (minDate && compareDateValues(nextValue, minDate) < 0) return false;
+    if (maxDate && compareDateValues(nextValue, maxDate) > 0) return false;
+    onChange(nextValue);
+    return true;
   };
 
   return (
@@ -139,12 +149,13 @@ const DateNavigator = ({
           <DayPicker
             mode="single"
             selected={selectedDate || undefined}
-            fromDate={minDateObj || undefined}
-            toDate={maxDateObj || undefined}
+            disabled={disabledDays}
+            defaultMonth={selectedDate || undefined}
+            startMonth={minDateObj || undefined}
+            endMonth={maxDateObj || undefined}
             onSelect={(nextDate) => {
               if (!nextDate) return;
-              applyValue(toDateValue(nextDate));
-              setOpen(false);
+              if (applyValue(toDateValue(nextDate))) setOpen(false);
             }}
             locale={cs}
             showOutsideDays

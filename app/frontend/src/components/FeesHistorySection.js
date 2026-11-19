@@ -266,20 +266,20 @@ const FeesHistorySection = ({
       effective_to: `${prevYear}-12-31`,
       dph: base.dph ?? "",
       poplatky: {
-        komodita_sluzba: base.poplatky.komodita_sluzba ?? "",
-        oze: base.poplatky.oze ?? "",
-        dan: base.poplatky.dan ?? "",
-        systemove_sluzby: base.poplatky.systemove_sluzby ?? "",
+        komodita_sluzba: base.poplatky?.komodita_sluzba ?? "",
+        oze: base.poplatky?.oze ?? "",
+        dan: base.poplatky?.dan ?? "",
+        systemove_sluzby: base.poplatky?.systemove_sluzby ?? "",
         distribuce: {
-          NT: base.poplatky.distribuce.NT ?? "",
-          VT: base.poplatky.distribuce.VT ?? "",
+          NT: base.poplatky?.distribuce?.NT ?? "",
+          VT: base.poplatky?.distribuce?.VT ?? "",
         },
       },
       fixni: {
-        denni: { staly_plat: base.fixni.denni.staly_plat ?? "" },
+        denni: { staly_plat: base.fixni?.denni?.staly_plat ?? "" },
         mesicni: {
-          provoz_nesitove_infrastruktury: base.fixni.mesicni.provoz_nesitove_infrastruktury ?? "",
-          jistic: base.fixni.mesicni.jistic ?? "",
+          provoz_nesitove_infrastruktury: base.fixni?.mesicni?.provoz_nesitove_infrastruktury ?? "",
+          jistic: base.fixni?.mesicni?.jistic ?? "",
         },
       },
       prodej: {

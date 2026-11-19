@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.70
+- Opraven kalendář „Platné od“ v Historii poplatků: kliknutí na datum už editor nezavře a mimo povolený rozsah jej nelze vybrat.
+
 ## 0.3.69
 - Dashboard se obnovuje živě každou sekundu, dokud je okno ve fokusu; při odklopení spí a po návratu hned pokračuje.
 - Při fixním nákupu a dynamickém prodeji se zobrazuje graf „Zítřejší výkupní ceny“ a skrývá se zbytečný zítřejší nákupní graf.
