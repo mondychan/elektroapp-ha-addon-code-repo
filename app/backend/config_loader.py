@@ -1,3 +1,4 @@
+import copy
 import os
 import json
 import yaml
@@ -88,13 +89,42 @@ def merge_config(base, override):
             base[key] = value
     return base
 
+# Parsed fee history keyed by the file signature it was read from.  The live
+# dashboard asks for a price snapshot roughly once per second and every price
+# call resolves the fee snapshot through ``ensure_fee_history``; without this
+# the same small JSON file would be read and parsed a few times per second.
+# Callers get a deep copy because ``ensure_fee_history`` mutates the records it
+# receives (sorting, closing periods, rewriting today's snapshot).
+_FEE_HISTORY_CACHE: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+
+
+def _fee_history_signature():
+    try:
+        stat = FEES_HISTORY_FILE.stat()
+    except OSError:
+        return None
+    return (str(FEES_HISTORY_FILE), stat.st_mtime_ns, stat.st_size)
+
+
+def invalidate_fee_history_cache():
+    """Drop the parsed fee-history cache (writes and tests call this)."""
+    _FEE_HISTORY_CACHE.clear()
+
+
 def load_fee_history():
-    if not FEES_HISTORY_FILE.exists():
+    signature = _fee_history_signature()
+    if signature is None:
         return []
+    cached = _FEE_HISTORY_CACHE.get(signature)
+    if cached is not None:
+        return copy.deepcopy(cached)
     try:
         with open(FEES_HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
+        result = data if isinstance(data, list) else []
+        _FEE_HISTORY_CACHE.clear()
+        _FEE_HISTORY_CACHE[signature] = copy.deepcopy(result)
+        return result
     except (OSError, json.JSONDecodeError, TypeError) as exc:
         logger.error("Unable to read fee history %s: %s", FEES_HISTORY_FILE, exc)
         return []
@@ -155,6 +185,7 @@ def _atomic_write_fee_history(history, *, create_backup=True):
             f.flush()
             os.fsync(f.fileno())
         os.replace(temp_name, FEES_HISTORY_FILE)
+        invalidate_fee_history_cache()
     except Exception:
         try:
             os.unlink(temp_name)

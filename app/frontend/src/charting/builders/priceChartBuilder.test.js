@@ -46,4 +46,19 @@ describe("buildPriceChartConfig", () => {
     });
     expect(config.data.datasets.map((dataset) => dataset.data[0])).toEqual([1.69, null, 6.43]);
   });
+
+  it("renders the export chart from the export price series", () => {
+    const config = buildPriceChartConfig({
+      chartData: [
+        { slot: 0, spot: 2, extra: 0, final: 2 },
+        { slot: 1, spot: -1, extra: 0, final: -1 },
+      ],
+      vtPeriods: [],
+      chartMode: "export",
+    });
+
+    expect(config.data.datasets).toHaveLength(1);
+    expect(config.data.datasets[0].label).toBe("Prodejn\u00ed cena");
+    expect(config.data.datasets[0].data).toEqual([2, -1]);
+  });
 });

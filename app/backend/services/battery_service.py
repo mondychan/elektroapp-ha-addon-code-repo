@@ -23,6 +23,7 @@ class BatteryService:
         get_last_non_null_value: Callable[..., dict[str, Any] | None],
         average_recent_power: Callable[..., float | None],
         safe_query_entity_last_value: Callable[..., dict[str, Any] | None],
+        safe_query_entity_last_values: Callable[..., dict[str, dict[str, Any] | None]] | None = None,
         parse_influx_interval_to_minutes: Callable[..., int],
         query_recent_slot_profile_by_day_type: Callable[..., dict[str, float]],
         build_hybrid_battery_projection: Callable[..., dict[str, Any] | None],
@@ -42,12 +43,195 @@ class BatteryService:
         self._get_last_non_null_value = get_last_non_null_value
         self._average_recent_power = average_recent_power
         self._safe_query_entity_last_value = safe_query_entity_last_value
+        self._safe_query_entity_last_values = safe_query_entity_last_values
         self._parse_influx_interval_to_minutes = parse_influx_interval_to_minutes
         self._query_recent_slot_profile_by_day_type = query_recent_slot_profile_by_day_type
         self._build_hybrid_battery_projection = build_hybrid_battery_projection
         self._build_battery_projection = build_battery_projection
         self._iso_to_display_hhmm = iso_to_display_hhmm
         self._logger = logger
+
+    def get_live_status(self, *, cfg: dict[str, Any], tzinfo=None) -> dict[str, Any]:
+        """Cheap subset of :meth:`get_battery` for the once-per-second dashboard.
+
+        Only the "last value" reads are performed: no history series, no trend
+        smoothing, no 28-day profiles and no projection.  The heavy snapshot
+        endpoint keeps owning those, so the live poll cannot turn a 1 s cadence
+        into a flood of long InfluxDB range queries.
+
+        When the injected service exposes ``safe_query_entity_last_values`` all
+        entities are fetched with a single grouped request per measurement; the
+        per-entity helper remains the fallback so existing test doubles and
+        wiring keep working unchanged.
+        """
+        influx = self._get_influx_cfg(cfg)
+        tzinfo = tzinfo or self._get_local_tz(influx.get("timezone"))
+        battery_cfg = self._get_battery_cfg(cfg)
+        energy_cfg = self._get_energy_entities_cfg(cfg)
+        forecast_cfg = self._get_forecast_solar_cfg(cfg)
+        now_local = datetime.now(tzinfo)
+        selected_date = now_local.strftime("%Y-%m-%d")
+
+        if not battery_cfg.get("enabled"):
+            return {
+                "enabled": False,
+                "configured": False,
+                "date": selected_date,
+                "live": True,
+                "detail": "Battery feature is disabled in config.",
+            }
+        if not self._has_battery_required_cfg(battery_cfg):
+            return {
+                "enabled": True,
+                "configured": False,
+                "date": selected_date,
+                "live": True,
+                "detail": "Missing battery config (soc_entity_id, power_entity_id, usable_capacity_kwh).",
+            }
+
+        kwh_measurements = ["kWh", "Wh"]
+        power_measurements = ["W", "kW"]
+        soc_measurements = ["%", "percent"]
+
+        entities = {
+            "soc": {"entity_id": battery_cfg["soc_entity_id"], "measurements": soc_measurements, "numeric": True},
+            "power": {
+                "entity_id": battery_cfg["power_entity_id"],
+                "measurements": power_measurements,
+                "numeric": True,
+            },
+            "house_load": {"entity_id": energy_cfg.get("house_load_power_entity_id"), "measurements": power_measurements},
+            "grid_import": {"entity_id": energy_cfg.get("grid_import_power_entity_id"), "measurements": power_measurements},
+            "grid_export": {"entity_id": energy_cfg.get("grid_export_power_entity_id"), "measurements": power_measurements},
+            "pv_total": {"entity_id": energy_cfg.get("pv_power_total_entity_id"), "measurements": power_measurements},
+            "pv_1": {"entity_id": energy_cfg.get("pv_power_1_entity_id"), "measurements": power_measurements},
+            "pv_2": {"entity_id": energy_cfg.get("pv_power_2_entity_id"), "measurements": power_measurements},
+            "battery_input_today": {
+                "entity_id": battery_cfg.get("input_energy_today_entity_id"),
+                "measurements": kwh_measurements,
+            },
+            "battery_output_today": {
+                "entity_id": battery_cfg.get("output_energy_today_entity_id"),
+                "measurements": kwh_measurements,
+            },
+        }
+        if forecast_cfg.get("enabled"):
+            entities.update(
+                {
+                    "forecast_power_now": {
+                        "entity_id": forecast_cfg.get("power_now_entity_id"),
+                        "measurements": power_measurements,
+                    },
+                    "forecast_energy_current_hour": {
+                        "entity_id": forecast_cfg.get("energy_current_hour_entity_id"),
+                        "measurements": kwh_measurements,
+                    },
+                }
+            )
+
+        batch = self._safe_query_entity_last_values
+        records = None
+        if callable(batch):
+            try:
+                records = batch(influx, entities, tzinfo=tzinfo, numeric=True)
+            except (HTTPException, RequestException, ValueError, TypeError) as exc:
+                self._logger.warning("Live battery batch query failed, falling back: %s", exc)
+                records = None
+        if not isinstance(records, dict):
+            records = {
+                key: self._safe_query_entity_last_value(
+                    influx,
+                    spec["entity_id"],
+                    tzinfo=tzinfo,
+                    numeric=spec.get("numeric", True),
+                    label=key,
+                    measurement_candidates=spec.get("measurements"),
+                )
+                if spec.get("entity_id")
+                else None
+                for key, spec in entities.items()
+            }
+
+        def _numeric(key):
+            record = records.get(key)
+            if not record or record.get("value") is None:
+                return None
+            val = float(record["value"])
+            if str(record.get("unit") or "").lower() == "kw":
+                return val * 1000.0
+            return val
+
+        def _raw(key):
+            record = records.get(key)
+            return None if not record else record.get("raw_value")
+
+        usable_capacity_kwh = max(0.0, battery_cfg["usable_capacity_kwh"])
+        reserve_soc_percent = max(0.0, min(100.0, battery_cfg["reserve_soc_percent"]))
+        latest_soc = records.get("soc")
+        latest_power = records.get("power")
+        soc_percent = latest_soc.get("value") if latest_soc else None
+        battery_power_w = latest_power.get("value") if latest_power else None
+        clamped_soc = None if soc_percent is None else max(0.0, min(100.0, soc_percent))
+
+        threshold = battery_cfg["min_power_threshold_w"]
+        if battery_power_w is None:
+            battery_state = "unknown"
+        elif battery_power_w > threshold:
+            battery_state = "charging"
+        elif battery_power_w < -threshold:
+            battery_state = "discharging"
+        else:
+            battery_state = "idle"
+
+        return {
+            "enabled": True,
+            "configured": True,
+            "date": selected_date,
+            "is_today": True,
+            "live": True,
+            "timezone": str(tzinfo),
+            "status": {
+                "soc_percent": clamped_soc,
+                "battery_power_w": battery_power_w,
+                "battery_state": battery_state,
+                "min_power_threshold_w": battery_cfg["min_power_threshold_w"],
+                "usable_capacity_kwh": usable_capacity_kwh,
+                "reserve_soc_percent": reserve_soc_percent,
+                "stored_kwh": round(usable_capacity_kwh * clamped_soc / 100.0, 4) if clamped_soc is not None else None,
+                "available_to_reserve_kwh": (
+                    round(usable_capacity_kwh * max(0.0, clamped_soc - reserve_soc_percent) / 100.0, 4)
+                    if clamped_soc is not None
+                    else None
+                ),
+                "remaining_to_full_kwh": (
+                    round(usable_capacity_kwh * max(0.0, 100.0 - clamped_soc) / 100.0, 4)
+                    if clamped_soc is not None
+                    else None
+                ),
+                "last_soc_time": latest_soc.get("time") if latest_soc else None,
+                "last_power_time": latest_power.get("time") if latest_power else None,
+            },
+            "current_energy": {
+                "house_load_w": _numeric("house_load"),
+                "grid_import_w": _numeric("grid_import"),
+                "grid_export_w": _numeric("grid_export"),
+                "pv_power_total_w": _numeric("pv_total"),
+                "pv_power_1_w": _numeric("pv_1"),
+                "pv_power_2_w": _numeric("pv_2"),
+                "battery_input_today_kwh": _numeric("battery_input_today"),
+                "battery_output_today_kwh": _numeric("battery_output_today"),
+            },
+            "forecast_solar": {
+                "enabled": bool(forecast_cfg.get("enabled")),
+                "available": bool(forecast_cfg.get("enabled"))
+                and any(
+                    records.get(key) for key in ("forecast_power_now", "forecast_energy_current_hour")
+                ),
+                "power_now_w": _numeric("forecast_power_now"),
+                "energy_current_hour_kwh": _numeric("forecast_energy_current_hour"),
+            },
+            "server_time": now_local.isoformat(),
+        }
 
     def get_battery(self, *, date: str | None, cfg: dict[str, Any], tzinfo=None) -> dict[str, Any]:
         influx = self._get_influx_cfg(cfg)

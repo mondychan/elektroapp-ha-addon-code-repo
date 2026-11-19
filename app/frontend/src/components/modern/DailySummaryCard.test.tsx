@@ -25,4 +25,19 @@ describe("DailySummaryCard", () => {
     expect(screen.getByText("Export do sítě").closest("tr")!).toHaveClass("daily-summary__row--gain");
     expect(screen.getByText("Netto").closest("tr")!).toHaveClass("daily-summary__row--net-negative");
   });
+
+  test("labels the live house-load power row so it cannot pass for a kWh total", () => {
+    render(
+      <DailySummaryCard
+        costsSummary={{ kwh_total: 3.67, cost_total: 3.17 }}
+        exportSummary={{ export_kwh_total: 0.4, sell_total: 0.78 }}
+        batteryData={{ current_energy: { house_load_w: 12390 } }}
+        solarForecast={null}
+      />
+    );
+
+    const row = screen.getByText("Spotřeba domu (nyní)").closest("tr")!;
+    expect(row).toHaveTextContent("12.39 kW");
+    expect(row).not.toHaveTextContent("kWh");
+  });
 });

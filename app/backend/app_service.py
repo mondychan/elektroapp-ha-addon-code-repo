@@ -39,6 +39,7 @@ from config_loader import (
     get_battery_cfg,
     get_energy_entities_cfg,
     get_forecast_solar_cfg,
+    get_alerts_cfg,
     get_pnd_cfg,
     get_hp_cfg,
     get_solar_overview_cfg,
@@ -111,6 +112,8 @@ from services.solar_service import SolarService
 from services.data_export_service import DataExportService
 from services.recommendation_service import RecommendationService
 from services.solar_overview_service import SolarOverviewService
+from services.live_service import LiveSnapshotService
+from services import alert_service
 
 logger = logging.getLogger("uvicorn.error")
 APP_VERSION = os.getenv("ADDON_VERSION", os.getenv("APP_VERSION", "dev"))
@@ -471,6 +474,7 @@ BATTERY_SERVICE = BatteryService(
     get_last_non_null_value=get_last_non_null_value,
     average_recent_power=average_recent_power,
     safe_query_entity_last_value=INFLUX_SERVICE.safe_query_entity_last_value,
+    safe_query_entity_last_values=INFLUX_SERVICE.safe_query_entity_last_values,
     parse_influx_interval_to_minutes=parse_influx_interval_to_minutes,
     query_recent_slot_profile_by_day_type=lambda influx, eid, tz, target_date, days=28, interval="15m", measurement_candidates=None: 
         INFLUX_SERVICE.query_recent_slot_profile_by_day_type(influx, eid, tz, target_date, days, interval, measurement_candidates),
@@ -607,6 +611,11 @@ def save_config(new_config: dict = Body(...)):
             start_pnd_scheduler()
     if _can_start_dip_scheduler(new_config):
         start_dip_scheduler()
+    # Prices are re-decorated from the fee snapshot on every read, so the values
+    # caches stay valid.  The 1 Hz payload, however, is assembled once per TTL
+    # window; drop it so a fixed/variable switch, a new tariff or an edited fee
+    # shows up on the very next poll rather than up to one second later.
+    reset_live_cache()
     return response
 
 def get_fees_history(cfg=None, tzinfo=None):
@@ -621,6 +630,9 @@ def update_fees_history(payload: dict = Body(...), cfg=None, tzinfo=None):
     if not isinstance(history, list):
         raise HTTPException(status_code=400, detail="Invalid history payload.")
     normalized = update_fees_history_logic(history, tzinfo)
+    # Fee snapshots decorate every price row.  Drop the cached live payload so
+    # an edit shows up on the next 1 Hz poll instead of at the next slot boundary.
+    reset_live_cache()
     return {"history": normalized}
 
 def finalize_initialization():
@@ -725,7 +737,9 @@ def get_prices(date: str = Query(default=None), cfg=None, tzinfo=None):
 
 def refresh_prices(payload: dict = Body(default=None), cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
-    return PRICES_SERVICE.refresh_prices(payload=payload, cfg=cfg, tzinfo=tzinfo)
+    result = PRICES_SERVICE.refresh_prices(payload=payload, cfg=cfg, tzinfo=tzinfo)
+    reset_live_cache()
+    return result
 
 def get_consumption(date=None, start=None, end=None, cfg=None):
     cfg, _ = resolve_config_and_timezone(cfg)
@@ -832,6 +846,91 @@ def get_billing_year(year: int, cfg=None, tzinfo=None):
 def export_monthly_csv(month: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
     return EXPORT_DATA_SERVICE.generate_monthly_csv(cfg, month, tzinfo)
+
+
+# --- Live dashboard (1 Hz while a browser tab is focused) ---
+
+def _live_price_signature(prices, date_str):
+    """Cheap fingerprint of the price rows for ``date_str``.
+
+    The live payload must not be served from a cache created before a price
+    refresh landed, and it must rebuild the moment the clock crosses a slot
+    boundary.  Dates change already through ``current_slot``; this signature only
+    has to notice new/replaced entries.
+    """
+    if not isinstance(prices, list):
+        return None
+    parts = [len(prices)]
+    for item in prices:
+        if not isinstance(item, dict):
+            continue
+        # Only the fields that the live card actually renders; a full deep hash
+        # of every entry once per second is unnecessary work on Little ARM boxes.
+        parts.append(
+            (
+                item.get("time"),
+                item.get("final"),
+                item.get("export_price"),
+                item.get("purchase_fixed"),
+                item.get("sale_fixed"),
+            )
+        )
+    return (date_str, tuple(parts))
+
+
+def _live_get_data(cfg=None, tzinfo=None):
+    """Today's prices plus alerts, both from a single provider call.
+
+    A kitchen wall tablet keeps this request on a 1 s loop.  Both the prices and
+    the alerts therefore come from one call, so the /api/live-dashboard endpoint
+    never asks the price provider twice for the same data in the same second.
+    """
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    now_local = datetime.now(tzinfo)
+    today_str = now_local.strftime("%Y-%m-%d")
+    current_slot = int((now_local.hour * 60 + now_local.minute) / 15)
+
+    # Today only: the live payload feeds one day of tiles and the alert scan
+    # slices at SLOTS_PER_DAY anyway.  Tomorrow's prices are not needed at 1 Hz.
+    prices = PRICES_SERVICE.get_prices(cfg, today_str, tzinfo)
+    threshold_cfg = get_alerts_cfg(cfg)
+    alerts = alert_service.get_price_alerts(
+        prices,
+        current_slot,
+        tzinfo,
+        threshold_cfg.get("low_price_threshold", 1.5),
+        threshold_cfg.get("high_price_threshold", 5.0),
+    )
+    return {"prices": prices, "alerts": alerts}
+
+
+def _live_get_battery(cfg=None, tzinfo=None):
+    """Instantaneous battery counters for the live tiles; heavy data is elsewhere."""
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    return BATTERY_SERVICE.get_live_status(cfg=cfg, tzinfo=tzinfo)
+
+
+LIVE_SERVICE = LiveSnapshotService(
+    get_live_data=_live_get_data,
+    get_battery_live=_live_get_battery,
+    price_signature=_live_price_signature,
+    logger=logger,
+)
+
+
+def reset_live_cache():
+    """Clear the 1 Hz snapshot cache (config edits, tests, price refresh)."""
+    LIVE_SERVICE.reset()
+
+
+async def get_live_dashboard(cfg=None, tzinfo=None):
+    cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)
+    payload = await asyncio.to_thread(
+        LIVE_SERVICE.get_snapshot, cfg=cfg, tzinfo=tzinfo
+    )
+    result = dict(payload)
+    result["version"] = APP_VERSION
+    return result
 
 def export_invoice_detail_csv(month: str, kind: str, cfg=None, tzinfo=None):
     cfg, tzinfo = resolve_config_and_timezone(cfg, tzinfo)

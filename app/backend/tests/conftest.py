@@ -55,6 +55,8 @@ def isolated_storage(monkeypatch, tmp_path, backend_main):
     backend_main.RUNTIME_STATE.pnd_lock_owned = False
     backend_main.RUNTIME_STATE.pnd_lock_path = None
     backend_main.RUNTIME_STATE.ote_unavailable_until_ts = 0.0
+    config_loader.invalidate_fee_history_cache()
+    backend_main.reset_live_cache()
 
     return {
         "storage_dir": storage_dir,

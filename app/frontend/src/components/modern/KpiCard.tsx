@@ -9,6 +9,13 @@ interface KpiCardProps {
   icon?: React.ReactNode;
 }
 
+// The live dashboard repaints battery tiles at 1 Hz; a polite announcement on
+// every pixel change would read the whole KPI grid aloud once per second and
+// drown out navigation.  Cross-fade the number visually, but only announce it
+// when the value has settled for this long (a screen reader then hears one
+// update per real change, not one per poll).
+const ANNOUNCE_SETTLE_MS = 4200;
+
 type AnimatedValueSnapshot = {
   value: string;
   unit?: string | null;
@@ -57,7 +64,7 @@ const AnimatedKpiValue = ({ value, unit }: { value: string; unit?: string | null
   );
 
   return (
-    <span className={`modern-kpi__value-frame ${previous ? "is-animating" : ""}`.trim()} aria-live="polite" aria-atomic="true">
+    <span className={`modern-kpi__value-frame ${previous ? "is-animating" : ""}`.trim()}>
       {previous ? (
         <span key={`prev-${revision}`} className="modern-kpi__value-layer modern-kpi__value-layer--previous" aria-hidden="true">
           {renderLine(previous)}
@@ -70,19 +77,44 @@ const AnimatedKpiValue = ({ value, unit }: { value: string; unit?: string | null
   );
 };
 
-const KpiCard: React.FC<KpiCardProps> = ({ label, value, detail, unit, tone = "neutral", icon }) => (
-  <article className={`modern-kpi modern-kpi--${tone}`.trim()}>
-    <div className="modern-kpi__top">
-      <span className="modern-kpi__label">{label}</span>
-      {icon ? <span className="modern-kpi__icon" aria-hidden="true">{icon}</span> : null}
-    </div>
-    <div className="modern-kpi__value-row">
-      <strong className="modern-kpi__value">
-        <AnimatedKpiValue value={value} unit={unit} />
-      </strong>
-    </div>
-    {detail ? <div className="modern-kpi__detail">{detail}</div> : null}
-  </article>
-);
+const KpiCard: React.FC<KpiCardProps> = ({ label, value, detail, unit, tone = "neutral", icon }) => {
+  const [announcedValue, setAnnouncedValue] = useState(value);
+  const announceTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (announcedValue === value) return undefined;
+    if (announceTimerRef.current != null) {
+      window.clearTimeout(announceTimerRef.current);
+    }
+    announceTimerRef.current = window.setTimeout(() => {
+      setAnnouncedValue(value);
+      announceTimerRef.current = null;
+    }, ANNOUNCE_SETTLE_MS);
+    return () => {
+      if (announceTimerRef.current != null) {
+        window.clearTimeout(announceTimerRef.current);
+        announceTimerRef.current = null;
+      }
+    };
+  }, [value, announcedValue]);
+
+  return (
+    <article className={`modern-kpi modern-kpi--${tone}`.trim()}>
+      <div className="modern-kpi__top">
+        <span className="modern-kpi__label">{label}</span>
+        {icon ? <span className="modern-kpi__icon" aria-hidden="true">{icon}</span> : null}
+      </div>
+      <div className="modern-kpi__value-row">
+        <strong className="modern-kpi__value">
+          <AnimatedKpiValue value={value} unit={unit} />
+        </strong>
+      </div>
+      {detail ? <div className="modern-kpi__detail">{detail}</div> : null}
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {`${label}: ${announcedValue}${unit ? ` ${unit}` : ""}`}
+      </span>
+    </article>
+  );
+};
 
 export default KpiCard;

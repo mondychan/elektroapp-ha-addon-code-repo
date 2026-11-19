@@ -51,6 +51,19 @@ def is_ote_unavailable():
 def utc_now_iso_z():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+def calculate_export_price(spot_kwh: float, fee_snapshot) -> float:
+    """Sale (export) price for one slot derived from a spot commodity price.
+
+    Fixed sale tariff returns the configured ``fixni_cena``; variable sale
+    returns the spot price minus the configured reduction.  Kept in one place so
+    every provider path (spot API, OTE SOAP, HTML fallback) uses the exact same
+    formula.
+    """
+    sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
+    if sale.get("fixni_cena_enabled"):
+        return _safe_float(sale.get("fixni_cena", 0))
+    return spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
+
 def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
     entries = []
     for entry in hours:
@@ -63,9 +76,7 @@ def build_entries_from_api(cfg, date_str, hours, fee_snapshot):
             continue
         spot_kwh = price_czk_mwh / 1000.0
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
-        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
-        sale_fixed = bool(sale.get("fixni_cena_enabled"))
-        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale_fixed else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
+        export_price = calculate_export_price(spot_kwh, fee_snapshot)
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -94,8 +105,7 @@ def build_entries_from_ote(
         minute = item["minute"]
         spot_kwh = (item["price_eur_mwh"] * eur_to_czk_rate) / 1000.0
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
-        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
-        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale.get("fixni_cena_enabled") else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
+        export_price = calculate_export_price(spot_kwh, fee_snapshot)
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -126,8 +136,7 @@ def build_entries_from_spot_html(
         hour, minute = map(int, time_str.split(":"))
         spot_kwh = price_czk / 1000
         final_price = calculate_final_price(spot_kwh, hour, cfg, fee_snapshot)
-        sale = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
-        export_price = _safe_float(sale.get("fixni_cena", 0)) if sale.get("fixni_cena_enabled") else spot_kwh - _safe_float(sale.get("koeficient_snizeni_ceny", 0)) / 1000.0
+        export_price = calculate_export_price(spot_kwh, fee_snapshot)
         entries.append(
             {
                 "time": f"{date_str} {hour:02d}:{minute:02d}",
@@ -304,7 +313,6 @@ def apply_fee_snapshot(
     sale_cfg = fee_snapshot.get("prodej", {}) if isinstance(fee_snapshot, dict) else {}
     sale_fixed = bool(sale_cfg.get("fixni_cena_enabled"))
     sale_fixed_price = _safe_float(sale_cfg.get("fixni_cena", 0))
-    sale_coefficient = _safe_float(sale_cfg.get("koeficient_snizeni_ceny", 0)) / 1000.0
     purchase_cfg = fee_snapshot.get("nakup", {}) if isinstance(fee_snapshot, dict) else {}
     purchase_fixed = bool(purchase_cfg.get("fixni_cena_enabled"))
     dph_percent = _safe_float(fee_snapshot.get("dph_percent", 0))
@@ -312,7 +320,7 @@ def apply_fee_snapshot(
         hour = entry.get("hour", 0)
         spot = entry.get("spot", 0)
         final = calculate_final_price(spot, hour, cfg, fee_snapshot)
-        export_price = sale_fixed_price if sale_fixed else spot - sale_coefficient
+        export_price = calculate_export_price(spot, fee_snapshot)
         adjusted.append({
             **entry,
             "final": final,

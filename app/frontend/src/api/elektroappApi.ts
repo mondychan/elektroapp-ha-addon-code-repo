@@ -1,9 +1,15 @@
 import axios from "axios";
-import { DashboardSnapshotResponse, RecommendationsResponse } from "../types/elektroapp";
+import { DashboardSnapshotResponse, LiveDashboardResponse, RecommendationsResponse } from "../types/elektroapp";
 
-const API_PREFIX = "./api";
+export const API_PREFIX = "./api";
 
-const get = (path: string, params?: any) => axios.get(`${API_PREFIX}${path}`, params ? { params } : undefined).then((res) => res.data);
+const get = (path: string, params?: any, signal?: AbortSignal) =>
+  axios
+    .get(`${API_PREFIX}${path}`, {
+      ...(params ? { params } : {}),
+      ...(signal ? { signal } : {}),
+    })
+    .then((res) => res.data);
 const post = (path: string, payload?: any) => axios.post(`${API_PREFIX}${path}`, payload).then((res) => res.data);
 const put = (path: string, payload?: any) => axios.put(`${API_PREFIX}${path}`, payload).then((res) => res.data);
 const del = (path: string) => axios.delete(`${API_PREFIX}${path}`).then((res) => res.data);
@@ -31,6 +37,7 @@ export const elektroappApi = {
   getSolarForecast: () => get("/solar-forecast"),
   getSolarOverview: (date?: string) => get("/solar-overview", date ? { date } : undefined),
   getDashboardSnapshot: (date?: string): Promise<DashboardSnapshotResponse> => get("/dashboard-snapshot", date ? { date } : undefined),
+  getLiveDashboard: (signal?: AbortSignal): Promise<LiveDashboardResponse> => get("/live-dashboard", undefined, signal),
   getRecommendations: (date?: string): Promise<RecommendationsResponse> => get("/recommendations", date ? { date } : undefined),
   getDiagnostics: () => get("/diagnostics"),
   invalidateCache: (payload: { domain: "prices" | "consumption" | "export" | "pnd" | "all"; date?: string }) => post("/cache/invalidate", payload),

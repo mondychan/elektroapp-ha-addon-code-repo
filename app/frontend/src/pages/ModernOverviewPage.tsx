@@ -12,6 +12,7 @@ import ModernBatteryProjectionCard from "../components/modern/ModernBatteryProje
 import SolarAssistantOverviewCard from "../components/modern/SolarAssistantOverviewCard";
 import { PageMode } from "../components/modern/AppShell";
 import { formatCurrency, formatDate, formatSlotRange } from "../utils/formatters";
+import { buildTomorrowChartPlan } from "../utils/pricePricingModel";
 import {
   getMaxEnergyBalanceAnchor,
   normalizeEnergyBalanceAnchor,
@@ -48,6 +49,10 @@ const ModernOverviewPage = (props: any) => {
     tomorrow,
     todayData,
     tomorrowData,
+    todayExportData,
+    tomorrowExportData,
+    separateExportPrice,
+    separateTomorrowExportPrice,
     config,
     pinnedSlot,
     setPinnedSlot,
@@ -96,7 +101,7 @@ const ModernOverviewPage = (props: any) => {
       }`
     : null;
 
-  const finals = todayData.map((item: any) => item.final);
+  const finals = (todayData || []).map((item: any) => item.final);
   const minPrice = finals.length ? Math.min(...finals) : null;
   const maxPrice = finals.length ? Math.max(...finals) : null;
   const minItem = minPrice != null ? todayData.find((item: any) => item.final === minPrice) : null;
@@ -115,11 +120,23 @@ const ModernOverviewPage = (props: any) => {
         tone: settlementEstimate >= 0 ? "green" : "red",
       }
     : null;
-  const separateExportPrice = (todayData || []).some((item: any) => {
-    const purchase = Number(item.final);
-    const exportPrice = Number(item.exportPrice);
-    return Number.isFinite(purchase) && Number.isFinite(exportPrice) && Math.abs(purchase - exportPrice) > 0.00001;
-  });
+  const purchaseFixed = !!config?.nakup?.fixni_cena_enabled;
+  const saleFixed = !!config?.prodej?.fixni_cena_enabled;
+  const tomorrowPoints = Array.isArray(tomorrowData) ? tomorrowData : [];
+
+  // A fixed direction repeats today's tomorrow chart, so it is dropped.  The
+  // export chart is also gated on the split: without separate charts the
+  // purchase chart already shows the sale series overlaid.
+  const tomorrowChartPlan = React.useMemo(
+    () =>
+      buildTomorrowChartPlan({
+        tomorrowPoints,
+        purchaseFixed,
+        saleFixed,
+        separateTomorrowExportPrice,
+      }),
+    [tomorrowPoints, purchaseFixed, saleFixed, separateTomorrowExportPrice],
+  );
 
   const kpis = [
     { label: "Aktuální cena", value: formatPriceValue(currentPriceNumber), unit: "/kWh", detail: todayData?.[effectiveHighlightSlot]?.time || null, tone: "price" },
@@ -189,7 +206,7 @@ const ModernOverviewPage = (props: any) => {
         {separateExportPrice && (
           <SectionCard title="Výkupní cena dnes" eyebrow="Kč/kWh" className="modern-section-card--wide">
             <PriceChartCard
-              chartData={todayData.map((item: any) => ({ ...item, final: Number(item.exportPrice), extra: Number(item.exportPrice), spot: 0, purchase_fixed: false }))}
+              chartData={todayExportData}
               fallbackMessage="Načítám data..."
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={effectiveHighlightSlot}
@@ -203,7 +220,7 @@ const ModernOverviewPage = (props: any) => {
           </SectionCard>
         )}
 
-        {tomorrowData?.length > 0 && (
+        {tomorrowChartPlan.showPurchaseChart && (
           <SectionCard
             title="Cena elektřiny zítra"
             eyebrow={`Kč/kWh · ${formatDate(tomorrow)}`}
@@ -211,13 +228,33 @@ const ModernOverviewPage = (props: any) => {
           >
             <PriceChartCard
               chartData={tomorrowData}
-              fixedPriceMode={!!config?.nakup?.fixni_cena_enabled}
               fallbackMessage="Data pro zítřek zatím nejsou k dispozici."
               vtPeriods={config?.tarif?.vt_periods}
               highlightSlot={-1}
               pinnedSlot={null}
               onPinSlot={() => {}}
               thresholds={alerts}
+              className="modern-price-chart"
+              height={420}
+            />
+          </SectionCard>
+        )}
+
+        {tomorrowChartPlan.showExportChart && (
+          <SectionCard
+            title="Zítřejší výkupní ceny"
+            eyebrow={`Kč/kWh · ${formatDate(tomorrow)}`}
+            className="modern-section-card--full"
+          >
+            <PriceChartCard
+              chartData={tomorrowExportData}
+              fallbackMessage="Data pro zítřek zatím nejsou k dispozici."
+              vtPeriods={config?.tarif?.vt_periods}
+              highlightSlot={-1}
+              pinnedSlot={null}
+              onPinSlot={() => {}}
+              thresholds={null}
+              chartMode="export"
               className="modern-price-chart"
               height={420}
             />

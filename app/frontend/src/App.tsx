@@ -7,6 +7,7 @@ import EnergyBalanceCard from "./components/EnergyBalanceCard";
 import PriceChartCard from "./components/PriceChartCard";
 
 import { formatSlotToTime, formatBytes } from "./utils/formatters";
+import { hasDifferingPricingModels } from "./utils/pricePricingModel";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { usePageVisibility } from "./hooks/usePageVisibility";
 import { useCurrentSlot } from "./hooks/useCurrentSlot";
@@ -180,7 +181,6 @@ const App: React.FC = () => {
 
   const mapPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
     const rawSpot = Number(p.spot);
-    const spotWithDph = rawSpot * dphMultiplier;
     const final = Number(p.final);
     const fixedPurchase = p.purchase_fixed == null ? !!config?.nakup?.fixni_cena_enabled : !!p.purchase_fixed;
     const pointDphMultiplier = p.dph_percent == null ? dphMultiplier : 1 + Number(p.dph_percent || 0) / 100;
@@ -191,7 +191,7 @@ const App: React.FC = () => {
       slot: i,
       time: formatSlotToTime(i),
       spot: fixedPurchase ? 0 : pointSpotWithDph,
-      extra: fixedPurchase ? final : extra,
+      extra: fixedPurchase ? pointFinal : extra,
       final: pointFinal,
       purchase_fixed_price: p.purchase_fixed_price == null ? undefined : Number(p.purchase_fixed_price) * pointDphMultiplier,
       rawSpot,
@@ -200,22 +200,33 @@ const App: React.FC = () => {
       sale_fixed: p.sale_fixed,
       dph_percent: p.dph_percent,
     };
-  }), [config?.nakup?.fixni_cena, config?.nakup?.fixni_cena_enabled, dphMultiplier]);
+  }), [config?.nakup?.fixni_cena_enabled, dphMultiplier]);
 
   const todayData = useMemo(() => mapPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapPrices]);
   const tomorrowData = useMemo(() => mapPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapPrices]);
   const selectedDatePriceData = useMemo(() => mapPrices(dashboard.selectedDatePrices), [dashboard.selectedDatePrices, mapPrices]);
-  // Compare the actual dated results returned by the backend.  The current
-  // configuration is insufficient for historical ranges where fee snapshots
-  // may use different purchase/sale modes.
-  const showSeparateExportPrice = useMemo(() => {
-    const samples = [...(dashboard.prices || []), ...(dashboard.selectedDatePrices || [])];
-    return samples.some((p: any) => {
-      const purchase = Number(p?.final);
-      const exportPrice = Number(p?.export_price ?? p?.exportPrice);
-      return Number.isFinite(purchase) && Number.isFinite(exportPrice) && Math.abs(purchase - exportPrice) > 0.00001;
-    });
-  }, [dashboard.prices, dashboard.selectedDatePrices]);
+  // Compare the pricing models (fixed vs. spot), never the raw values: the
+  // all-in purchase price always includes fees and VAT while the sale price is
+  // bare, so a value comparison would split every spot/spot chart.  Per-point
+  // flags win over the current config because historical ranges may carry
+  // different fee snapshots.
+  const purchaseFixed = !!config?.nakup?.fixni_cena_enabled;
+  const saleFixed = !!config?.prodej?.fixni_cena_enabled;
+  const pricingModelDefaults = useMemo(
+    () => ({ purchaseFixed, saleFixed }),
+    [purchaseFixed, saleFixed],
+  );
+  const showSeparateExportPrice = useMemo(
+    () => hasDifferingPricingModels(
+      dashboard.selectedDatePrices?.length ? dashboard.selectedDatePrices : dashboard.prices,
+      pricingModelDefaults,
+    ),
+    [dashboard.prices, dashboard.selectedDatePrices, pricingModelDefaults],
+  );
+  const showSeparateTomorrowExportPrice = useMemo(
+    () => hasDifferingPricingModels(dashboard.prices.slice(96, 192), pricingModelDefaults),
+    [dashboard.prices, pricingModelDefaults],
+  );
   const mapExportPrices = useCallback((arr: any[]): PriceItem[] => arr.map((p, i) => {
     const rawSpot = Number(p.spot);
     const saleFixed = p.sale_fixed == null ? !!config?.prodej?.fixni_cena_enabled : !!p.sale_fixed;
@@ -227,6 +238,7 @@ const App: React.FC = () => {
     return { slot: i, time: formatSlotToTime(i), spot: 0, extra: exportValue, final: exportValue, rawSpot, exportPrice: exportValue, purchase_fixed: p.purchase_fixed, sale_fixed: p.sale_fixed, dph_percent: p.dph_percent };
   }), [config?.prodej?.fixni_cena, config?.prodej?.fixni_cena_enabled, config?.prodej?.koeficient_snizeni_ceny]);
   const todayExportData = useMemo(() => mapExportPrices(dashboard.prices.slice(0, 96)), [dashboard.prices, mapExportPrices]);
+  const tomorrowExportData = useMemo(() => mapExportPrices(dashboard.prices.slice(96, 192)), [dashboard.prices, mapExportPrices]);
 
   const configRows = useMemo(() => {
     if (!config) return [];
@@ -353,6 +365,10 @@ const App: React.FC = () => {
           tomorrow={tomorrow}
           todayData={todayData}
           tomorrowData={tomorrowData}
+          todayExportData={todayExportData}
+          tomorrowExportData={tomorrowExportData}
+          separateExportPrice={showSeparateExportPrice}
+          separateTomorrowExportPrice={showSeparateTomorrowExportPrice}
           pinnedSlot={pinnedSlot}
           setPinnedSlot={setPinnedSlot}
           effectiveHighlightSlot={effectiveHighlightSlot}
@@ -450,13 +466,13 @@ const App: React.FC = () => {
         {showSeparateExportPrice && <SectionCard title="Výkupní cena dnes" className="modern-section-card--wide">
           <PriceChartCard
             chartData={todayExportData}
-            fixedPriceMode
             fallbackMessage="Načítám data..."
             vtPeriods={config?.tarif?.vt_periods}
             highlightSlot={effectiveHighlightSlot}
             pinnedSlot={pinnedSlot}
             onPinSlot={setPinnedSlot}
-            thresholds={dashboard.alerts}
+            thresholds={null}
+            chartMode="export"
             className="modern-price-chart"
           />
         </SectionCard>}
@@ -579,7 +595,8 @@ const App: React.FC = () => {
         setTheme={setTheme}
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
-        lastUpdatedAt={(dashboard as any).lastUpdatedAt}
+        lastUpdatedAt={(dashboard as any).lastLiveAt || (dashboard as any).lastUpdatedAt}
+        liveActive={Boolean((dashboard as any).liveActive)}
         refreshing={dashboard.pricesRefreshLoading}
         onRefresh={refreshPrices}
         version={dashboard.version}

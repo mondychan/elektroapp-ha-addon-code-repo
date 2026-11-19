@@ -47,6 +47,8 @@ interface AppShellProps {
   refreshing?: boolean;
   onRefresh: () => void;
   version?: string | null;
+  /** True while the 1 Hz live poll runs (tab focused and visible). */
+  liveActive?: boolean;
   children: React.ReactNode;
 }
 
@@ -78,11 +80,20 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
   </span>
 );
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const localDayValue = (dt: Date) => `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+
 const formatUpdated = (value?: string | null) => {
   if (!value) return "Aktualizováno: -";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return "Aktualizováno: -";
-  return `Aktualizováno: dnes ${dt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}`;
+  const dayLabel = localDayValue(dt) === localDayValue(new Date()) ? "dnes" : localDayValue(dt);
+  return `Aktualizováno: ${dayLabel} ${dt.toLocaleTimeString("cs-CZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}`;
 };
 
 const NavButton = ({
@@ -120,6 +131,7 @@ const AppShell: React.FC<AppShellProps> = ({
   refreshing,
   onRefresh,
   version,
+  liveActive = false,
   children,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -289,7 +301,17 @@ const AppShell: React.FC<AppShellProps> = ({
           </div>
 
           <div className="modern-topbar__controls">
-            <span className="modern-updated">{formatUpdated(lastUpdatedAt)}</span>
+            <span
+              className={`modern-updated ${liveActive ? "is-live" : "is-paused"}`.trim()}
+              title={
+                liveActive
+                  ? "Živá data, obnovováno každou sekundu"
+                  : "Živá data pozastavena (okno není aktivní)"
+              }
+            >
+              <span className="modern-live-dot" aria-hidden="true" />
+              <span className="modern-updated__text">{formatUpdated(lastUpdatedAt)}</span>
+            </span>
             <button type="button" className="modern-icon-button" onClick={onRefresh} disabled={refreshing} aria-label="Obnovit data" title="Obnovit data">
               {refreshing ? "..." : <IconRefresh size={18} />}
             </button>

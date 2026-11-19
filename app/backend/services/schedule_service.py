@@ -4,6 +4,22 @@ from datetime import datetime, timedelta
 from typing import Any, Callable
 
 
+def _purchase_fixed_for_entries(entries: list[dict[str, Any]]) -> bool | None:
+    """Whether every priced entry of a day uses the fixed purchase tariff.
+
+    Returns ``None`` when the payload carries no ``purchase_fixed`` flags at all
+    (legacy caches), so callers can keep their old note behaviour.
+    """
+    flags = [
+        bool(entry.get("purchase_fixed"))
+        for entry in entries
+        if entry.get("purchase_fixed") is not None
+    ]
+    if not flags:
+        return None
+    return all(flags)
+
+
 class ScheduleService:
     def __init__(self, *, get_prices_for_date: Callable[..., list[dict[str, Any]]]):
         self._get_prices_for_date = get_prices_for_date
@@ -24,12 +40,14 @@ class ScheduleService:
         min_start = next_slot(now)
         slots = int((duration + 14) // 15)
         candidates = []
+        fixed_flags: list[bool | None] = []
 
         for date_obj in (today, tomorrow):
             date_str = date_obj.strftime("%Y-%m-%d")
             entries = self._get_prices_for_date(cfg, date_str, tzinfo)
             if not entries:
                 continue
+            fixed_flags.append(_purchase_fixed_for_entries(entries))
             entries_sorted = sorted(entries, key=lambda x: x["time"])
             if len(entries_sorted) < slots:
                 continue
@@ -55,7 +73,12 @@ class ScheduleService:
         if not candidates:
             return {"duration": duration, "recommendations": [], "note": "Data nejsou k dispozici."}
 
-        candidates.sort(key=lambda x: (x["avg_price"], x["start"]))
+        # A fixed purchase tariff charges the same price in every slot and the
+        # duration is constant, so ``avg_price`` and ``total_cost`` are equal and
+        # the bottom of the ranking is "earliest window".  Say that explicitly
+        # instead of pretending the prices differ.
+        all_fixed = bool(fixed_flags) and all(flag is True for flag in fixed_flags)
+        candidates.sort(key=lambda x: (x["start"],) if all_fixed else (x["avg_price"], x["start"]))
         results = []
         for item in candidates:
             start_dt = datetime.strptime(item["start"], "%Y-%m-%d %H:%M").replace(tzinfo=tzinfo)
@@ -76,5 +99,9 @@ class ScheduleService:
         return {
             "duration": duration,
             "recommendations": results,
-            "note": None,
+            "note": (
+                "Fixní nákupní tarif: cena je stejná ve všech časech, doporučení jsou seřazena od nejbližšího termínu."
+                if all_fixed
+                else None
+            ),
         }

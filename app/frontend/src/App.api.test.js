@@ -24,6 +24,7 @@ vi.mock("./api/elektroappApi", () => ({
     saveFeesHistory: vi.fn(),
     getSchedule: vi.fn(),
     getDashboardSnapshot: vi.fn(),
+    getLiveDashboard: vi.fn(),
     getSolarForecast: vi.fn(),
     getPndStatus: vi.fn(),
     getPndCacheStatus: vi.fn(),
@@ -98,6 +99,16 @@ describe("App API states", () => {
       version: "test"
     });
     elektroappApi.getSolarForecast.mockResolvedValue(null);
+    elektroappApi.getLiveDashboard.mockResolvedValue({
+      date: "2026-01-01",
+      current_slot: 32,
+      prices: [],
+      alerts: {},
+      battery: null,
+      server_time: "2026-01-01T12:00:00+01:00",
+      server_epoch_ms: 1767268800000,
+      version: "test",
+    });
     elektroappApi.getPndStatus.mockResolvedValue({ enabled: false, configured: false, healthy: false, days_count: 0 });
     elektroappApi.getPndCacheStatus.mockResolvedValue({});
     elektroappApi.verifyPnd.mockResolvedValue({ ok: true, message: "verify ok" });

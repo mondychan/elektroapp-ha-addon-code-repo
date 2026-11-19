@@ -1,0 +1,7 @@
+- Živý dashboard: dlaždice a karty se obnovují každou sekundu, dokud je okno ve fokusu a viditelné; při přepnutí jinam, minimalizaci nebo skrytí karty se dotazování zastaví a po návratu okamžitě pokračuje.
+- Zítřejší grafy: při fixním nákupu a dynamickém prodeji se zobrazí „Zítřejší výkupní ceny“, zbytečný zítřejší nákupní graf (stejný jako dnešní) se skrývá.
+- Fixní ceny: jednotný výpočet výkupní ceny pro všechny zdroje cen (spot API, OTE, HTML záložní zdroj), poplatky se aplikují na každou cestu načtení cen.
+- Upozornění na ceny respektují fixní nákup („FIXNÍ CENA“, bez nabádání k přesunu spotřeby) a plánovač řadí fixní tarif podle nejbližšího termínu.
+- Baterie: levné načítání posledních hodnot pro 1 Hz obnovu, těžká historie a projekce zůstávají v dashboard snapshotu; výpadek baterie nesráží ceny ani upozornění.
+- Výkon: dávkový dotaz na InfluxDB místo jednoho dotazu na entitu, cache parsované historie poplatků podle změny souboru, sdílená cache živého snapshotu (TTL 0,85 s) se single-flight, aby více otevřených karet neduplikovalo čtení.
+- Ruční obnovení cen a úprava historie poplatků okamžitě invalidují cache živého snapshotu.

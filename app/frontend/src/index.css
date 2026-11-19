@@ -2593,6 +2593,57 @@ body[data-theme="light"] .modern-topbar {
   color: var(--text-muted);
   font-size: 0.82rem;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.modern-updated__text {
+  font-variant-numeric: tabular-nums;
+}
+
+.modern-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--text-muted);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modern-updated.is-live .modern-live-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: modern-live-pulse 2s ease-out infinite;
+}
+
+.modern-updated.is-live {
+  color: var(--text);
+}
+
+.modern-updated.is-paused .modern-live-dot {
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+
+@keyframes modern-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-updated.is-live .modern-live-dot {
+    animation: none;
+    box-shadow: none;
+  }
 }
 
 .modern-icon-button {

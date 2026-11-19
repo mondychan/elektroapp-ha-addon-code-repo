@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.69
+- Dashboard se obnovuje živě každou sekundu, dokud je okno ve fokusu; při odklopení spí a po návratu hned pokračuje.
+- Při fixním nákupu a dynamickém prodeji se zobrazuje graf „Zítřejší výkupní ceny“ a skrývá se zbytečný zítřejší nákupní graf.
+- Jednotný výpočet výkupní ceny a poplatků pro všechny zdroje cen; upozornění i plánovač respektují fixní nákup.
+- Levnější čtení baterie (dávkový dotaz), cache historie poplatků a sdílená cache živých dat pro více otevřených karet.
+- Opravy drobných chyb v zobrazení (aria oznámení KPI, jednotka aktuální spotřeby domu).
+
 ## 0.3.68
 - Fixní nákupní graf rozděluje distribuční poplatky dole a obchodní část nahoře.
 - Výkupní graf používá jedinou legendu „Prodejní cena“ a rozlišuje kladnou/zápornou cenu barvou.

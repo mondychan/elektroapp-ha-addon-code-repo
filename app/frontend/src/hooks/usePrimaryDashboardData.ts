@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildInfluxError, elektroappApi, formatApiError } from "../api/elektroappApi";
 import { getTodayDateStr } from "./dashboardUtils";
+import { useLiveDashboard } from "./useLiveDashboard";
 import {
   Config,
   BatteryData,
@@ -11,6 +12,7 @@ import {
   RecommendationsResponse,
   DiagnosticsSummary,
   RawPriceEntry,
+  LiveDashboardResponse,
 } from "../types/elektroapp";
 
 interface UsePrimaryDashboardDataProps {
@@ -20,7 +22,12 @@ interface UsePrimaryDashboardDataProps {
   isPageVisible: boolean;
 }
 
-export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshEnabled, isPageVisible }: UsePrimaryDashboardDataProps) => {
+export const usePrimaryDashboardData = ({
+  selectedDate,
+  showConfig,
+  autoRefreshEnabled,
+  isPageVisible,
+}: UsePrimaryDashboardDataProps) => {
   const [prices, setPrices] = useState<RawPriceEntry[]>([]);
   const [selectedDatePrices, setSelectedDatePrices] = useState<RawPriceEntry[]>([]);
   const [selectedDatePricesLoading, setSelectedDatePricesLoading] = useState(false);
@@ -64,6 +71,46 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const todayDate = useMemo(() => getTodayDateStr(), []);
+
+  // Mirror of the live payload for the heavy refresh callback; a ref keeps the
+  // callback stable while the payload changes once per second.
+  const liveDataRef = useRef<LiveDashboardResponse | null>(null);
+
+  const live = useLiveDashboard({
+    active: autoRefreshEnabled && isPageVisible,
+    onError: (err) => {
+      console.error("Live dashboard poll failed:", err);
+      setBatteryError((prev) => prev ?? buildInfluxError(err));
+    },
+  });
+
+  // Live overlay: the 1 Hz payload only owns the fast-moving fields (current
+  // battery status and the active price alert).  The heavy snapshot keeps the
+  // history, projections and cost totals; overwriting those with the live
+  // subset would blink them out once per second.
+  useEffect(() => {
+    const livePayload = live.data;
+    liveDataRef.current = livePayload;
+    if (!livePayload) return;
+    setAlerts((prev: any) => {
+      if (!prev) return livePayload.alerts;
+      return { ...prev, ...(livePayload.alerts || {}) };
+    });
+    // Battery tiles: the live payload carries the instantaneous counters, the
+    // heavy snapshot carries history/projection.  Overlay only what moves so the
+    // chart behind it is not rebuilt from an empty history every second.
+    const liveBattery = livePayload.battery;
+    if (liveBattery && liveBattery.status) {
+      setBatteryData((prev: BatteryData | null) => {
+        const base = prev ?? { enabled: liveBattery.enabled };
+        return {
+          ...base,
+          ...liveBattery,
+          status: { ...(prev?.status || {}), ...(liveBattery.status || {}) },
+        } as BatteryData;
+      });
+    }
+  }, [live.data]);
 
   const refreshConfig = useCallback(async () => {
     const [configData, versionData] = await Promise.all([
@@ -128,7 +175,6 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
       setComparisonLoading(false);
       setSolarForecastLoading(false);
       setSolarOverviewLoading(false);
-      setBatteryLoading(false);
     }
   }, [todayDate]);
 
@@ -138,7 +184,18 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
     setBatteryError(null);
     try {
       const data = await elektroappApi.getBattery();
-      setBatteryData(data);
+      // The live poll owns the fast fields while it is active; the heavy
+      // refresh only fills in history, projection and profiles.  Merging
+      // keeps the live tiles from flickering back to the previous minute.
+      const liveData = liveDataRef.current;
+      const liveStatus = liveData?.battery?.status;
+      const mergedStatus =
+        liveStatus && data?.status ? { ...data.status, ...liveStatus } : data?.status;
+      setBatteryData(
+        liveStatus && data
+          ? { ...data, status: mergedStatus }
+          : data
+      );
       setLastUpdatedAt(new Date().toISOString());
     } catch (err) {
       console.error("Error fetching battery data:", err);
@@ -202,6 +259,10 @@ export const usePrimaryDashboardData = ({ selectedDate, showConfig, autoRefreshE
 
   return {
     prices,
+    live,
+    lastLiveAt: live.lastSuccessAt,
+    liveActive: Boolean(autoRefreshEnabled) && isPageVisible && live.isPolling && live.error == null,
+    isLivePolling: live.isPolling,
     selectedDatePrices,
     selectedDatePricesLoading,
     selectedDatePricesError,

@@ -217,7 +217,9 @@ export interface PriceItem {
   rawSpot: number;
   exportPrice?: number;
   purchase_fixed?: boolean;
+  purchase_fixed_price?: number;
   sale_fixed?: boolean;
+  sale_fixed_price?: number;
   dph_percent?: number;
 }
 
@@ -233,6 +235,70 @@ export interface RawPriceEntry {
   sale_fixed?: boolean;
   sale_fixed_price?: number;
   dph_percent?: number;
+}
+
+export interface PriceAlerts {
+  current_price?: number;
+  min_price_today?: number;
+  max_price_today?: number;
+  is_cheap_now?: boolean;
+  is_expensive_now?: boolean;
+  is_fixed_now?: boolean;
+  next_cheap_start?: string | null;
+  next_cheap_price?: number | null;
+  recommendation?: string;
+}
+
+export interface BatteryLiveEnergy {
+  house_load_w?: number | null;
+  grid_import_w?: number | null;
+  grid_export_w?: number | null;
+  pv_power_total_w?: number | null;
+  pv_power_1_w?: number | null;
+  pv_power_2_w?: number | null;
+  battery_input_today_kwh?: number | null;
+  battery_output_today_kwh?: number | null;
+}
+
+export interface BatteryLiveStatus {
+  enabled: boolean;
+  configured: boolean;
+  date?: string;
+  live?: boolean;
+  timezone?: string;
+  detail?: string;
+  status?: {
+    soc_percent?: number | null;
+    battery_power_w?: number | null;
+    battery_state?: "charging" | "discharging" | "idle" | "unknown";
+    min_power_threshold_w?: number;
+    usable_capacity_kwh?: number;
+    reserve_soc_percent?: number;
+    stored_kwh?: number | null;
+    available_to_reserve_kwh?: number | null;
+    remaining_to_full_kwh?: number | null;
+    last_soc_time?: string | null;
+    last_power_time?: string | null;
+  };
+  current_energy?: BatteryLiveEnergy;
+  forecast_solar?: {
+    enabled?: boolean;
+    available?: boolean;
+    power_now_w?: number | null;
+    energy_current_hour_kwh?: number | null;
+  };
+  server_time?: string;
+}
+
+export interface LiveDashboardResponse {
+  date: string;
+  current_slot: number;
+  prices: RawPriceEntry[];
+  alerts: PriceAlerts;
+  battery: BatteryLiveStatus | null;
+  server_time: string;
+  server_epoch_ms?: number;
+  version?: string;
 }
 
 export interface BatteryData {

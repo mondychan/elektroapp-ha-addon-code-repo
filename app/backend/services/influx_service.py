@@ -230,6 +230,153 @@ class InfluxService:
             self.logger.warning("Optional entity query failed (%s / %s): %s", label or "entity", entity_id, exc)
             return None
 
+    def _record_from_value(self, raw_value, ts, tzinfo, numeric, measurement):
+        """Shape one ``last()`` row exactly like :meth:`query_entity_last_value`."""
+        value = raw_value
+        if numeric and raw_value is not None:
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                value = None
+        tz = tzinfo or timezone.utc
+        ts_dt_utc = datetime.fromtimestamp(ts, tz=timezone.utc)
+        return {
+            "time": ts_dt_utc.astimezone(tz).isoformat(),
+            "time_utc": to_rfc3339(ts_dt_utc),
+            "value": value,
+            "raw_value": raw_value,
+            "unit": measurement,
+        }
+
+    def query_entity_last_values(
+        self,
+        influx,
+        entities,
+        tzinfo=None,
+        lookback_hours=72,
+        numeric=True,
+        measurement_candidates=None,
+    ):
+        """Batch variant of :meth:`query_entity_last_value`.
+
+        ``entities`` maps a caller-chosen key to the spec of one entity::
+
+            {"soc": {"entity_id": "sensor.x", "measurements": ["%", "percent"]},
+             "pv":  {"entity_id": "sensor.y"}}          # falls back to shared list
+
+        All entities of one measurement are resolved with a *single* InfluxQL
+        request (``GROUP BY "entity_id"``) instead of one HTTP round-trip per
+        entity, which is what makes the once-per-second live dashboard safe for
+        a Home Assistant host.  Missing entities simply do not appear in the
+        result; keys with an empty ``entity_id`` are skipped.
+        """
+        specs = {
+            key: spec
+            for key, spec in (entities or {}).items()
+            if isinstance(spec, dict) and isinstance(spec.get("entity_id"), str) and spec["entity_id"].strip()
+        }
+        if not specs:
+            return {}
+
+        end_utc = datetime.now(timezone.utc)
+        start_utc = end_utc - timedelta(hours=max(1, int(lookback_hours)))
+        field = quote_influx_identifier(influx["field"])
+
+        # requested entity id -> caller key(s)
+        owners = {}
+        for key, spec in specs.items():
+            owners.setdefault(spec["entity_id"], []).append(key)
+
+        # Candidate id -> (requested id, measurement).  Candidate spellings come from
+        # the same helper the per-entity query uses, so both paths agree.
+        candidates = {}
+        for key, spec in specs.items():
+            measurements = spec.get("measurements")
+            for measurement in self.get_measurement_candidates(
+                influx, measurements if measurements is not None else measurement_candidates
+            ):
+                for candidate in self.get_entity_id_candidates(spec["entity_id"]):
+                    candidates.setdefault(candidate, (spec["entity_id"], measurement))
+
+        resolved = {}
+        pending_measurements = [c[1] for c in candidates.values()]
+        # Preserve candidate order (preferred list first, configured last) while
+        # de-duplicating the measurements.
+        ordered_measurements = []
+        for measurement in pending_measurements:
+            if measurement not in ordered_measurements:
+                ordered_measurements.append(measurement)
+
+        unresolved = set(specs)
+        for measurement in ordered_measurements:
+            if not unresolved:
+                break
+            ids = [
+                candidate
+                for candidate, (owner, candidate_measurement) in candidates.items()
+                if candidate_measurement == measurement
+            ]
+            if not ids:
+                continue
+            from_clause = build_influx_from_clause_for_measurement(influx, measurement)
+            predicate = " OR ".join(
+                f'"entity_id"=\'{escape_influx_tag_value(candidate)}\'' for candidate in ids
+            )
+            q = (
+                f'SELECT last({field}) AS "value" '
+                f"FROM {from_clause} "
+                f"WHERE time >= '{to_rfc3339(start_utc)}' AND time <= '{to_rfc3339(end_utc)}' "
+                f"AND ({predicate}) "
+                f'GROUP BY "entity_id"'
+            )
+            try:
+                data = self.influx_query(influx, q)
+            except (HTTPException, requests.RequestException, ValueError, TypeError) as exc:
+                self.logger.warning("Batch last-value query failed for measurement %s: %s", measurement, exc)
+                continue
+            series_list = data.get("results", [{}])[0].get("series") or []
+            for series in series_list:
+                matched = (series.get("tags") or {}).get("entity_id")
+                if not matched or matched not in candidates:
+                    continue
+                owner_entity = candidates[matched][0]
+                for key in owners.get(owner_entity, []):
+                    if key in resolved:
+                        continue
+                    spec = specs[key]
+                    entity_numeric = spec.get("numeric", numeric)
+                    values = series.get("values") or []
+                    if not values:
+                        continue
+                    # ``SELECT last(...) ... GROUP BY "entity_id"`` yields one
+                    # ``[timestamp, value]`` row per series; be tolerant of a bare
+                    # scalar as well.
+                    row = values[-1]
+                    if isinstance(row, (list, tuple)):
+                        ts, raw_value = row[0], row[-1]
+                    else:
+                        ts, raw_value = values[0], row
+                    resolved[key] = self._record_from_value(
+                        raw_value, ts, tzinfo, entity_numeric, measurement
+                    )
+                    unresolved.discard(key)
+        return resolved
+
+    def safe_query_entity_last_values(self, influx, entities, tzinfo=None, **kwargs):
+        """Batch last-value query that never raises; missing keys map to ``None``.
+
+        Only the exceptions understood by the per-entity helper are swallowed; a
+        genuine programming error must still surface instead of turning the live
+        dashboard into a silent wall of ``None``.
+        """
+        keys = list((entities or {}).keys())
+        try:
+            records = self.query_entity_last_values(influx, entities, tzinfo=tzinfo, **kwargs)
+        except (HTTPException, requests.RequestException, ValueError, TypeError) as exc:
+            self.logger.warning("Batch last-value query failed: %s", exc)
+            records = {}
+        return {key: records.get(key) for key in keys}
+
     def query_recent_slot_profile_by_day_type(
         self,
         influx,

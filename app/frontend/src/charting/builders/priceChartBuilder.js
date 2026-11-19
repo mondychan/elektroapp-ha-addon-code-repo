@@ -48,6 +48,17 @@ export const buildPriceChartConfig = ({
   const variableBackground = [];
   const exportMode = chartMode === "export";
   const fixedPriceModeOnly = chartData.every((item) => (item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed));
+  // A fixed purchase price can still be split into the fixed commodity and the
+  // regulated fees/distribution.  Without that split the whole price belongs to
+  // the bottom series and must not be labelled as "fees only".
+  const hasFixedCommodity = chartData.some(
+    (item) =>
+      (item.purchase_fixed == null ? fixedPriceMode : !!item.purchase_fixed) &&
+      Number.isFinite(Number(item.purchase_fixed_price)) &&
+      item.purchase_fixed_price !== 0,
+  );
+  const feesLabel = fixedPriceModeOnly ? (hasFixedCommodity ? "Distribuční poplatky" : "Fixní cena") : "Fixní složka";
+  const commodityLabel = hasFixedCommodity ? "Fixní cena (komodita)" : "Variabilní složka";
 
   chartData.forEach((item) => {
     let fixed = null;
@@ -115,7 +126,7 @@ export const buildPriceChartConfig = ({
     : [
         {
           type: "bar",
-          label: fixedPriceModeOnly ? "Distribuční poplatky" : "Fixní složka",
+          label: feesLabel,
           data: dataFixed,
           backgroundColor: fixedColor,
           borderRadius: 5,
@@ -139,7 +150,7 @@ export const buildPriceChartConfig = ({
         },
         {
           type: "bar",
-          label: fixedPriceModeOnly ? "Obchodní část" : "Variabilní složka",
+          label: commodityLabel,
           data: dataVariable,
           backgroundColor: variableBackground.map((color, index) => (dataVariable[index] != null ? (dataVariable[index] < 0 ? negativeColor : variableColor) : color)),
           borderRadius: 5,
@@ -208,18 +219,30 @@ export const buildPriceChartConfig = ({
 
           const sections = [];
           const pointFixedPriceMode = point.purchase_fixed == null ? fixedPriceMode : !!point.purchase_fixed;
-          if (pointFixedPriceMode) {
-            sections.push({ label: "Fixní složka", value: `${point.purchase_fixed_price?.toFixed(2) ?? point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
-            const variablePart = Number(point.final) - Number(point.purchase_fixed_price ?? point.final);
-            if (variablePart) sections.push({ label: "Variabilní složka", value: `${variablePart.toFixed(2)} Kč`, color: variableColor });
+          const commodity = Number(point.purchase_fixed_price);
+          const hasCommoditySplit = pointFixedPriceMode && Number.isFinite(commodity);
+
+          if (hasCommoditySplit) {
+            const fees = Number(point.final) - commodity;
+            sections.push({
+              label: "Distribuční poplatky",
+              value: `${Number.isFinite(fees) ? fees.toFixed(2) : "-"} Kč`,
+              color: fixedColor,
+            });
+            sections.push({
+              label: "Fixní cena (komodita)",
+              value: `${commodity.toFixed(2)} Kč`,
+              color: variableColor,
+            });
+          } else if (pointFixedPriceMode) {
+            sections.push({ label: "Fixní cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
           } else {
             sections.push({ label: "Fixní složka", value: `${point.extra?.toFixed(2) ?? "-"} Kč`, color: fixedColor });
-          }
-
-          if (!pointFixedPriceMode && point.spot < 0) {
-            sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
-          } else if (!pointFixedPriceMode) {
-            sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: variableColor });
+            if (point.spot < 0) {
+              sections.push({ label: "Záporná var. složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: coveredNegativeColor });
+            } else {
+              sections.push({ label: "Variabilní složka", value: `${point.spot?.toFixed(2) ?? "-"} Kč`, color: variableColor });
+            }
           }
 
           sections.push({ label: "Konečná cena", value: `${point.final?.toFixed(2) ?? "-"} Kč`, color: theme.text });

@@ -33,6 +33,9 @@ const flowMeta: Record<FlowTone, { label: string }> = {
   },
 };
 
+// See KpiCard: 1 Hz live data must not be narrated by aria-live at 1 Hz.
+const ANNOUNCE_SETTLE_MS = 4200;
+
 type AnimatedValueSnapshot = {
   value: string;
   detail?: string | null;
@@ -152,6 +155,28 @@ const FlowNode = ({
   const [revision, setRevision] = useState(0);
   const currentRef = useRef<AnimatedValueSnapshot>({ value, detail });
   const cleanupTimerRef = useRef<number | null>(null);
+  // Mirror of KpiCard: the live poll can change power readings every second,
+  // so a polite aria-live on the animated frame would narrate the whole flow
+  // diagram at 1 Hz.  Announce only a value that has settled.
+  const [announcedValue, setAnnouncedValue] = useState(value);
+  const announceTimerRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (announcedValue === value) return undefined;
+    if (announceTimerRef.current != null) {
+      window.clearTimeout(announceTimerRef.current);
+    }
+    announceTimerRef.current = window.setTimeout(() => {
+      setAnnouncedValue(value);
+      announceTimerRef.current = null;
+    }, ANNOUNCE_SETTLE_MS);
+    return () => {
+      if (announceTimerRef.current != null) {
+        window.clearTimeout(announceTimerRef.current);
+        announceTimerRef.current = null;
+      }
+    };
+  }, [value, announcedValue]);
 
   useLayoutEffect(() => {
     const next = { value, detail };
@@ -194,7 +219,7 @@ const FlowNode = ({
         {icon}
       </span>
       <span className="energy-flow-node__label">{label}</span>
-      <strong className="energy-flow-node__value energy-flow-node__value-frame" aria-live="polite" aria-atomic="true">
+      <strong className="energy-flow-node__value energy-flow-node__value-frame">
         {previous ? (
           <span key={`prev-${revision}`} className="energy-flow-node__value-layer energy-flow-node__value-layer--previous" aria-hidden="true">
             {renderSnapshot(previous)}
@@ -204,6 +229,9 @@ const FlowNode = ({
           {renderSnapshot(current)}
         </span>
       </strong>
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {`${label}: ${announcedValue}`}
+      </span>
     </div>
   );
 };

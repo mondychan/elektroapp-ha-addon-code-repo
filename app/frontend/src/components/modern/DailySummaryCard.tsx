@@ -41,7 +41,15 @@ const DailySummaryCard = ({
 
   const rows = [
     { label: "Vyrobeno (FV)", today: formatKwh(production), cost: "-", tone: "neutral" as SummaryTone },
-    { label: "Spotřeba domu", today: formatPowerKw(houseLoad), cost: "-", tone: "neutral" as SummaryTone },
+    // "Dnes" is a kWh column elsewhere in this table.  Label the live power row
+    // so it cannot be read as a daily kWh total, and keep it out of the money
+    // tone logic: it is an instantaneous reading, not a settled cost.
+    {
+      label: "Spotřeba domu (nyní)",
+      today: formatPowerKw(houseLoad),
+      cost: "-",
+      tone: "neutral" as SummaryTone,
+    },
     { label: "Import ze sítě", today: formatKwh(importKwh), cost: formatCurrency(importCost), tone: getSummaryTone("cost", importCost) },
     { label: "Export do sítě", today: formatKwh(exportKwh), cost: formatCurrency(exportRevenue), tone: getSummaryTone("gain", exportRevenue) },
     { label: "Netto", today: "-", cost: formatCurrency(netCost), tone: getSummaryTone("net", netCost) },

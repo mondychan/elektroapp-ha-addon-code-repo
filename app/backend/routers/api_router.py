@@ -309,3 +309,8 @@ def get_recommendations(params: RecommendationQuery = Depends(), ctx: RequestCon
 @router.get("/dashboard-snapshot")
 async def get_dashboard_snapshot(params: OptionalDateQuery = Depends(), ctx: RequestContext = Depends(get_request_context)):
     return await svc.get_dashboard_snapshot(date=params.date, cfg=ctx.config, tzinfo=ctx.tzinfo)
+
+
+@router.get("/live-dashboard")
+async def get_live_dashboard(ctx: RequestContext = Depends(get_request_context)):
+    return await svc.get_live_dashboard(cfg=ctx.config, tzinfo=ctx.tzinfo)
