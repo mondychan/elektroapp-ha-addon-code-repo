@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.71
+- Ukládání historie poplatků posílá správný formát snapshotu (dph_percent / kwh_fees / fixed), takže úprava staršího období už neskončí chybou 400.
+- Neznámá pole ve snapshotu historie se při úpravě zachovají (nic se tiše nezahazuje).
+
 ## 0.3.70
 - Opraven kalendář „Platné od“ v Historii poplatků: kliknutí na datum už editor nezavře a mimo povolený rozsah jej nelze vybrat.
 

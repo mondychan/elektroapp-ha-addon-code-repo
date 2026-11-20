@@ -15,6 +15,25 @@ const parseDateLocal = (dateStr) => {
   return Number.isNaN(dt.getTime()) ? null : dt;
 };
 
+// The snapshot keys the editor owns.  Anything else in a stored snapshot is
+// carried through untouched: the backend migration deliberately preserves
+// unknown fields, and the editor rewrites the whole history on every save, so
+// rebuilding from these keys alone would quietly drop them.
+const KNOWN_SNAPSHOT_KEYS = new Set([
+  "dph_percent",
+  "kwh_fees",
+  "fixed",
+  "prodej",
+  "nakup",
+  "dph",
+  "poplatky",
+  "fixni",
+  "koeficient_snizeni_ceny",
+]);
+
+const extraSnapshotKeys = (snapshot) =>
+  Object.fromEntries(Object.entries(snapshot).filter(([key]) => !KNOWN_SNAPSHOT_KEYS.has(key)));
+
 const toDraft = (entry) => {
   const snapshot = entry.snapshot || {};
   const kwh = snapshot.kwh_fees || {};
@@ -62,6 +81,7 @@ const toDraft = (entry) => {
       fixni_cena_enabled: !!nakup.fixni_cena_enabled,
       fixni_cena: nakup.fixni_cena == null ? "" : String(nakup.fixni_cena),
     },
+    extraSnapshot: extraSnapshotKeys(snapshot),
     isNew: false,
   };
 };
@@ -73,12 +93,17 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+// The fee-history API stores the canonical snapshot schema, not the raw
+// options layout: dph_percent / kwh_fees / fixed.  The legacy dph/poplatky/fixni
+// names are only accepted on read (normalize_fee_snapshot), so sending them to
+// PUT /fees-history fails validation with a 400 on every period.
 const toPayload = (draft) => {
   const payload = {
     effective_from: draft.effective_from,
     snapshot: {
-      dph: toNumber(draft.dph),
-      poplatky: {
+      ...(draft.extraSnapshot || {}),
+      dph_percent: toNumber(draft.dph),
+      kwh_fees: {
         komodita_sluzba: toNumber(draft.poplatky.komodita_sluzba),
         oze: toNumber(draft.poplatky.oze),
         dan: toNumber(draft.poplatky.dan),
@@ -88,11 +113,11 @@ const toPayload = (draft) => {
           VT: toNumber(draft.poplatky.distribuce.VT),
         },
       },
-      fixni: {
-        denni: {
+      fixed: {
+        daily: {
           staly_plat: toNumber(draft.fixni.denni.staly_plat),
         },
-        mesicni: {
+        monthly: {
           provoz_nesitove_infrastruktury: toNumber(draft.fixni.mesicni.provoz_nesitove_infrastruktury),
           jistic: toNumber(draft.fixni.mesicni.jistic),
         },
@@ -291,6 +316,7 @@ const FeesHistorySection = ({
         fixni_cena_enabled: !!base.nakup?.fixni_cena_enabled,
         fixni_cena: base.nakup?.fixni_cena ?? "",
       },
+      extraSnapshot: {},
       isNew: true,
     };
     setDrafts((prev) => [newEntry, ...prev]);
